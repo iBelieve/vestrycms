@@ -110,8 +110,9 @@ for development). Vestry adds invitations, the config-listed admins, a
 `lastLoginAt` field and the last-admin guards on top of the plugins.
 
 Commits are made through a GitHub App installed on the repository with
-**Contents: read and write**. Each commit is authored by the editor (name and
-email from their account) and committed by the app's bot.
+**Contents: read and write**. Commits are made by the app's bot, with the
+editor credited as a co-author (`Co-authored-by: Name <email>`), so GitHub
+shows both and the editor's account never needs push access.
 
 | Variable                        | Purpose                                                                                    |
 | ------------------------------- | ------------------------------------------------------------------------------------------ |

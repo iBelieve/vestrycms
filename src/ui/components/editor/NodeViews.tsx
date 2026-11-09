@@ -10,7 +10,7 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Field, Schema } from "../../../config/types.js";
 import { isRawExpression } from "../../../mdx/types.js";
 import { cx, fieldLabel, summarize } from "../../lib/utils.js";
@@ -26,15 +26,58 @@ function assetPath(field: { directory: string }, value: string): string {
   return assetToRepoPath(field, value, "");
 }
 
+/**
+ * Keeps a value in local state while also pushing it to the document.
+ *
+ * Node-view edits reach the document through a ProseMirror transaction, and
+ * the re-render with the new attrs arrives a tick later. A plain controlled
+ * input therefore sees its old value restored and then replaced, which
+ * throws the caret to the end on every keystroke. Local state re-renders
+ * synchronously; external changes (undo, a reload) still flow in because
+ * the document value is re-adopted whenever it differs from what we sent.
+ */
+function useDocumentValue<T>(
+  value: T,
+  commit: (next: T) => void,
+): [T, (next: T) => void] {
+  const [local, setLocal] = useState(value);
+  const sent = useRef(value);
+  useEffect(() => {
+    if (value !== sent.current && !deepEqual(value, sent.current)) {
+      sent.current = value;
+      setLocal(value);
+    }
+  }, [value]);
+  const update = useCallback(
+    (next: T) => {
+      sent.current = next;
+      setLocal(next);
+      commit(next);
+    },
+    [commit],
+  );
+  return [local, update];
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
 function PropsForm({
   schema,
-  props,
+  props: docProps,
   onChange,
 }: {
   schema: Schema;
   props: Record<string, unknown>;
   onChange: (props: Record<string, unknown>) => void;
 }) {
+  const [props, setProps] = useDocumentValue(docProps, onChange);
   const keys = new Set([...Object.keys(schema), ...Object.keys(props)]);
   return (
     <div className="v-fields">
@@ -56,7 +99,7 @@ function PropsForm({
                 value={raw ? value.$raw : JSON.stringify(value, null, 2)}
                 language="javascript"
                 rows={3}
-                onChange={(v) => onChange({ ...props, [key]: { $raw: v } })}
+                onChange={(v) => setProps({ ...props, [key]: { $raw: v } })}
               />
             </div>
           );
@@ -76,7 +119,7 @@ function PropsForm({
               path={key}
               field={field}
               value={value}
-              onChange={(v) => onChange({ ...props, [key]: v })}
+              onChange={(v) => setProps({ ...props, [key]: v })}
             />
           </div>
         );
@@ -108,6 +151,10 @@ export function ComponentNodeView({
   selected,
 }: ReactNodeViewProps) {
   const env = useEditorEnv();
+  const commitProps = useCallback(
+    (p: Record<string, unknown>) => updateAttributes({ props: p }),
+    [updateAttributes],
+  );
   const name = String(node.attrs.name);
   const config = env.components[name];
   const props = (node.attrs.props ?? {}) as Record<string, unknown>;
@@ -190,11 +237,7 @@ export function ComponentNodeView({
       </div>
       {open && hasProps && (
         <div className="v-block__props" contentEditable={false}>
-          <PropsForm
-            schema={schema}
-            props={props}
-            onChange={(p) => updateAttributes({ props: p })}
-          />
+          <PropsForm schema={schema} props={props} onChange={commitProps} />
         </div>
       )}
       {acceptsChildren && (
@@ -215,6 +258,10 @@ export function InlineComponentNodeView({
   deleteNode,
 }: ReactNodeViewProps) {
   const env = useEditorEnv();
+  const commitProps = useCallback(
+    (p: Record<string, unknown>) => updateAttributes({ props: p }),
+    [updateAttributes],
+  );
   const name = String(node.attrs.name);
   const config = env.components[name];
   const [editing, setEditing] = useState(false);
@@ -245,7 +292,7 @@ export function InlineComponentNodeView({
           <PropsForm
             schema={config?.props ?? {}}
             props={props}
-            onChange={(p) => updateAttributes({ props: p })}
+            onChange={commitProps}
           />
         </Modal>
       )}
@@ -271,7 +318,14 @@ export function RawBlockNodeView({
   const kind = String(node.attrs.kind ?? "expression");
   const [open, setOpen] = useState(false);
   const meta = RAW_LABELS[kind] ?? RAW_LABELS.expression;
-  const value = String(node.attrs.value ?? "");
+  const commitValue = useCallback(
+    (v: string) => updateAttributes({ value: v }),
+    [updateAttributes],
+  );
+  const [value, setValue] = useDocumentValue(
+    String(node.attrs.value ?? ""),
+    commitValue,
+  );
   return (
     <NodeViewWrapper
       className={cx("v-block v-block--raw", selected && "is-selected")}
@@ -312,7 +366,7 @@ export function RawBlockNodeView({
           <div className="v-block__code">
             <textarea
               value={value}
-              onChange={(e) => updateAttributes({ value: e.target.value })}
+              onChange={(e) => setValue(e.target.value)}
               spellCheck={false}
             />
           </div>

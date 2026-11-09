@@ -40,7 +40,7 @@ export interface CommitInfo {
 
 export interface CommitOptions {
   message: string;
-  /** Who made the change, for sources that record an author separately from the committer. */
+  /** Who made the change; sources that commit as a service account credit them (e.g. as a co-author). */
   author?: { name: string; email: string };
   /** Required for optimistic concurrency: the head the client last saw. */
   expectedHead?: string;

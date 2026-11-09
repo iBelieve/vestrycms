@@ -139,6 +139,11 @@ assert(
   "commit parents = previous head",
 );
 assert(commits.get(c1.sha)!.message === "Create Sermon: New", "commit message");
+assert(
+  !("author" in commits.get(c1.sha)!) ||
+    commits.get(c1.sha)!.author === undefined,
+  "no author override: the token's identity commits",
+);
 const t = trees.get(commits.get(c1.sha)!.tree)!;
 assert(
   !t.some((e) => e.path === "README.md"),
@@ -192,5 +197,26 @@ try {
   conflict = (e as { code?: string }).code === "conflict";
 }
 assert(conflict, "non-fast-forward ref update reported as conflict");
+const c3 = await src.commit(
+  [
+    {
+      path: "src/content/sermons/coauthor.mdx",
+      content: "---\ntitle: C\n---\n",
+    },
+  ],
+  {
+    message: "Update Sermon: C",
+    author: { name: "Pastor Example", email: "pastor@example.org" },
+  },
+);
+assert(
+  commits.get(c3.sha)!.message ===
+    "Update Sermon: C\n\nCo-authored-by: Pastor Example <pastor@example.org>",
+  "editor becomes a Co-authored-by trailer",
+);
+assert(
+  commits.get(c3.sha)!.author === undefined,
+  "author is not overridden on the commit",
+);
 server.close();
 console.log("all GitHub mock tests passed");

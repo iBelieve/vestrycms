@@ -1035,22 +1035,17 @@ a.v-chrome__chip:hover {
   display: inline-block;
 }
 .v-menu__panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
+  /* Portaled to <body> and positioned by Menu from the trigger's rect. */
+  position: fixed;
   min-width: 220px;
   background: var(--v-surface);
   border: 1px solid var(--v-border);
   border-radius: var(--v-radius);
   box-shadow: var(--v-shadow-lg);
   padding: 6px;
-  z-index: 50;
+  z-index: 80;
   max-height: 360px;
   overflow: auto;
-}
-.v-menu__panel--right {
-  left: auto;
-  right: 0;
 }
 .v-menu__item {
   display: flex;

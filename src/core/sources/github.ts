@@ -340,12 +340,12 @@ export class GitHubSource implements ContentSource {
     }>(`/repos/${this.repoPath}/git/commits`, {
       method: "POST",
       body: JSON.stringify({
-        message: options.message,
+        // Author and committer default to the token's identity (the GitHub
+        // App's bot). Setting `author` would make GitHub copy it into the
+        // committer too, so the editor is credited as a co-author instead.
+        message: withCoAuthor(options.message, options.author),
         tree: newTree.sha,
         parents: [head.sha],
-        // Attribute the commit to the editor; the committer stays whoever the
-        // token belongs to (the GitHub App's bot).
-        ...(options.author ? { author: options.author } : {}),
       }),
     });
     try {
@@ -382,4 +382,14 @@ export class GitHubSource implements ContentSource {
     );
     return { sha: commit.sha, url: commit.html_url };
   }
+}
+
+/** Appends a `Co-authored-by` trailer, which GitHub shows as a second author. */
+function withCoAuthor(
+  message: string,
+  author?: { name: string; email: string },
+): string {
+  if (!author?.email) return message;
+  const trailer = `Co-authored-by: ${author.name || author.email} <${author.email}>`;
+  return `${message.trimEnd()}\n\n${trailer}`;
 }

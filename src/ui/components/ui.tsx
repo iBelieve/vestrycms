@@ -15,6 +15,7 @@ import {
   Info,
   X,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { cx } from "../lib/utils.js";
 
 // ---------------------------------------------------------------- Button
@@ -264,22 +265,52 @@ export function Menu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{
+    top: number;
+    left?: number;
+    right?: number;
+  } | null>(null);
+
+  // The panel is portaled to <body> so table wrappers and scroll panes
+  // (overflow: auto/clip) can't crop it; it's positioned from the trigger.
+  const place = useCallback(() => {
+    const anchor = ref.current;
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    setPos(
+      align === "right"
+        ? { top: r.bottom + 6, right: window.innerWidth - r.right }
+        : { top: r.bottom + 6, left: r.left },
+    );
+  }, [align]);
+
   useEffect(() => {
     if (!open) return;
+    place();
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
+      const t = e.target as Node;
+      if (ref.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    // A scroll or resize while open closes the menu rather than leaving it
+    // floating away from its trigger.
+    const onMove = () => setOpen(false);
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
     };
-  }, [open]);
+  }, [open, place]);
+
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((o) => !o), []);
   const triggerNode = useMemo(
@@ -289,16 +320,18 @@ export function Menu({
   return (
     <div className="v-menu" ref={ref}>
       {triggerNode}
-      {open && (
-        <div
-          className={cx(
-            "v-menu__panel",
-            align === "right" && "v-menu__panel--right",
-          )}
-        >
-          {children(close)}
-        </div>
-      )}
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={panelRef}
+            className="v-menu__panel"
+            style={{ top: pos.top, left: pos.left, right: pos.right }}
+          >
+            {children(close)}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
