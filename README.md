@@ -23,13 +23,17 @@ React app served from your site at `/admin`, and every save is a commit.
 
 ## Setup
 
+Vestry needs Astro 6 or 7 and Node 22.12 or later. On Cloudflare, use Astro
+7.3.4 or later: earlier 7.x releases streamed on-demand pages in workerd as
+`[object Object]`, which breaks the `/admin` shell.
+
 ```sh
-pnpm add vestry
+pnpm add vestrycms
 ```
 
 ```ts
 // vestry.config.ts
-import { collection, component, defineConfig, fields } from "vestry/config";
+import { collection, component, defineConfig, fields } from "vestrycms/config";
 
 export default defineConfig({
   name: "My Site",
@@ -69,7 +73,7 @@ export default defineConfig({
 
 ```js
 // astro.config.mjs
-import vestry from "vestry";
+import vestry from "vestrycms";
 import vestryConfig from "./vestry.config";
 
 export default defineConfig({
@@ -139,7 +143,7 @@ GitHub App.
 ## How it works
 
 ```
-packages/vestry/src
+src
 ├── index.ts            Astro integration: routes, Vite plugin, dev middleware
 ├── config/             defineConfig / collection / component / fields
 ├── core/
@@ -154,7 +158,7 @@ packages/vestry/src
 │   └── values.ts       Asset path normalisation, auto fields
 ├── mdx/                MDX ⇄ ProseMirror document conversion
 ├── pages/              Injected routes: admin.astro shell, api.ts endpoint
-├── integration/        Build-time index, formatter module, dev bridge
+├── integration/        Build-time index, formatter module, dev bridge, client deps
 └── ui/                 React control panel (Tiptap, TanStack Query, react-router)
 ```
 
@@ -195,18 +199,6 @@ from the injected Astro endpoint in production. Both call the same
   the editor loaded. A changed SHA is reported as a conflict.
 - Uploads chosen from an image/file field are committed together with the
   entry in one commit.
-
-## Tests
-
-```sh
-pnpm test                                                  # github-mock, auth, github-app
-node --import tsx/esm test/auth.ts                         # sign-in, users and guards over HTTP (memory adapter)
-node --import tsx/esm test/github-app.ts                   # GitHub App JWT + installation token cache
-node --import tsx/esm test/roundtrip.ts path/to/file.mdx   # MDX round-trip
-node --import tsx/esm test/github-mock.ts                  # commit sequencing against a fake API
-GH_TOKEN=… node --import tsx/esm test/github-read.ts       # live read path
-GH_TOKEN=… node --import tsx/esm test/github-write.ts      # live commits on a throwaway branch
-```
 
 ## Editor sections
 
@@ -305,3 +297,53 @@ freshly uploaded images before they are committed.
 `crop`, `focalPoint`, `tree`.
 Fields accept `label`, `description`, `required`, `sidebar`, `hidden`,
 `readOnly` and `width` (`full` | `half` | `third`).
+
+## Development
+
+```sh
+pnpm install
+pnpm build       # src/ → dist/ (tsc, plus admin.astro, styles.css, env.d.ts)
+pnpm typecheck
+pnpm test
+pnpm format:check
+```
+
+The package is published as compiled JavaScript in `dist/`; `src/` is not
+shipped. `scripts/build.mjs` runs `tsc -p tsconfig.build.json`, copies the
+files tsc doesn't emit (pointing `admin.astro`'s client script at the
+compiled UI), and fails if `src/integration/client-deps.ts` doesn't list
+exactly the packages the control panel imports in the browser. The
+integration pre-bundles those through Vite's optimizer: an installed Astro
+integration is excluded from it, and dev would otherwise serve CommonJS
+dependencies such as `react/jsx-runtime` raw.
+
+To work on Vestry against a site, run `pnpm dev` here (an initial build, then
+`tsc --watch`) and link the package from the site:
+
+```sh
+pnpm link ../vestrycms
+```
+
+### Tests
+
+```sh
+pnpm test                                                  # github-mock, auth, github-app
+node --import tsx/esm test/auth.ts                         # sign-in, users and guards over HTTP (memory adapter)
+node --import tsx/esm test/github-app.ts                   # GitHub App JWT + installation token cache
+node --import tsx/esm test/roundtrip.ts path/to/file.mdx   # MDX round-trip
+node --import tsx/esm test/github-mock.ts                  # commit sequencing against a fake API
+GH_TOKEN=… node --import tsx/esm test/github-read.ts       # live read path
+GH_TOKEN=… node --import tsx/esm test/github-write.ts      # live commits on a throwaway branch
+```
+
+### Releasing
+
+1. Bump `version` in `package.json` and commit.
+2. Publish a GitHub release tagged `v<version>`. The **Publish** workflow
+   checks the tag against `package.json`, runs the checks and publishes to
+   npm with provenance through npm trusted publishing (configure it on
+   npmjs.com for this repository and `publish.yml`).
+
+The first release has to be published by hand, since npm only offers trusted
+publishing for a package that exists: `pnpm publish` (which builds first via
+`prepack`).

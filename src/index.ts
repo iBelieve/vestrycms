@@ -13,6 +13,7 @@ import { formatterModule } from "./integration/formatter.js";
 import { nodeToFetchHandler } from "./integration/dev-middleware.js";
 import { LocalSource } from "./core/sources/local.js";
 import { consoleMailer } from "./core/mail.js";
+import { clientDependencies } from "./integration/client-deps.js";
 
 export type { VestryConfig } from "./config/types.js";
 export {
@@ -175,16 +176,23 @@ export default function vestry(
           },
         };
 
-        updateConfig({ vite: { plugins: [plugin] } });
+        updateConfig({
+          vite: {
+            plugins: [plugin],
+            optimizeDeps: {
+              include: clientDependencies.map((dep) => `vestrycms > ${dep}`),
+            },
+          },
+        });
 
         injectRoute({
           pattern: `${basePath}/api/[...path]`,
-          entrypoint: "vestry/pages/api.ts",
+          entrypoint: "vestrycms/pages/api",
           prerender: false,
         });
         injectRoute({
           pattern: `${basePath}/[...path]`,
-          entrypoint: "vestry/pages/admin.astro",
+          entrypoint: "vestrycms/pages/admin.astro",
           prerender: false,
         });
       },

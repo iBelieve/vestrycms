@@ -1,37 +1,74 @@
 {
-  "name": "vestry",
+  "name": "vestrycms",
   "version": "0.1.0",
   "description": "A git-backed CMS for Astro. Content, assets and configuration live in your repository; the control panel runs as an Astro integration.",
   "license": "MIT",
+  "author": "Michael Spencer",
+  "homepage": "https://github.com/iBelieve/vestrycms#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iBelieve/vestrycms.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iBelieve/vestrycms/issues"
+  },
   "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "keywords": [
     "astro",
     "astro-integration",
     "cms",
     "git",
     "github",
-    "mdx"
+    "mdx",
+    "cloudflare",
+    "withastro"
   ],
   "exports": {
-    ".": "./src/index.ts",
-    "./config": "./src/config/index.ts",
-    "./pages/admin.astro": "./src/pages/admin.astro",
-    "./pages/api.ts": "./src/pages/api.ts",
-    "./ui": "./src/ui/main.tsx",
-    "./core": "./src/core/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "default": "./dist/config/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./pages/admin.astro": "./dist/pages/admin.astro",
+    "./pages/api": {
+      "types": "./dist/pages/api.d.ts",
+      "default": "./dist/pages/api.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "src"
+    "dist"
   ],
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx/esm test/github-mock.ts && node --import tsx/esm test/auth.ts && node --import tsx/esm test/github-app.ts",
-    "test:roundtrip": "node --import tsx/esm test/roundtrip.ts"
+    "test:roundtrip": "node --import tsx/esm test/roundtrip.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepack": "node scripts/build.mjs"
   },
   "peerDependencies": {
     "astro": "^6.0.0 || ^7.0.0",
     "prettier": "^3.0.0",
     "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "prettier": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
@@ -66,22 +103,24 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router": "^7.9.0",
-    "yaml": "^2.8.0"
+    "yaml": "^2.8.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/estree": "^1.0.8",
     "@types/mdast": "^4.0.4",
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/unist": "^3.0.3",
-    "prettier": "^3.6.0",
-    "tsx": "^4.20.0",
-    "vite": "^8.1.0"
+    "astro": "^7.4.3",
+    "prettier": "^3.9.10",
+    "prettier-plugin-astro": "^1.1.2",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5"
   },
-  "peerDependenciesMeta": {
-    "prettier": {
-      "optional": true
-    }
+  "publishConfig": {
+    "access": "public"
   }
 }

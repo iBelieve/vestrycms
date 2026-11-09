@@ -1,0 +1,6 @@
+minimumReleaseAge: 10080
+autoInstallPeers: true
+strictPeerDependencies: false
+allowBuilds:
+  esbuild: true
+  sharp: true
