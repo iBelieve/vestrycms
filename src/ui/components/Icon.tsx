@@ -1,0 +1,85 @@
+import {
+  AlignLeft,
+  AppWindow,
+  BookOpen,
+  Box,
+  Clapperboard,
+  Columns2,
+  File,
+  FileText,
+  Files,
+  Folder,
+  GalleryHorizontal,
+  Heading,
+  Image,
+  Images,
+  LayoutGrid,
+  Link,
+  List,
+  ListOrdered,
+  Mail,
+  Map,
+  MapPin,
+  Menu,
+  MousePointerClick,
+  Newspaper,
+  Palette,
+  Quote,
+  Rows3,
+  ScrollText,
+  Settings2,
+  Sparkles,
+  Table,
+  Tag,
+  Users,
+  Video,
+  type LucideProps,
+} from "lucide-react";
+
+type IconComponent = React.ComponentType<LucideProps>;
+
+/**
+ * Icons available by name in config (`icon: "book-open"`). A curated set
+ * keeps the control panel bundle small; unknown names fall back to a file.
+ */
+export const ICONS: Record<string, IconComponent> = {
+  "align-left": AlignLeft,
+  "app-window": AppWindow,
+  "book-open": BookOpen,
+  box: Box,
+  clapperboard: Clapperboard,
+  "columns-2": Columns2,
+  file: File,
+  "file-text": FileText,
+  files: Files,
+  folder: Folder,
+  "gallery-horizontal": GalleryHorizontal,
+  heading: Heading,
+  image: Image,
+  images: Images,
+  "layout-grid": LayoutGrid,
+  link: Link,
+  list: List,
+  "list-ordered": ListOrdered,
+  mail: Mail,
+  map: Map,
+  "map-pin": MapPin,
+  menu: Menu,
+  "mouse-pointer-click": MousePointerClick,
+  newspaper: Newspaper,
+  palette: Palette,
+  quote: Quote,
+  "rows-3": Rows3,
+  "scroll-text": ScrollText,
+  "settings-2": Settings2,
+  sparkles: Sparkles,
+  table: Table,
+  tag: Tag,
+  users: Users,
+  video: Video,
+};
+
+export function Icon({ name, ...props }: { name?: string } & LucideProps) {
+  const Cmp = (name && ICONS[name]) || File;
+  return <Cmp strokeWidth={1.9} {...props} />;
+}
