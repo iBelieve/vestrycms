@@ -4,7 +4,7 @@
  * Vite's dependency optimizer, and the optimizer then skips its imports too,
  * so dev would serve these raw: CommonJS ones such as `react/jsx-runtime`
  * fail to load. The integration pre-bundles them explicitly as
- * `vestry > dep`, which resolves each from this package. `pnpm build`
+ * `vestrycms > dep`, which resolves each from this package. `pnpm build`
  * checks this list against the compiled UI's imports.
  */
 export const clientDependencies = [
