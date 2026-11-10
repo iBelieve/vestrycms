@@ -10,8 +10,9 @@ repository.
 over D1). It is published to npm as **`vestry`**; sites import `vestry` and
 `vestry/config`. The repository was `iBelieve/vestrycms` before it was
 renamed; GitHub redirects the old URLs. `README.md` documents the
-configuration, architecture and field types. It was extracted from `iBelieve/mluther.org` (`packages/vestry`),
-which remains its main consumer; keep it free of site-specific code.
+configuration, architecture and field types. It was extracted from
+`iBelieve/mluther.org` (`packages/vestry`), which remains its main consumer;
+keep it free of site-specific code.
 
 ## Commands
 
