@@ -1,0 +1,709 @@
+import type {
+  AssetContainerConfig,
+  CollectionConfig,
+  Schema,
+  SingletonConfig,
+  VestryConfig,
+} from "../config/types.js";
+import { applyAutoFields, toEditorValues, toStoredValues } from "./values.js";
+import {
+  parseEntry,
+  parseEntryList,
+  serializeEntry,
+  serializeEntryList,
+  splitFrontmatter,
+} from "./entries.js";
+import type { BuildIndex } from "./index-types.js";
+import {
+  basename,
+  collectionFormat,
+  dirname,
+  entryPath,
+  extname,
+  fillTemplate,
+  isSafeRepoPath,
+  isSafeSlug,
+  joinPath,
+  normalizePath,
+  parsePathPattern,
+  slugFromPath,
+  slugify,
+} from "./paths.js";
+import {
+  base64Decode,
+  gitBlobSha,
+  SourceError,
+  toText,
+  type ContentSource,
+  type FileChange,
+  type TreeEntry,
+} from "./source.js";
+
+export interface EntrySummary {
+  slug: string;
+  path: string;
+  sha: string;
+  title: string;
+  data: Record<string, unknown>;
+  status: "published" | "draft" | null;
+  excerpt?: string;
+}
+
+export interface EntryDetail extends EntrySummary {
+  body: string;
+  /** Head commit when the entry was read, for conflict detection. */
+  head: string;
+}
+
+export interface Upload {
+  /** Repository path to write the file to. */
+  path: string;
+  /** Base64 file contents. */
+  base64: string;
+}
+
+export interface SaveEntryInput {
+  data: Record<string, unknown>;
+  body?: string;
+  /**
+   * Full file text composed (and formatted) by the client. When present it is
+   * written verbatim; `data`/`body` are still used for slugs and messages.
+   */
+  raw?: string;
+  /** Slug for a new entry (otherwise derived from the slug template / title). */
+  slug?: string;
+  /** Blob SHA the client last saw for this entry (omit for new entries). */
+  sha?: string | null;
+  uploads?: Upload[];
+  message?: string;
+}
+
+export interface AssetItem {
+  name: string;
+  path: string;
+  sha: string;
+  size?: number;
+  kind: "image" | "file";
+  ext: string;
+}
+
+const IMAGE_EXTS = new Set([
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "avif",
+  "svg",
+]);
+
+export class ContentService {
+  constructor(
+    public config: VestryConfig,
+    public source: ContentSource,
+    private index: BuildIndex,
+  ) {}
+
+  collection(key: string): CollectionConfig {
+    const c = this.config.collections?.[key];
+    if (!c)
+      throw new SourceError(`Unknown collection "${key}"`, 404, "not_found");
+    return c;
+  }
+
+  singleton(key: string): SingletonConfig {
+    const s = this.config.singletons?.[key];
+    if (!s)
+      throw new SourceError(`Unknown singleton "${key}"`, 404, "not_found");
+    return s;
+  }
+
+  assetContainer(key: string): AssetContainerConfig {
+    const a = this.config.assets?.[key];
+    if (!a)
+      throw new SourceError(
+        `Unknown asset container "${key}"`,
+        404,
+        "not_found",
+      );
+    return a;
+  }
+
+  // ---------------------------------------------------------------- entries
+
+  async listEntries(key: string): Promise<EntrySummary[]> {
+    const col = this.collection(key);
+    const pattern = parsePathPattern(col.path);
+    const format = collectionFormat(col);
+
+    if (pattern.single) {
+      const file = await this.source.read(pattern.prefix);
+      if (!file) return [];
+      const items = parseEntryList(format, toText(file.bytes));
+      const idField = col.idField ?? "id";
+      return items.map((data) => {
+        const slug = String(data[idField] ?? "");
+        return {
+          slug,
+          path: pattern.prefix,
+          sha: file.sha,
+          title: this.titleOf(col, data, slug),
+          data: toEditorValues(col.schema, data, pattern.prefix),
+          status: statusOf(col, data),
+        };
+      });
+    }
+
+    const files = (await this.source.list(pattern.directory)).filter(
+      (f) => slugFromPath(pattern, f.path) !== null,
+    );
+    const summaries = await Promise.all(
+      files.map(async (f) => {
+        const { data, excerpt } = await this.frontmatterFor(f, format);
+        const slug = slugFromPath(pattern, f.path)!;
+        return {
+          slug,
+          path: f.path,
+          sha: f.sha,
+          title: this.titleOf(col, data, slug),
+          data: toEditorValues(col.schema, data, f.path),
+          status: statusOf(col, data),
+          excerpt,
+        } satisfies EntrySummary;
+      }),
+    );
+    return sortEntries(col, summaries);
+  }
+
+  /**
+   * Frontmatter for a file: served from the build-time index when the blob
+   * SHA still matches, otherwise read from the source.
+   */
+  private async frontmatterFor(
+    file: TreeEntry,
+    format: CollectionConfig["format"] & string,
+  ): Promise<{ data: Record<string, unknown>; excerpt?: string }> {
+    const indexed = this.index.files[file.path];
+    if (indexed && indexed.sha === file.sha) {
+      return { data: indexed.data, excerpt: indexed.excerpt };
+    }
+    const data = await this.source.read(file.path);
+    if (!data) return { data: {} };
+    const text = toText(data.bytes);
+    const parsed = parseEntry(format, text);
+    return { data: parsed.data, excerpt: makeExcerpt(parsed.body) };
+  }
+
+  async getEntry(key: string, slug: string): Promise<EntryDetail | null> {
+    const col = this.collection(key);
+    const pattern = parsePathPattern(col.path);
+    const format = collectionFormat(col);
+    const head = await this.source.head();
+
+    if (pattern.single) {
+      const file = await this.source.read(pattern.prefix);
+      if (!file) return null;
+      const items = parseEntryList(format, toText(file.bytes));
+      const idField = col.idField ?? "id";
+      const data = items.find((i) => String(i[idField]) === slug);
+      if (!data) return null;
+      return {
+        slug,
+        path: pattern.prefix,
+        sha: file.sha,
+        title: this.titleOf(col, data, slug),
+        data: toEditorValues(col.schema, data, pattern.prefix),
+        status: statusOf(col, data),
+        body: "",
+        head,
+      };
+    }
+
+    if (!isSafeSlug(slug))
+      throw new SourceError("Invalid slug", 400, "bad_slug");
+    const path = entryPath(pattern, slug);
+    const file = await this.source.read(path);
+    if (!file) return null;
+    const parsed = parseEntry(format, toText(file.bytes));
+    return {
+      slug,
+      path,
+      sha: file.sha,
+      title: this.titleOf(col, parsed.data, slug),
+      data: toEditorValues(col.schema, parsed.data, path),
+      status: statusOf(col, parsed.data),
+      body: parsed.body,
+      head,
+    };
+  }
+
+  async saveEntry(
+    key: string,
+    slug: string | null,
+    input: SaveEntryInput,
+  ): Promise<{ slug: string; sha: string; commit: string; path: string }> {
+    const col = this.collection(key);
+    const pattern = parsePathPattern(col.path);
+    const format = collectionFormat(col);
+    const isNew = slug === null;
+
+    let data = applyAutoFields(col.schema, { ...input.data });
+
+    if (pattern.single) {
+      const idField = col.idField ?? "id";
+      const file = await this.source.read(pattern.prefix);
+      const items = file ? parseEntryList(format, toText(file.bytes)) : [];
+      if (file && input.sha && input.sha !== file.sha) {
+        throw new SourceError(
+          "This file changed since you opened it.",
+          409,
+          "conflict",
+        );
+      }
+      const id = String(data[idField] ?? slug ?? this.newSlug(col, data));
+      if (!id)
+        throw new SourceError(
+          `Entries need an "${idField}"`,
+          400,
+          "validation",
+        );
+      data[idField] = id;
+      const stored = toStoredValues(col.schema, data, pattern.prefix);
+      const existingIdx = items.findIndex(
+        (i) => String(i[idField]) === (slug ?? id),
+      );
+      if (isNew && existingIdx !== -1) {
+        throw new SourceError(
+          `An entry with id "${id}" already exists`,
+          409,
+          "exists",
+        );
+      }
+      if (existingIdx === -1) items.push(stored);
+      else items[existingIdx] = stored;
+      const text = serializeEntryList(format, items);
+      const changes: FileChange[] = [
+        { path: pattern.prefix, content: text },
+        ...uploadChanges(input.uploads),
+      ];
+      const commit = await this.source.commit(changes, {
+        message: this.commitMessage(
+          col,
+          isNew ? "Create" : "Update",
+          id,
+          this.titleOf(col, data, id),
+          key,
+          input.message,
+        ),
+      });
+      return {
+        slug: id,
+        sha: await gitBlobSha(text),
+        commit: commit.sha,
+        path: pattern.prefix,
+      };
+    }
+
+    const finalSlug = slug ?? (input.slug?.trim() || this.newSlug(col, data));
+    if (!isSafeSlug(finalSlug))
+      throw new SourceError(`Invalid slug "${finalSlug}"`, 400, "bad_slug");
+    const path = entryPath(pattern, finalSlug);
+    const existing = await this.source.read(path);
+    if (isNew && existing) {
+      throw new SourceError(
+        `An entry at "${path}" already exists`,
+        409,
+        "exists",
+      );
+    }
+    if (!isNew && existing && input.sha && input.sha !== existing.sha) {
+      throw new SourceError(
+        "This entry changed since you opened it.",
+        409,
+        "conflict",
+      );
+    }
+    const stored = toStoredValues(col.schema, data, path);
+    const text =
+      input.raw ??
+      serializeEntry(format, { data: stored, body: input.body ?? "" });
+    const changes: FileChange[] = [
+      { path, content: text },
+      ...uploadChanges(input.uploads),
+    ];
+    const commit = await this.source.commit(changes, {
+      message: this.commitMessage(
+        col,
+        isNew ? "Create" : "Update",
+        finalSlug,
+        this.titleOf(col, data, finalSlug),
+        key,
+        input.message,
+      ),
+    });
+    return {
+      slug: finalSlug,
+      sha: await gitBlobSha(text),
+      commit: commit.sha,
+      path,
+    };
+  }
+
+  async deleteEntry(key: string, slug: string): Promise<{ commit: string }> {
+    const col = this.collection(key);
+    if (col.delete === false)
+      throw new SourceError(
+        "Deleting is disabled for this collection",
+        403,
+        "forbidden",
+      );
+    const pattern = parsePathPattern(col.path);
+    const format = collectionFormat(col);
+    if (pattern.single) {
+      const idField = col.idField ?? "id";
+      const file = await this.source.read(pattern.prefix);
+      const items = file ? parseEntryList(format, toText(file.bytes)) : [];
+      const next = items.filter((i) => String(i[idField]) !== slug);
+      if (next.length === items.length)
+        throw new SourceError("Entry not found", 404, "not_found");
+      const commit = await this.source.commit(
+        [{ path: pattern.prefix, content: serializeEntryList(format, next) }],
+        { message: this.commitMessage(col, "Delete", slug, slug, key) },
+      );
+      return { commit: commit.sha };
+    }
+    if (!isSafeSlug(slug))
+      throw new SourceError("Invalid slug", 400, "bad_slug");
+    const path = entryPath(pattern, slug);
+    const commit = await this.source.commit([{ path, delete: true }], {
+      message: this.commitMessage(col, "Delete", slug, slug, key),
+    });
+    return { commit: commit.sha };
+  }
+
+  // -------------------------------------------------------------- singletons
+
+  async getSingleton(key: string): Promise<EntryDetail> {
+    const s = this.singleton(key);
+    const format = collectionFormat(s);
+    const path = normalizePath(s.path);
+    const head = await this.source.head();
+    const file = await this.source.read(path);
+    const parsed = file
+      ? parseEntry(format, toText(file.bytes))
+      : { data: {}, body: "" };
+    return {
+      slug: key,
+      path,
+      sha: file?.sha ?? "",
+      title: s.label,
+      data: toEditorValues(s.schema, parsed.data, path),
+      status: null,
+      body: parsed.body,
+      head,
+    };
+  }
+
+  async saveSingleton(
+    key: string,
+    input: SaveEntryInput,
+  ): Promise<{ sha: string; commit: string }> {
+    const s = this.singleton(key);
+    const format = collectionFormat(s);
+    const path = normalizePath(s.path);
+    const existing = await this.source.read(path);
+    if (existing && input.sha && input.sha !== existing.sha) {
+      throw new SourceError(
+        "This file changed since you opened it.",
+        409,
+        "conflict",
+      );
+    }
+    const data = applyAutoFields(s.schema, { ...input.data });
+    const stored = toStoredValues(s.schema, data, path);
+    const text =
+      input.raw ??
+      serializeEntry(format, { data: stored, body: input.body ?? "" });
+    const commit = await this.source.commit(
+      [{ path, content: text }, ...uploadChanges(input.uploads)],
+      {
+        message:
+          input.message ??
+          fillTemplate(
+            s.commitMessage ?? this.config.commitMessage ?? "Update {title}",
+            {
+              action: "Update",
+              title: s.label,
+              slug: key,
+              collection: key,
+            },
+          ),
+      },
+    );
+    return { sha: await gitBlobSha(text), commit: commit.sha };
+  }
+
+  // ------------------------------------------------------------------ assets
+
+  async listAssets(
+    containerKey: string,
+    subdir = "",
+  ): Promise<{ items: AssetItem[]; folders: string[] }> {
+    const container = this.assetContainer(containerKey);
+    const dir = joinPath(container.directory, subdir);
+    if (
+      !isSafeRepoPath(dir) ||
+      !dir.startsWith(normalizePath(container.directory))
+    ) {
+      throw new SourceError("Invalid directory", 400, "bad_path");
+    }
+    const files = await this.source.list(dir);
+    const items: AssetItem[] = [];
+    const folders = new Set<string>();
+    const prefix = `${dir}/`;
+    for (const f of files) {
+      const rest = f.path.slice(prefix.length);
+      const slash = rest.indexOf("/");
+      if (slash !== -1) {
+        folders.add(rest.slice(0, slash));
+        continue;
+      }
+      if (rest.startsWith(".")) continue;
+      const ext = extname(rest);
+      items.push({
+        name: rest,
+        path: f.path,
+        sha: f.sha,
+        size: f.size,
+        ext,
+        kind: IMAGE_EXTS.has(ext) ? "image" : "file",
+      });
+    }
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    return { items, folders: [...folders].sort() };
+  }
+
+  async uploadAssets(
+    containerKey: string,
+    subdir: string,
+    files: { name: string; base64: string }[],
+  ): Promise<{ commit: string; paths: string[] }> {
+    const container = this.assetContainer(containerKey);
+    const dir = joinPath(container.directory, subdir);
+    const changes: FileChange[] = [];
+    const paths: string[] = [];
+    for (const f of files) {
+      const name = safeFileName(f.name);
+      const ext = extname(name);
+      const accept = container.accept;
+      if (accept && !accept.includes(ext)) {
+        throw new SourceError(
+          `"${name}" is not an accepted file type`,
+          400,
+          "validation",
+        );
+      }
+      const path = joinPath(dir, name);
+      if (!isSafeRepoPath(path))
+        throw new SourceError("Invalid file name", 400, "bad_path");
+      changes.push({ path, content: base64Decode(f.base64) });
+      paths.push(path);
+    }
+    const commit = await this.source.commit(changes, {
+      message:
+        files.length === 1
+          ? `Upload ${basename(paths[0])} to ${dir}`
+          : `Upload ${files.length} files to ${dir}`,
+    });
+    return { commit: commit.sha, paths };
+  }
+
+  async deleteAsset(
+    containerKey: string,
+    path: string,
+  ): Promise<{ commit: string }> {
+    const container = this.assetContainer(containerKey);
+    const n = normalizePath(path);
+    if (
+      !n.startsWith(`${normalizePath(container.directory)}/`) ||
+      !isSafeRepoPath(n)
+    ) {
+      throw new SourceError(
+        "Path is outside the asset container",
+        400,
+        "bad_path",
+      );
+    }
+    const commit = await this.source.commit([{ path: n, delete: true }], {
+      message: `Delete ${basename(n)}`,
+    });
+    return { commit: commit.sha };
+  }
+
+  /** Raw file read restricted to configured asset containers and entry directories. */
+  async readFile(
+    path: string,
+  ): Promise<{ bytes: Uint8Array; sha: string } | null> {
+    const n = normalizePath(path);
+    if (!isSafeRepoPath(n))
+      throw new SourceError("Invalid path", 400, "bad_path");
+    const allowed = this.allowedDirectories().some((d) =>
+      n.startsWith(`${d}/`),
+    );
+    if (!allowed)
+      throw new SourceError(
+        "Path is not readable through Vestry",
+        403,
+        "forbidden",
+      );
+    return this.source.read(n);
+  }
+
+  allowedDirectories(): string[] {
+    const dirs = new Set<string>();
+    if (this.config.logo && !/^https?:\/\//.test(this.config.logo)) {
+      dirs.add(dirname(normalizePath(this.config.logo)));
+    }
+    for (const a of Object.values(this.config.assets ?? {}))
+      dirs.add(normalizePath(a.directory));
+    const addSchemaDirs = (schema: Schema) => {
+      for (const f of Object.values(schema)) {
+        if (f.type === "image" || f.type === "file")
+          dirs.add(normalizePath(f.directory));
+        if (f.type === "object") addSchemaDirs(f.fields);
+        if (f.type === "array") addSchemaDirs({ item: f.of });
+      }
+    };
+    for (const c of Object.values(this.config.collections ?? {}))
+      addSchemaDirs(c.schema);
+    for (const s of Object.values(this.config.singletons ?? {}))
+      addSchemaDirs(s.schema);
+    for (const c of Object.values(this.config.components ?? {}))
+      addSchemaDirs(c.props ?? {});
+    return [...dirs];
+  }
+
+  // ----------------------------------------------------------------- helpers
+
+  titleOf(
+    col: CollectionConfig,
+    data: Record<string, unknown>,
+    slug: string,
+  ): string {
+    const v = data[col.titleField ?? "title"];
+    return typeof v === "string" && v.trim() ? v : slug;
+  }
+
+  newSlug(col: CollectionConfig, data: Record<string, unknown>): string {
+    const template = col.slug?.template;
+    if (template) return fillTemplate(template, data, { slug: true });
+    const from = col.slug?.from ?? col.titleField ?? "title";
+    const v = data[from];
+    const s =
+      v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? "");
+    const slug = slugify(s);
+    if (!slug)
+      throw new SourceError(
+        `Cannot derive a slug from "${from}"`,
+        400,
+        "validation",
+      );
+    return slug;
+  }
+
+  commitMessage(
+    col: CollectionConfig,
+    action: string,
+    slug: string,
+    title: string,
+    collection: string,
+    override?: string,
+  ): string {
+    if (override?.trim()) return override.trim();
+    const template =
+      col.commitMessage ??
+      this.config.commitMessage ??
+      "{action} {singular}: {title}";
+    return fillTemplate(template, {
+      action,
+      slug,
+      title,
+      collection,
+      label: col.label,
+      singular: col.singular ?? col.label,
+    });
+  }
+}
+
+function statusOf(
+  col: CollectionConfig,
+  data: Record<string, unknown>,
+): "published" | "draft" | null {
+  if (!col.status) return null;
+  const publishedWhen = col.status.publishedWhen ?? true;
+  const field = col.schema[col.status.field];
+  const fallback = field?.type === "boolean" ? (field.default ?? false) : false;
+  const v = data[col.status.field];
+  const bool =
+    typeof v === "boolean"
+      ? v
+      : v === undefined || v === null
+        ? fallback
+        : Boolean(v);
+  return bool === publishedWhen ? "published" : "draft";
+}
+
+function sortEntries(
+  col: CollectionConfig,
+  entries: EntrySummary[],
+): EntrySummary[] {
+  const sort = col.sort;
+  const dir = sort?.direction === "asc" ? 1 : -1;
+  const field = sort?.field;
+  return [...entries].sort((a, b) => {
+    const av = field ? sortable(a.data[field]) : a.slug;
+    const bv = field ? sortable(b.data[field]) : b.slug;
+    if (av === bv) return a.slug < b.slug ? -dir : dir;
+    return av < bv ? -dir : dir;
+  });
+}
+
+function sortable(v: unknown): string | number {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number") return v;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  return String(v ?? "");
+}
+
+function makeExcerpt(body: string): string | undefined {
+  const text = body
+    .replace(/^import .*$/gm, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[#*_>`[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text ? text.slice(0, 200) : undefined;
+}
+
+function uploadChanges(uploads: Upload[] | undefined): FileChange[] {
+  return (uploads ?? []).map((u) => {
+    if (!isSafeRepoPath(u.path))
+      throw new SourceError(`Invalid upload path "${u.path}"`, 400, "bad_path");
+    return { path: normalizePath(u.path), content: base64Decode(u.base64) };
+  });
+}
+
+export function safeFileName(name: string): string {
+  const base = basename(name.replace(/\\/g, "/"));
+  const ext = extname(base);
+  const stem = base.slice(0, ext ? base.length - ext.length - 1 : undefined);
+  const cleanStem = stem
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+  return ext ? `${cleanStem || "file"}.${ext}` : cleanStem || "file";
+}
+
+export { splitFrontmatter };
