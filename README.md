@@ -1,4 +1,4 @@
-# Vestry
+# Vestry CMS
 
 A git-backed CMS for [Astro](https://astro.build), built as an Astro
 integration. Content, assets and configuration live in your repository;
@@ -28,12 +28,12 @@ Vestry needs Astro 6 or 7 and Node 22.12 or later. On Cloudflare, use Astro
 `[object Object]`, which breaks the `/admin` shell.
 
 ```sh
-pnpm add vestrycms
+pnpm add vestry
 ```
 
 ```ts
 // vestry.config.ts
-import { collection, component, defineConfig, fields } from "vestrycms/config";
+import { collection, component, defineConfig, fields } from "vestry/config";
 
 export default defineConfig({
   name: "My Site",
@@ -73,7 +73,7 @@ export default defineConfig({
 
 ```js
 // astro.config.mjs
-import vestry from "vestrycms";
+import vestry from "vestry";
 import vestryConfig from "./vestry.config";
 
 export default defineConfig({
@@ -321,7 +321,7 @@ To work on Vestry against a site, run `pnpm dev` here (an initial build, then
 `tsc --watch`) and link the package from the site:
 
 ```sh
-pnpm link ../vestrycms
+pnpm link ../vestry
 ```
 
 ### Tests

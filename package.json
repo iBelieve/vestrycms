@@ -1,16 +1,16 @@
 {
-  "name": "vestrycms",
+  "name": "vestry",
   "version": "0.1.0",
   "description": "A git-backed CMS for Astro. Content, assets and configuration live in your repository; the control panel runs as an Astro integration.",
   "license": "MIT",
   "author": "Michael Spencer",
-  "homepage": "https://github.com/iBelieve/vestrycms#readme",
+  "homepage": "https://github.com/iBelieve/vestry#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/iBelieve/vestrycms.git"
+    "url": "git+https://github.com/iBelieve/vestry.git"
   },
   "bugs": {
-    "url": "https://github.com/iBelieve/vestrycms/issues"
+    "url": "https://github.com/iBelieve/vestry/issues"
   },
   "type": "module",
   "packageManager": "pnpm@11.9.0",

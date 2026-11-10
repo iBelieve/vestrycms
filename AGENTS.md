@@ -5,11 +5,12 @@ repository.
 
 ## Project
 
-**Vestry** is a git-backed CMS built as an Astro integration (React control
-panel, Tiptap MDX editor, GitHub backend, Better Auth sign-in over D1). It is
-published to npm as **`vestrycms`**; sites import `vestrycms` and
-`vestrycms/config`. `README.md` documents the configuration, architecture and
-field types. It was extracted from `iBelieve/mluther.org` (`packages/vestry`),
+**Vestry** (Vestry CMS) is a git-backed CMS built as an Astro integration
+(React control panel, Tiptap MDX editor, GitHub backend, Better Auth sign-in
+over D1). It is published to npm as **`vestry`**; sites import `vestry` and
+`vestry/config`. The repository was `iBelieve/vestrycms` before it was
+renamed; GitHub redirects the old URLs. `README.md` documents the
+configuration, architecture and field types. It was extracted from `iBelieve/mluther.org` (`packages/vestry`),
 which remains its main consumer; keep it free of site-specific code.
 
 ## Commands
@@ -29,13 +30,13 @@ which remains its main consumer; keep it free of site-specific code.
 
 - Only `dist/` is published. Exports: `.`, `./config`, `./core`,
   `./pages/admin.astro`, `./pages/api`. The integration injects its routes
-  by package specifier (`vestrycms/pages/...`), so the package name and
+  by package specifier (`vestry/pages/...`), so the package name and
   these exports must stay in step.
 - Relative imports use `.js` extensions so tsc output runs as-is.
 - When the control panel gains or drops a browser dependency, update
   `src/integration/client-deps.ts`; the build fails until it matches. The
   integration feeds that list to Vite's `optimizeDeps.include` as
-  `vestrycms > dep`, because Astro excludes installed integrations from the
+  `vestry > dep`, because Astro excludes installed integrations from the
   optimizer and dev would otherwise serve CommonJS deps raw.
 - `zod` is a direct dependency only so declaration emit can name Better
   Auth's zod types (TS2883); keep its range in line with `better-auth`'s.

@@ -180,19 +180,19 @@ export default function vestry(
           vite: {
             plugins: [plugin],
             optimizeDeps: {
-              include: clientDependencies.map((dep) => `vestrycms > ${dep}`),
+              include: clientDependencies.map((dep) => `vestry > ${dep}`),
             },
           },
         });
 
         injectRoute({
           pattern: `${basePath}/api/[...path]`,
-          entrypoint: "vestrycms/pages/api",
+          entrypoint: "vestry/pages/api",
           prerender: false,
         });
         injectRoute({
           pattern: `${basePath}/[...path]`,
-          entrypoint: "vestrycms/pages/admin.astro",
+          entrypoint: "vestry/pages/admin.astro",
           prerender: false,
         });
       },
