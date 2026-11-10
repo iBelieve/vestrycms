@@ -8,9 +8,8 @@ repository.
 **Vestry** (Vestry CMS) is a git-backed CMS built as an Astro integration
 (React control panel, Tiptap MDX editor, GitHub backend, Better Auth sign-in
 over D1). The repository is `iBelieve/vestrycms`, and it is published to npm
-as **`vestrycms`** (npm rejects `vestry` as too similar to existing
-packages); sites import `vestrycms` and `vestrycms/config`. `README.md` documents the
-configuration, architecture and field types. It was extracted from
+as **`vestrycms`**; sites import `vestrycms` and `vestrycms/config`.
+`README.md` documents the configuration, architecture and field types. It was extracted from
 `iBelieve/mluther.org` (`packages/vestry`), which remains its main consumer;
 keep it free of site-specific code.
 
