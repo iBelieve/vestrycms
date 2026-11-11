@@ -1,8 +1,8 @@
-import { GitHubSource } from "../src/core/sources/github.ts";
-import { ContentService } from "../src/core/service.ts";
-import { buildIndex } from "../src/integration/build-index.ts";
-import config from "../../../vestry.config.ts";
-import { toText } from "../src/core/source.ts";
+import { GitHubSource } from "../../src/core/sources/github.ts";
+import { ContentService } from "../../src/core/service.ts";
+import { buildIndex } from "../../src/integration/build-index.ts";
+import config from "../../../../vestry.config.ts";
+import { toText } from "../../src/core/source.ts";
 
 const src = new GitHubSource({
   owner: "iBelieve",
@@ -28,7 +28,7 @@ console.log(
 
 // Service with a build-time index: listing should need no blob fetches for unchanged files.
 const index = await buildIndex(
-  new URL("../../../", import.meta.url).pathname,
+  new URL("../../../../", import.meta.url).pathname,
   config,
 );
 const svc = new ContentService(config, src, index);

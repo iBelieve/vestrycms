@@ -3,6 +3,7 @@
  * checking the blob → tree → commit → ref sequence and payloads.
  */
 import { createServer } from "node:http";
+import { afterAll, describe, expect, it } from "vitest";
 import { GitHubSource } from "../src/core/sources/github.ts";
 import { base64Decode, toText } from "../src/core/source.ts";
 
@@ -99,6 +100,7 @@ const server = createServer(async (req, res) => {
   json(404, { message: `unhandled ${req.method} ${p}` });
 });
 await new Promise<void>((r) => server.listen(0, r));
+afterAll(() => void server.close());
 const port = (server.address() as { port: number }).port;
 
 const src = new GitHubSource({
@@ -108,115 +110,114 @@ const src = new GitHubSource({
   token: "tok",
   apiBase: `http://127.0.0.1:${port}`,
 });
-const assert = (cond: unknown, msg: string) => {
-  if (!cond) throw new Error(`FAIL: ${msg}`);
-  console.log(`ok   ${msg}`);
-};
 
-assert((await src.head()) === baseCommit, "head resolves");
-assert(
-  (await src.list("src/content/sermons")).length === 1,
-  "list filters by directory",
-);
-assert(
-  toText((await src.read("src/content/sermons/old.mdx"))!.bytes).includes(
-    "Old",
-  ),
-  "read blob",
-);
 const png = new Uint8Array([137, 80, 78, 71, 0, 1, 2, 3]);
-const c1 = await src.commit(
-  [
-    { path: "src/content/sermons/new.mdx", content: "---\ntitle: New\n---\n" },
-    { path: "src/assets/x.png", content: png },
-    { path: "README.md", delete: true },
-  ],
-  { message: "Create Sermon: New" },
-);
-assert(head === c1.sha, "ref updated to new commit");
-assert(
-  commits.get(c1.sha)!.parents[0] === baseCommit,
-  "commit parents = previous head",
-);
-assert(commits.get(c1.sha)!.message === "Create Sermon: New", "commit message");
-assert(
-  !("author" in commits.get(c1.sha)!) ||
-    commits.get(c1.sha)!.author === undefined,
-  "no author override: the token's identity commits",
-);
-const t = trees.get(commits.get(c1.sha)!.tree)!;
-assert(
-  !t.some((e) => e.path === "README.md"),
-  "deleted path removed from tree",
-);
-assert(
-  t.some((e) => e.path === "src/assets/x.png"),
-  "binary added to tree",
-);
-assert((await src.head()) === c1.sha, "cached head advanced without refetch");
-const back = await src.read("src/assets/x.png");
-assert(
-  back!.bytes.length === png.length &&
-    back!.bytes.every((b, i) => b === png[i]),
-  "binary round-trips via cache",
-);
-const c2 = await src.commit(
-  [
-    {
-      path: "src/content/sermons/new.mdx",
-      content: "---\ntitle: Newer\n---\n",
-    },
-  ],
-  { message: "Update" },
-);
-assert(
-  commits.get(c2.sha)!.parents[0] === c1.sha,
-  "second commit chains on first",
-);
-assert(
-  toText((await src.read("src/content/sermons/new.mdx"))!.bytes).includes(
-    "Newer",
-  ),
-  "read after update sees new content",
-);
-const order = log
-  .filter((l) => l.startsWith("POST") || l.startsWith("PATCH"))
-  .slice(0, 5)
-  .join(" → ");
-assert(
-  order ===
-    "POST /repos/o/r/git/blobs → POST /repos/o/r/git/blobs → POST /repos/o/r/git/trees → POST /repos/o/r/git/commits → PATCH /repos/o/r/git/refs/heads/main",
-  `write sequence: ${order}`,
-);
-// Simulate someone else pushing: a stale cached head must surface as a conflict.
-head = baseCommit;
-let conflict = false;
-try {
-  await src.commit([{ path: "a.txt", content: "x" }], { message: "stale" });
-} catch (e) {
-  conflict = (e as { code?: string }).code === "conflict";
-}
-assert(conflict, "non-fast-forward ref update reported as conflict");
-const c3 = await src.commit(
-  [
-    {
-      path: "src/content/sermons/coauthor.mdx",
-      content: "---\ntitle: C\n---\n",
-    },
-  ],
-  {
-    message: "Update Sermon: C",
-    author: { name: "Pastor Example", email: "pastor@example.org" },
-  },
-);
-assert(
-  commits.get(c3.sha)!.message ===
-    "Update Sermon: C\n\nCo-authored-by: Pastor Example <pastor@example.org>",
-  "editor becomes a Co-authored-by trailer",
-);
-assert(
-  commits.get(c3.sha)!.author === undefined,
-  "author is not overridden on the commit",
-);
-server.close();
-console.log("all GitHub mock tests passed");
+const text = async (path: string) => toText((await src.read(path))!.bytes);
+
+describe("GitHubSource reads", () => {
+  it("resolves the branch head", async () => {
+    expect(await src.head()).toBe(baseCommit);
+  });
+
+  it("lists files under a directory", async () => {
+    expect(await src.list("src/content/sermons")).toHaveLength(1);
+  });
+
+  it("reads a blob", async () => {
+    expect(await text("src/content/sermons/old.mdx")).toContain("Old");
+  });
+});
+
+// The commits below build on each other, so these tests run in order.
+describe("GitHubSource.commit", () => {
+  let c1: { sha: string };
+
+  it("writes blobs, a tree and a commit, then moves the ref", async () => {
+    log.length = 0;
+    c1 = await src.commit(
+      [
+        {
+          path: "src/content/sermons/new.mdx",
+          content: "---\ntitle: New\n---\n",
+        },
+        { path: "src/assets/x.png", content: png },
+        { path: "README.md", delete: true },
+      ],
+      { message: "Create Sermon: New" },
+    );
+    expect(head).toBe(c1.sha);
+    expect(log.filter((l) => !l.startsWith("GET"))).toEqual([
+      "POST /repos/o/r/git/blobs",
+      "POST /repos/o/r/git/blobs",
+      "POST /repos/o/r/git/trees",
+      "POST /repos/o/r/git/commits",
+      "PATCH /repos/o/r/git/refs/heads/main",
+    ]);
+    const commit = commits.get(c1.sha)!;
+    expect(commit.parents).toEqual([baseCommit]);
+    expect(commit.message).toBe("Create Sermon: New");
+  });
+
+  it("leaves the author to the token's identity", () => {
+    expect(
+      (commits.get(c1.sha) as { author?: unknown }).author,
+    ).toBeUndefined();
+  });
+
+  it("applies deletes and binary additions to the tree", () => {
+    const paths = trees.get(commits.get(c1.sha)!.tree)!.map((e) => e.path);
+    expect(paths).not.toContain("README.md");
+    expect(paths).toContain("src/assets/x.png");
+  });
+
+  it("advances the cached head without refetching", async () => {
+    expect(await src.head()).toBe(c1.sha);
+  });
+
+  it("round-trips binary content", async () => {
+    const back = await src.read("src/assets/x.png");
+    expect([...back!.bytes]).toEqual([...png]);
+  });
+
+  it("chains a second commit on the first", async () => {
+    const c2 = await src.commit(
+      [
+        {
+          path: "src/content/sermons/new.mdx",
+          content: "---\ntitle: Newer\n---\n",
+        },
+      ],
+      { message: "Update" },
+    );
+    expect(commits.get(c2.sha)!.parents).toEqual([c1.sha]);
+    expect(await text("src/content/sermons/new.mdx")).toContain("Newer");
+  });
+
+  it("reports a non-fast-forward ref update as a conflict", async () => {
+    // Someone else pushed: the cached head is now stale.
+    head = baseCommit;
+    await expect(
+      src.commit([{ path: "a.txt", content: "x" }], { message: "stale" }),
+    ).rejects.toMatchObject({ code: "conflict" });
+  });
+
+  it("records the editor as a Co-authored-by trailer", async () => {
+    const c3 = await src.commit(
+      [
+        {
+          path: "src/content/sermons/coauthor.mdx",
+          content: "---\ntitle: C\n---\n",
+        },
+      ],
+      {
+        message: "Update Sermon: C",
+        author: { name: "Pastor Example", email: "pastor@example.org" },
+      },
+    );
+    const commit = commits.get(c3.sha) as { message: string; author?: unknown };
+    expect(commit.message).toBe(
+      "Update Sermon: C\n\nCo-authored-by: Pastor Example <pastor@example.org>",
+    );
+    expect(commit.author).toBeUndefined();
+  });
+});

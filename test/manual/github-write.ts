@@ -2,8 +2,8 @@
  * Exercises GitHubSource.commit on a throwaway branch, then deletes it.
  * Needs GH_TOKEN with push access. Never touches real branches.
  */
-import { GitHubSource } from "../src/core/sources/github.ts";
-import { toText } from "../src/core/source.ts";
+import { GitHubSource } from "../../src/core/sources/github.ts";
+import { toText } from "../../src/core/source.ts";
 
 const token = process.env.GH_TOKEN!;
 const owner = "iBelieve";

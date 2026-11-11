@@ -6,5 +6,5 @@
     "strictNullChecks": true,
     "noEmit": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "test/**/*.test.ts", "vitest.config.ts"]
 }

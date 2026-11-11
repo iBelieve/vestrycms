@@ -3,13 +3,13 @@
  * back, formats both sides with the project's Prettier config, and reports
  * whether the round trip is lossless. Usage:
  *
- *   node --import tsx/esm test/roundtrip.ts path/to/file.mdx [...]
+ *   node --import tsx/esm test/manual/roundtrip.ts path/to/file.mdx [...]
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { splitFrontmatter } from "../src/core/entries.ts";
-import { parseMdx, serializeMdx } from "../src/mdx/index.ts";
+import { splitFrontmatter } from "../../src/core/entries.ts";
+import { parseMdx, serializeMdx } from "../../src/mdx/index.ts";
 
 const require = createRequire(import.meta.url);
 let prettier: typeof import("prettier") | null = null;

@@ -326,14 +326,31 @@ pnpm link ../vestrycms
 
 ### Tests
 
+Tests use [Vitest](https://vitest.dev). Files matching `test/**/*.test.ts`
+run in CI; `pnpm typecheck` covers them too.
+
 ```sh
-pnpm test                                                  # github-mock, auth, github-app
-node --import tsx/esm test/auth.ts                         # sign-in, users and guards over HTTP (memory adapter)
-node --import tsx/esm test/github-app.ts                   # GitHub App JWT + installation token cache
-node --import tsx/esm test/roundtrip.ts path/to/file.mdx   # MDX round-trip
-node --import tsx/esm test/github-mock.ts                  # commit sequencing against a fake API
-GH_TOKEN=… node --import tsx/esm test/github-read.ts       # live read path
-GH_TOKEN=… node --import tsx/esm test/github-write.ts      # live commits on a throwaway branch
+pnpm test                    # run the suite once
+pnpm test:watch              # re-run on change
+pnpm test mdx                # only files whose path matches "mdx"
+pnpm test -u                 # update snapshots after an intended change
+```
+
+- `test/auth.test.ts`: sign-in, users and guards over HTTP (memory adapter).
+- `test/github-source.test.ts`: commit sequencing against a fake Git Data API.
+- `test/github-app.test.ts`: GitHub App JWT and installation token cache.
+- `test/mdx.test.ts`: MDX round trips. Each file in `test/fixtures/mdx` must
+  survive parse → serialize byte for byte, so write fixtures in the
+  serializer's canonical style (`_emphasis_`, `-` bullets, blank lines around
+  component children). Prettier skips that directory. Known gaps are
+  `it.fails` tests; move them into the fixtures once fixed.
+
+`test/manual` holds scripts that run outside the suite:
+
+```sh
+pnpm test:roundtrip path/to/file.mdx                       # round-trip a site's content through Prettier
+GH_TOKEN=… node --import tsx/esm test/manual/github-read.ts   # live read path
+GH_TOKEN=… node --import tsx/esm test/manual/github-write.ts  # live commits on a throwaway branch
 ```
 
 ### Releasing
