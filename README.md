@@ -342,8 +342,11 @@ pnpm test -u                 # update snapshots after an intended change
 - `test/mdx.test.ts`: MDX round trips. Each file in `test/fixtures/mdx` must
   survive parse → serialize byte for byte, so write fixtures in the
   serializer's canonical style (`_emphasis_`, `-` bullets, blank lines around
-  component children). Prettier skips that directory. Known gaps are
-  `it.fails` tests; move them into the fixtures once fixed.
+  component children). Prettier skips that directory. Record a known gap as
+  an `it.fails` test and move it into the fixtures once fixed.
+- `test/editor-schema.test.ts`: the same fixtures pass through the editor's
+  Tiptap schema (`src/ui/components/editor/schema.ts`) without losing node
+  types or attributes, so a page saved from the editor matches its source.
 
 The auth and GitHub source tests are ordered scenarios that build on shared
 state, so filter them by file, not by test name (`-t`).

@@ -1,14 +1,9 @@
-import { TableKit } from "@tiptap/extension-table";
-import Subscript from "@tiptap/extension-subscript";
-import Superscript from "@tiptap/extension-superscript";
-import { Placeholder } from "@tiptap/extensions";
 import {
   EditorContent,
   useEditor,
   useEditorState,
   type Editor,
 } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
   Code,
@@ -50,16 +45,7 @@ import {
   useEditorEnv,
   type EditorEnv,
 } from "./EditorContext.js";
-import {
-  MdxComponent,
-  MdxEsm,
-  MdxExpression,
-  MdxImage,
-  MdxInlineComponent,
-  MdxInlineExpression,
-  RawHtml,
-  RawInlineHtml,
-} from "./extensions.js";
+import { editorExtensions } from "./schema.js";
 
 export interface RichTextEditorProps {
   value: string;
@@ -148,28 +134,11 @@ function EditorInner({
   const initialDoc = useMemo(() => parse(value), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const extensions = useMemo(
-    () => [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3, 4] },
-        link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
-        codeBlock: { languageClassPrefix: "language-" },
-        dropcursor: { color: "var(--v-primary)", width: 2 },
+    () =>
+      editorExtensions({
+        resolveSrc: (src) => env.resolveImage?.(src) ?? src,
+        placeholder,
       }),
-      Superscript,
-      Subscript,
-      MdxImage.configure({
-        resolveSrc: (src: string) => env.resolveImage?.(src) ?? src,
-      }),
-      TableKit.configure({ table: { resizable: false } }),
-      Placeholder.configure({ placeholder: placeholder ?? "Start writing…" }),
-      MdxComponent,
-      MdxInlineComponent,
-      MdxExpression,
-      MdxInlineExpression,
-      MdxEsm,
-      RawHtml,
-      RawInlineHtml,
-    ],
     [env, placeholder],
   );
 

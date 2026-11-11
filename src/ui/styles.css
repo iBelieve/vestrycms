@@ -1696,6 +1696,24 @@ a.v-chrome__chip:hover {
   padding: 0 4px;
   border-radius: 3px;
 }
+.v-footnote-reference {
+  font-family: var(--v-mono);
+  font-size: 0.7em;
+  color: #4338ca;
+}
+.v-footnote-definition {
+  position: relative;
+  margin: 0.75em 0;
+  padding-left: 1em;
+  border-left: 2px solid #c7d2fe;
+}
+.v-footnote-definition::before {
+  content: attr(data-label);
+  display: block;
+  font-family: var(--v-mono);
+  font-size: 0.75em;
+  color: #4338ca;
+}
 
 /* source editor */
 .v-source-editor .cm-editor {

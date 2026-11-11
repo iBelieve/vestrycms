@@ -1,4 +1,4 @@
-import { Node, mergeAttributes } from "@tiptap/core";
+import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import {
@@ -168,6 +168,103 @@ export const MdxImage = Image.extend<
         HTMLAttributes,
         { src: this.options.resolveSrc(src), "data-src": src },
       ),
+    ];
+  },
+});
+
+/**
+ * List attributes from Markdown that StarterKit's lists lack: whether a list
+ * is loose (blank lines between items; tightening it changes the rendered
+ * HTML) and a task item's checkbox (`- [ ]` / `- [x]`).
+ */
+export const ListAttributes = Extension.create({
+  name: "listAttributes",
+  addGlobalAttributes() {
+    return [
+      {
+        types: ["bulletList", "orderedList"],
+        attributes: {
+          spread: {
+            default: false,
+            parseHTML: (el) => el.hasAttribute("data-spread"),
+            renderHTML: (attrs) => (attrs.spread ? { "data-spread": "" } : {}),
+          },
+        },
+      },
+      {
+        types: ["listItem"],
+        attributes: {
+          checked: {
+            default: null,
+            parseHTML: (el) => {
+              const v = el.getAttribute("data-checked");
+              return v === null ? null : v === "true";
+            },
+            renderHTML: (attrs) =>
+              typeof attrs.checked === "boolean"
+                ? { "data-checked": String(attrs.checked) }
+                : {},
+          },
+        },
+      },
+    ];
+  },
+});
+
+const footnoteAttributes = {
+  identifier: { default: "" },
+  label: { default: "" },
+};
+
+/** A GFM footnote definition, `[^label]: ...`. */
+export const FootnoteDefinition = Node.create({
+  name: "footnoteDefinition",
+  group: "block",
+  content: "block+",
+  defining: true,
+  isolating: true,
+  addAttributes() {
+    return footnoteAttributes;
+  },
+  parseHTML() {
+    return [{ tag: "div[data-footnote-definition]" }];
+  },
+  renderHTML({ HTMLAttributes, node }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        "data-footnote-definition": "",
+        "data-label": `[^${node.attrs.label}]`,
+        class: "v-footnote-definition",
+      }),
+      0,
+    ];
+  },
+});
+
+/** A GFM footnote reference, `[^label]`. */
+export const FootnoteReference = Node.create({
+  name: "footnoteReference",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return footnoteAttributes;
+  },
+  parseHTML() {
+    // Ahead of Superscript's `sup` rule, or a pasted reference turns into
+    // superscript text.
+    return [{ tag: "sup[data-footnote-reference]", priority: 60 }];
+  },
+  renderHTML({ HTMLAttributes, node }) {
+    return [
+      "sup",
+      mergeAttributes(HTMLAttributes, {
+        "data-footnote-reference": "",
+        class: "v-footnote-reference",
+      }),
+      `[^${node.attrs.label}]`,
     ];
   },
 });

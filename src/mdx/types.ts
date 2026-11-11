@@ -35,6 +35,8 @@ export interface ImportSpec {
   from: string;
   /** Default or named import. */
   named?: boolean;
+  /** Exported name of a named import when it differs from `name` (`import { imported as name }`). */
+  imported?: string;
 }
 
 export interface ParsedDocument {

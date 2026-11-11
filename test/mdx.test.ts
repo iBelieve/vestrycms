@@ -3,18 +3,9 @@
  * back. Fixtures in test/fixtures/mdx are written in the serializer's canonical
  * style, so a lossless round trip reproduces them byte for byte.
  */
-import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseMdx, serializeMdx } from "../src/mdx/index.js";
-
-const dir = new URL("./fixtures/mdx/", import.meta.url);
-const fixtures = readdirSync(dir)
-  .filter((f) => /\.mdx?$/.test(f))
-  .map((name) => ({
-    name,
-    source: readFileSync(new URL(name, dir), "utf8"),
-    format: name.endsWith(".mdx") ? ("mdx" as const) : ("md" as const),
-  }));
+import { fixtures } from "./mdx-fixtures.js";
 
 function roundTrip(source: string, format: "md" | "mdx" = "mdx") {
   const parsed = parseMdx(source, { format });
@@ -77,6 +68,14 @@ describe("imports", () => {
     );
   });
 
+  it("keeps comments in an import block", () => {
+    const source =
+      'import A from "./a.ts";\n// Keep me.\nexport const x = 1;\n\n<A />\n';
+    expect(roundTrip(source)).toBe(
+      'import A from "./a.ts";\n\n// Keep me.\nexport const x = 1;\n\n<A />\n',
+    );
+  });
+
   it("drops imports for components the document no longer uses", () => {
     const parsed = parseMdx('import Callout from "./Callout.astro";\n\nText\n');
     expect(serializeMdx(parsed.doc, { existingImports: parsed.imports })).toBe(
@@ -85,30 +84,63 @@ describe("imports", () => {
   });
 });
 
-// Known gaps: these fail today. Vitest reports them if they start passing,
-// so move them into the fixtures once fixed.
-describe("known gaps", () => {
-  it.fails("keeps footnotes", () => {
-    const source = "Text[^1].\n\n[^1]: The note.\n";
-    expect(roundTrip(source, "md")).toBe(source);
+describe("lists", () => {
+  it("loosens a list when an item's blocks need a blank line", () => {
+    // Kind 7 HTML would otherwise join the paragraph before it.
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { spread: false },
+          content: [
+            {
+              type: "listItem",
+              content: [
+                { type: "paragraph", content: [{ type: "text", text: "One" }] },
+                { type: "rawHtml", attrs: { value: "<span>" } },
+              ],
+            },
+            {
+              type: "listItem",
+              content: [
+                { type: "paragraph", content: [{ type: "text", text: "Two" }] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(serializeMdx(doc, { format: "md" })).toBe(
+      "- One\n\n  <span>\n\n- Two\n",
+    );
   });
 
-  it.fails("keeps loose lists loose", () => {
-    const source = "- One\n\n  More.\n\n- Two\n";
-    expect(roundTrip(source, "md")).toBe(source);
-  });
-
-  // Only components count as uses, so the import is dropped and the
-  // expression no longer compiles.
-  it.fails("keeps imports used only in expressions", () => {
-    const source = 'import data from "./data.json";\n\n{data.title}\n';
-    expect(roundTrip(source)).toBe(source);
-  });
-
-  // Comes back as a wrong default import plus the original statement, so B is
-  // declared twice.
-  it.fails("keeps aliased named imports", () => {
-    const source = 'import { A as B } from "./x.ts";\n\n<B />\n';
-    expect(roundTrip(source)).toBe(source);
+  it("loosens a list when an item holds two paragraphs", () => {
+    // The editor can put two paragraphs in an item of a tight list; written
+    // tight they would merge into one.
+    const paragraph = (text: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    });
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { spread: false },
+          content: [
+            {
+              type: "listItem",
+              content: [paragraph("One"), paragraph("More")],
+            },
+            { type: "listItem", content: [paragraph("Two")] },
+          ],
+        },
+      ],
+    };
+    expect(serializeMdx(doc, { format: "md" })).toBe(
+      "- One\n\n  More\n\n- Two\n",
+    );
   });
 });

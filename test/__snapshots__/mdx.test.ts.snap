@@ -163,6 +163,9 @@ exports[`fixtures > basics.md parses to the expected document 1`] = `
         "type": "paragraph",
       },
       {
+        "attrs": {
+          "spread": false,
+        },
         "content": [
           {
             "attrs": {},
@@ -192,6 +195,9 @@ exports[`fixtures > basics.md parses to the expected document 1`] = `
                 "type": "paragraph",
               },
               {
+                "attrs": {
+                  "spread": false,
+                },
                 "content": [
                   {
                     "attrs": {},
@@ -219,6 +225,7 @@ exports[`fixtures > basics.md parses to the expected document 1`] = `
       },
       {
         "attrs": {
+          "spread": false,
           "start": 1,
         },
         "content": [
@@ -531,11 +538,223 @@ exports[`fixtures > components.mdx parses to the expected document 1`] = `
 }
 `;
 
+exports[`fixtures > footnotes.md parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "content": [
+          {
+            "text": "Text with a note",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "identifier": "1",
+              "label": "1",
+            },
+            "type": "footnoteReference",
+          },
+          {
+            "text": " and a ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "italic",
+              },
+            ],
+            "text": "named",
+            "type": "text",
+          },
+          {
+            "text": " one",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "identifier": "named",
+              "label": "Named",
+            },
+            "type": "footnoteReference",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "identifier": "1",
+          "label": "1",
+        },
+        "content": [
+          {
+            "content": [
+              {
+                "text": "The note.",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
+          },
+        ],
+        "type": "footnoteDefinition",
+      },
+      {
+        "attrs": {
+          "identifier": "named",
+          "label": "Named",
+        },
+        "content": [
+          {
+            "content": [
+              {
+                "text": "A longer note.",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
+          },
+          {
+            "content": [
+              {
+                "text": "With a second paragraph.",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
+          },
+        ],
+        "type": "footnoteDefinition",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
+
+exports[`fixtures > imports.mdx parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "attrs": {
+          "value": "import Icons, * as icons from "./icons.ts";",
+        },
+        "type": "mdxEsm",
+      },
+      {
+        "attrs": {
+          "value": "export const title = data.title;",
+        },
+        "type": "mdxEsm",
+      },
+      {
+        "attrs": {
+          "level": 1,
+        },
+        "content": [
+          {
+            "attrs": {
+              "value": "title",
+            },
+            "type": "mdxInlineExpression",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "attrs": {
+          "hasChildren": false,
+          "name": "B",
+          "props": {},
+          "spreads": [],
+        },
+        "content": [],
+        "type": "mdxComponent",
+      },
+      {
+        "attrs": {
+          "hasChildren": false,
+          "name": "ui.Badge",
+          "props": {},
+          "spreads": [],
+        },
+        "content": [],
+        "type": "mdxComponent",
+      },
+      {
+        "attrs": {
+          "hasChildren": false,
+          "name": "Card",
+          "props": {
+            "date": {
+              "$raw": "formatDate(data.date)",
+            },
+          },
+          "spreads": [],
+        },
+        "content": [],
+        "type": "mdxComponent",
+      },
+      {
+        "attrs": {
+          "hasChildren": false,
+          "name": "Icons",
+          "props": {
+            "name": {
+              "$raw": "icons.cross",
+            },
+          },
+          "spreads": [],
+        },
+        "content": [],
+        "type": "mdxComponent",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {
+    "B": {
+      "from": "./x.ts",
+      "imported": "A",
+      "name": "B",
+      "named": true,
+    },
+    "Card": {
+      "from": "./Card.astro",
+      "name": "Card",
+    },
+    "data": {
+      "from": "./data.json",
+      "name": "data",
+    },
+    "formatDate": {
+      "from": "../lib/dates.ts",
+      "name": "formatDate",
+      "named": true,
+    },
+    "ui": {
+      "from": "./ui.ts",
+      "name": "ui",
+    },
+  },
+}
+`;
+
 exports[`fixtures > lists.md parses to the expected document 1`] = `
 {
   "doc": {
     "content": [
       {
+        "attrs": {
+          "spread": false,
+        },
         "content": [
           {
             "attrs": {
@@ -576,6 +795,7 @@ exports[`fixtures > lists.md parses to the expected document 1`] = `
       },
       {
         "attrs": {
+          "spread": false,
           "start": 3,
         },
         "content": [
@@ -613,6 +833,9 @@ exports[`fixtures > lists.md parses to the expected document 1`] = `
         "type": "orderedList",
       },
       {
+        "attrs": {
+          "spread": false,
+        },
         "content": [
           {
             "attrs": {},
@@ -627,6 +850,9 @@ exports[`fixtures > lists.md parses to the expected document 1`] = `
                 "type": "paragraph",
               },
               {
+                "attrs": {
+                  "spread": false,
+                },
                 "content": [
                   {
                     "attrs": {},
@@ -642,6 +868,7 @@ exports[`fixtures > lists.md parses to the expected document 1`] = `
                       },
                       {
                         "attrs": {
+                          "spread": false,
                           "start": 1,
                         },
                         "content": [
@@ -674,6 +901,103 @@ exports[`fixtures > lists.md parses to the expected document 1`] = `
           },
         ],
         "type": "bulletList",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
+
+exports[`fixtures > loose-lists.md parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "attrs": {
+          "spread": true,
+        },
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "One",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+              {
+                "content": [
+                  {
+                    "text": "More about one.",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Two",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "attrs": {
+          "spread": true,
+          "start": 1,
+        },
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "First",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Second",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "orderedList",
       },
     ],
     "type": "doc",
