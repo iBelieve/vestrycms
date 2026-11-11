@@ -105,13 +105,14 @@ function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
       };
     case "list": {
       const items = node.children.map((item) => listItem(item, ctx));
+      const spread = Boolean(node.spread);
       return node.ordered
         ? {
             type: "orderedList",
-            attrs: { start: node.start ?? 1 },
+            attrs: { start: node.start ?? 1, spread },
             content: items,
           }
-        : { type: "bulletList", content: items };
+        : { type: "bulletList", attrs: { spread }, content: items };
     }
     case "code":
       return {
@@ -124,8 +125,13 @@ function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
     case "table":
       return table(node, ctx);
     case "definition":
-    case "footnoteDefinition":
       return null;
+    case "footnoteDefinition":
+      return {
+        type: "footnoteDefinition",
+        attrs: footnoteAttrs(node),
+        content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
+      };
     case "mdxJsxFlowElement":
       return jsxElement(node, ctx, false);
     case "mdxFlowExpression":
@@ -144,6 +150,10 @@ function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
 
 function ensureBlocks(content: PMNode[]): PMNode[] {
   return content.length ? content : [{ type: "paragraph" }];
+}
+
+function footnoteAttrs(node: Md.FootnoteDefinition | Md.FootnoteReference) {
+  return { identifier: node.identifier, label: node.label ?? node.identifier };
 }
 
 function listItem(item: Md.ListItem, ctx: Ctx): PMNode {
@@ -177,50 +187,62 @@ function table(node: Md.Table, ctx: Ctx): PMNode {
 
 function esm(node: MdxjsEsm, ctx: Ctx): PMNode | null {
   const program = node.data?.estree as ES.Program | undefined;
-  const leftovers: string[] = [];
-  if (program) {
-    for (const stmt of program.body) {
-      if (
-        stmt.type === "ImportDeclaration" &&
-        typeof stmt.source.value === "string"
-      ) {
-        let recognized = true;
-        for (const spec of stmt.specifiers) {
-          if (spec.type === "ImportDefaultSpecifier") {
-            ctx.imports[spec.local.name] = {
-              name: spec.local.name,
-              from: stmt.source.value,
-            };
-          } else if (spec.type === "ImportSpecifier") {
-            const imported =
-              spec.imported.type === "Identifier"
-                ? spec.imported.name
-                : String(spec.imported.value);
-            ctx.imports[spec.local.name] = {
-              name: spec.local.name,
-              from: stmt.source.value,
-              named: imported === spec.local.name ? true : undefined,
-            };
-            if (imported !== spec.local.name) recognized = false;
-          } else {
-            recognized = false;
-          }
-        }
-        if (recognized && stmt.specifiers.length) continue;
-      }
-      const start = (stmt as ES.Node & { start?: number }).start;
-      const end = (stmt as ES.Node & { end?: number }).end;
-      leftovers.push(
-        typeof start === "number" && typeof end === "number"
-          ? node.value.slice(start, end)
-          : node.value,
-      );
-    }
-  } else {
-    leftovers.push(node.value);
+  // Estree offsets count from the start of the file, not of this block.
+  const base = node.position?.start.offset;
+  if (!program || typeof base !== "number")
+    return { type: "mdxEsm", attrs: { value: node.value } };
+  // Cut recognized imports out of the block's source; everything else,
+  // comments and blank lines included, stays as written.
+  let rest = "";
+  let pos = 0;
+  for (const stmt of program.body) {
+    const { start, end } = stmt as ES.Node & { start?: number; end?: number };
+    if (typeof start !== "number" || typeof end !== "number") continue;
+    if (!recordImport(stmt, ctx)) continue;
+    rest += node.value.slice(pos, start - base);
+    pos = end - base;
+    // Drop the rest of the line when only whitespace follows the import.
+    const eol = /^[ \t]*(\r?\n|$)/.exec(node.value.slice(pos));
+    if (eol) pos += eol[0].length;
   }
-  if (!leftovers.length) return null;
-  return { type: "mdxEsm", attrs: { value: leftovers.join("\n") } };
+  rest = (rest + node.value.slice(pos)).trim();
+  return rest ? { type: "mdxEsm", attrs: { value: rest } } : null;
+}
+
+/**
+ * Record an import statement's bindings if all of them can be re-emitted from
+ * ImportSpecs; the caller then drops the statement. Otherwise it is kept
+ * verbatim.
+ */
+function recordImport(stmt: ES.Node, ctx: Ctx): boolean {
+  if (
+    stmt.type !== "ImportDeclaration" ||
+    typeof stmt.source.value !== "string"
+  )
+    return false;
+  const from = stmt.source.value;
+  const specs: ImportSpec[] = [];
+  for (const spec of stmt.specifiers) {
+    if (spec.type === "ImportDefaultSpecifier") {
+      specs.push({ name: spec.local.name, from });
+    } else if (spec.type === "ImportSpecifier") {
+      const imported =
+        spec.imported.type === "Identifier"
+          ? spec.imported.name
+          : String(spec.imported.value);
+      specs.push({
+        name: spec.local.name,
+        from,
+        named: true,
+        ...(imported === spec.local.name ? {} : { imported }),
+      });
+    } else {
+      return false;
+    }
+  }
+  if (!specs.length) return false;
+  for (const spec of specs) ctx.imports[spec.name] = spec;
+  return true;
 }
 
 function attrsToProps(
@@ -398,7 +420,10 @@ function inlineNode(node: AnyNode, ctx: Ctx, marks: PMMark[]): PMNode[] {
       return [{ type: "rawInlineHtml", attrs: { value: node.value } }];
     case "footnoteReference":
       return [
-        withMarks({ type: "text", text: `[^${node.identifier}]` }, marks),
+        withMarks(
+          { type: "footnoteReference", attrs: footnoteAttrs(node) },
+          marks,
+        ),
       ];
     case "mdxJsxTextElement": {
       const converted = jsxElement(node, ctx, true);

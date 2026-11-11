@@ -1,6 +1,6 @@
 {
   "name": "vestrycms",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A git-backed CMS for Astro. Content, assets and configuration live in your repository; the control panel runs as an Astro integration.",
   "license": "MIT",
   "author": "Michael Spencer",
@@ -58,8 +58,9 @@
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx/esm test/templates.ts && node --import tsx/esm test/github-mock.ts && node --import tsx/esm test/auth.ts && node --import tsx/esm test/github-app.ts",
-    "test:roundtrip": "node --import tsx/esm test/roundtrip.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:roundtrip": "node --import tsx/esm test/manual/roundtrip.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepack": "node scripts/build.mjs"
@@ -122,7 +123,8 @@
     "prettier-plugin-astro": "^1.1.2",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
   },
   "publishConfig": {
     "access": "public"

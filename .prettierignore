@@ -1,3 +1,5 @@
 dist
 node_modules
 pnpm-lock.yaml
+# Round-trip fixtures are byte-exact serializer output
+test/fixtures/mdx

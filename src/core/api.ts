@@ -8,6 +8,7 @@ import {
   createVestryAuth,
   nameFromEmail,
   normalizeEmail,
+  tablePrefixError,
   type AuthDatabase,
   type VestryAuth,
 } from "./auth.js";
@@ -187,6 +188,9 @@ export function createApi(options: ApiOptions) {
     if ("error" in mailer) return mailer;
     const secret = resolveSecret();
     if (typeof secret !== "string") return secret;
+    const tablePrefix = config.auth?.tablePrefix;
+    const prefixError = tablePrefixError(tablePrefix);
+    if (prefixError) return { error: prefixError };
     // Invitation links point at the configured site, not whatever host the
     // inviting admin happened to use (a preview or workers.dev URL).
     const siteOrigin =
@@ -205,6 +209,7 @@ export function createApi(options: ApiOptions) {
       admins: config.auth?.admins ?? [],
       dev: options.auth?.dev,
       migrate: options.auth?.migrate,
+      tablePrefix,
     });
     if (authByOrigin.size >= MAX_ORIGINS) {
       const oldest = authByOrigin.keys().next().value;

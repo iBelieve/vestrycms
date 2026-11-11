@@ -10,7 +10,12 @@ import type {
 } from "mdast-util-mdx";
 import { gfmToMarkdown } from "mdast-util-gfm";
 import { mdxToMarkdown } from "mdast-util-mdx";
-import { toMarkdown, type Info, type State } from "mdast-util-to-markdown";
+import {
+  defaultHandlers,
+  toMarkdown,
+  type Info,
+  type State,
+} from "mdast-util-to-markdown";
 import { isPlainString, valueToSource } from "./expressions.js";
 import type { ComponentRegistry, ImportSpec, PMMark, PMNode } from "./types.js";
 
@@ -21,6 +26,26 @@ type AnyNode =
   | MdxFlowExpression
   | MdxTextExpression
   | MdxjsEsm;
+
+/** What the document references, to decide which imports to emit. */
+interface Uses {
+  /** Capitalized JSX element names. */
+  components: Set<string>;
+  /** Identifier-like words in expressions, attribute values and ESM. */
+  identifiers: Set<string>;
+}
+
+/**
+ * Note every identifier-like word in a piece of JS source. Words inside
+ * strings or comments count too, which at worst keeps an unused import.
+ */
+function scan(source: string, used: Uses) {
+  for (const m of source.matchAll(IDENTIFIERS)) used.identifiers.add(m[0]);
+}
+
+const IDENTIFIER = "[\\p{ID_Start}$_][\\p{ID_Continue}$\\u200c\\u200d]*";
+const IDENTIFIERS = new RegExp(IDENTIFIER, "gu");
+const IS_IDENTIFIER = new RegExp(`^${IDENTIFIER}$`, "u");
 
 export interface SerializeOptions {
   format?: "md" | "mdx";
@@ -35,7 +60,7 @@ export function serializeMdx(
   options: SerializeOptions = {},
 ): string {
   const isMdx = options.format !== "md";
-  const used = new Set<string>();
+  const used: Uses = { components: new Set(), identifiers: new Set() };
   const root: Md.Root = {
     type: "root",
     children: blocks(doc.content ?? [], used) as Md.RootContent[],
@@ -65,6 +90,7 @@ export function serializeMdx(
       rawHtml: (node: { value: string }) => node.value,
       rawInlineHtml: (node: { value: string }) => node.value,
       ...(libFlow ? { mdxJsxFlowElement: flowElementHandler(libFlow) } : {}),
+      list: listHandler(defaultHandlers.list as Handler),
     } as never,
   });
   // Place a blank line after the import block like Prettier/MDX conventions.
@@ -123,22 +149,70 @@ function flowElementHandler(lib: Handler): Handler {
   };
 }
 
-function importStatements(
-  used: Set<string>,
-  options: SerializeOptions,
-): string[] {
-  const lines = new Map<string, string>();
-  for (const name of used) {
-    const reg = options.components?.[name];
-    const spec: ImportSpec | undefined = reg?.import
-      ? { name, from: reg.import, named: reg.namedImport }
-      : options.existingImports?.[name];
-    if (!spec) continue;
-    const line = spec.named
-      ? `import { ${spec.name} } from "${spec.from}";`
-      : `import ${spec.name} from "${spec.from}";`;
-    lines.set(name, line);
+/**
+ * A tight list is written without blank lines, but some neighbouring blocks
+ * need one to stay apart (two paragraphs would merge, kind 7 HTML would join
+ * the paragraph before it, ...), and a blank line anywhere in a list makes it
+ * loose when read back. Ask the serializer's own join rules whether any
+ * neighbours in the list or its items need a blank line, and if so write the
+ * whole list loose.
+ */
+function listHandler(lib: Handler): Handler {
+  return (node, parent, state, info) => {
+    const list = node as Md.List;
+    if (
+      !list.spread &&
+      [list, ...list.children].some((p) => needsBlankLine(p, state))
+    ) {
+      list.spread = true;
+      for (const item of list.children) item.spread = true;
+    }
+    return lib(node, parent, state, info);
+  };
+}
+
+/** Mirrors mdast-util-to-markdown's `between`: tight only if a join says 0. */
+function needsBlankLine(parent: Md.List | Md.ListItem, state: State): boolean {
+  const children = parent.children as Md.Nodes[];
+  for (let i = 1; i < children.length; i++) {
+    let index = state.join.length;
+    let lines: number | undefined;
+    while (index--) {
+      const result = state.join[index](
+        children[i - 1] as never,
+        children[i] as never,
+        parent as never,
+        state,
+      );
+      if (result === true || result === 1) break;
+      if (typeof result === "number" || result === false) {
+        lines = result === false ? 1 : result;
+        break;
+      }
+    }
+    if (lines !== 0) return true;
   }
+  return false;
+}
+
+function importStatements(used: Uses, options: SerializeOptions): string[] {
+  const lines = new Map<string, string>();
+  const add = (name: string, spec: ImportSpec | undefined) => {
+    if (spec) lines.set(name, importLine(spec));
+  };
+  // Components get the registry's import, falling back to the source's.
+  for (const name of used.components) {
+    const reg = options.components?.[name];
+    add(
+      name,
+      reg?.import
+        ? { name, from: reg.import, named: reg.namedImport }
+        : options.existingImports?.[name],
+    );
+  }
+  // Anything else the source imported stays while it is still referenced.
+  for (const [name, spec] of Object.entries(options.existingImports ?? {}))
+    if (!lines.has(name) && used.identifiers.has(name)) add(name, spec);
   const originalOrder = Object.keys(options.existingImports ?? {});
   return [...lines.entries()]
     .sort(([a], [b]) => {
@@ -152,7 +226,19 @@ function importStatements(
     .map(([, l]) => l);
 }
 
-function blocks(nodes: PMNode[], used: Set<string>): AnyNode[] {
+function importLine(spec: ImportSpec): string {
+  const from = JSON.stringify(spec.from);
+  if (!spec.named) return `import ${spec.name} from ${from};`;
+  const imported =
+    spec.imported === undefined || spec.imported === spec.name
+      ? ""
+      : IS_IDENTIFIER.test(spec.imported)
+        ? `${spec.imported} as `
+        : `${JSON.stringify(spec.imported)} as `;
+  return `import { ${imported}${spec.name} } from ${from};`;
+}
+
+function blocks(nodes: PMNode[], used: Uses): AnyNode[] {
   const out: AnyNode[] = [];
   for (const node of nodes) {
     const converted = block(node, used);
@@ -161,7 +247,7 @@ function blocks(nodes: PMNode[], used: Set<string>): AnyNode[] {
   return out;
 }
 
-function block(node: PMNode, used: Set<string>): AnyNode | null {
+function block(node: PMNode, used: Uses): AnyNode | null {
   switch (node.type) {
     case "paragraph": {
       const children = inlines(node.content ?? [], used);
@@ -184,20 +270,23 @@ function block(node: PMNode, used: Set<string>): AnyNode | null {
     case "bulletList":
     case "orderedList": {
       const ordered = node.type === "orderedList";
-      const items = (node.content ?? []).map((item) => {
+      // Lists that must be loose to keep their content apart are loosened
+      // while serializing; see listHandler.
+      const spread = node.attrs?.spread === true;
+      const items = (node.content ?? []).map((item): Md.ListItem => {
         const checked = item.attrs?.checked;
         return {
           type: "listItem",
-          spread: false,
+          spread,
           checked: typeof checked === "boolean" ? checked : null,
           children: blocks(item.content ?? [], used) as Md.BlockContent[],
-        } satisfies Md.ListItem;
+        };
       });
       return {
         type: "list",
         ordered,
         start: ordered ? Number(node.attrs?.start ?? 1) : null,
-        spread: false,
+        spread,
         children: items,
       };
     }
@@ -214,13 +303,22 @@ function block(node: PMNode, used: Set<string>): AnyNode | null {
       return table(node, used);
     case "mdxComponent":
       return jsxElement(node, used, false) as MdxJsxFlowElement;
-    case "mdxExpression":
+    case "footnoteDefinition":
       return {
-        type: "mdxFlowExpression",
-        value: String(node.attrs?.value ?? ""),
+        type: "footnoteDefinition",
+        ...footnoteLabel(node),
+        children: blocks(node.content ?? [], used) as Md.BlockContent[],
       };
-    case "mdxEsm":
-      return { type: "mdxjsEsm", value: String(node.attrs?.value ?? "") };
+    case "mdxExpression": {
+      const value = String(node.attrs?.value ?? "");
+      scan(value, used);
+      return { type: "mdxFlowExpression", value };
+    }
+    case "mdxEsm": {
+      const value = String(node.attrs?.value ?? "");
+      scan(value, used);
+      return { type: "mdxjsEsm", value };
+    }
     case "image":
       return {
         type: "paragraph",
@@ -235,11 +333,17 @@ function block(node: PMNode, used: Set<string>): AnyNode | null {
   }
 }
 
+function footnoteLabel(node: PMNode): { identifier: string; label: string } {
+  const label = String(node.attrs?.label ?? node.attrs?.identifier ?? "");
+  const identifier = String(node.attrs?.identifier ?? label.toLowerCase());
+  return { identifier, label };
+}
+
 function clampDepth(n: number): 1 | 2 | 3 | 4 | 5 | 6 {
   return Math.min(6, Math.max(1, Math.round(n))) as 1 | 2 | 3 | 4 | 5 | 6;
 }
 
-function table(node: PMNode, used: Set<string>): Md.Table {
+function table(node: PMNode, used: Uses): Md.Table {
   const rows = node.content ?? [];
   const align: Md.AlignType[] = [];
   const children: Md.TableRow[] = rows.map((row, rowIdx) => ({
@@ -264,6 +368,7 @@ function table(node: PMNode, used: Set<string>): Md.Table {
 
 function propsToAttributes(
   node: PMNode,
+  used: Uses,
   inline = false,
 ): (MdxJsxAttribute | MdxJsxExpressionAttribute)[] {
   const props = (node.attrs?.props ?? {}) as Record<string, unknown>;
@@ -276,31 +381,34 @@ function propsToAttributes(
     } else if (isPlainString(value)) {
       attrs.push({ type: "mdxJsxAttribute", name, value });
     } else {
+      // Block components print each attribute on its own line, indented
+      // two spaces, so nested lines are indented relative to that.
+      const source = valueToSource(value, inline ? "" : "  ");
+      scan(source, used);
       attrs.push({
         type: "mdxJsxAttribute",
         name,
-        value: {
-          type: "mdxJsxAttributeValueExpression",
-          // Block components print each attribute on its own line, indented
-          // two spaces, so nested lines are indented relative to that.
-          value: valueToSource(value, inline ? "" : "  "),
-        },
+        value: { type: "mdxJsxAttributeValueExpression", value: source },
       });
     }
   }
-  for (const s of spreads)
+  for (const s of spreads) {
+    scan(s, used);
     attrs.push({ type: "mdxJsxExpressionAttribute", value: s });
+  }
   return attrs;
 }
 
 function jsxElement(
   node: PMNode,
-  used: Set<string>,
+  used: Uses,
   inline: boolean,
 ): MdxJsxFlowElement | MdxJsxTextElement {
   const name = String(node.attrs?.name ?? "");
-  if (name && /^[A-Z]/.test(name)) used.add(name);
-  const attributes = propsToAttributes(node, inline);
+  if (name && /^[A-Z]/.test(name)) used.components.add(name);
+  // `<ui.Card />` needs the import of `ui`.
+  scan(name, used);
+  const attributes = propsToAttributes(node, used, inline);
   if (inline) {
     return {
       type: "mdxJsxTextElement",
@@ -337,7 +445,7 @@ const MARK_ORDER: MarkKind[] = [
  * following nodes becomes the outer wrapper, so `**a <sup>6</sup> b**`
  * keeps bold outermost.
  */
-function inlines(nodes: PMNode[], used: Set<string>): AnyNode[] {
+function inlines(nodes: PMNode[], used: Uses): AnyNode[] {
   return group(nodes, used);
 }
 
@@ -356,7 +464,7 @@ function stripMark(node: PMNode, key: string): PMNode {
   };
 }
 
-function group(nodes: PMNode[], used: Set<string>): AnyNode[] {
+function group(nodes: PMNode[], used: Uses): AnyNode[] {
   const out: AnyNode[] = [];
   let i = 0;
   while (i < nodes.length) {
@@ -433,7 +541,7 @@ function wrap(mark: PMMark, children: Md.PhrasingContent[]): AnyNode {
   }
 }
 
-function leaf(node: PMNode, used: Set<string>): AnyNode[] {
+function leaf(node: PMNode, used: Uses): AnyNode[] {
   switch (node.type) {
     case "text":
       return node.text ? [{ type: "text", value: node.text }] : [];
@@ -452,10 +560,13 @@ function leaf(node: PMNode, used: Set<string>): AnyNode[] {
       return [{ type: "html", value: String(node.attrs?.value ?? "") }];
     case "mdxInlineComponent":
       return [jsxElement(node, used, true)];
-    case "mdxInlineExpression":
-      return [
-        { type: "mdxTextExpression", value: String(node.attrs?.value ?? "") },
-      ];
+    case "mdxInlineExpression": {
+      const value = String(node.attrs?.value ?? "");
+      scan(value, used);
+      return [{ type: "mdxTextExpression", value }];
+    }
+    case "footnoteReference":
+      return [{ type: "footnoteReference", ...footnoteLabel(node) }];
     case "mdxComponent":
       return [jsxElement(node, used, true)];
     default:
