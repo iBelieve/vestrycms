@@ -187,57 +187,62 @@ function table(node: Md.Table, ctx: Ctx): PMNode {
 
 function esm(node: MdxjsEsm, ctx: Ctx): PMNode | null {
   const program = node.data?.estree as ES.Program | undefined;
-  const leftovers: string[] = [];
-  if (program) {
-    for (const stmt of program.body) {
-      if (
-        stmt.type === "ImportDeclaration" &&
-        typeof stmt.source.value === "string"
-      ) {
-        // Record the statement's bindings only if all of them can be
-        // re-emitted from ImportSpecs; otherwise keep it verbatim.
-        const specs: ImportSpec[] = [];
-        let recognized = true;
-        for (const spec of stmt.specifiers) {
-          if (spec.type === "ImportDefaultSpecifier") {
-            specs.push({ name: spec.local.name, from: stmt.source.value });
-          } else if (spec.type === "ImportSpecifier") {
-            const imported =
-              spec.imported.type === "Identifier"
-                ? spec.imported.name
-                : String(spec.imported.value);
-            specs.push({
-              name: spec.local.name,
-              from: stmt.source.value,
-              named: true,
-              ...(imported === spec.local.name ? {} : { imported }),
-            });
-          } else {
-            recognized = false;
-          }
-        }
-        if (recognized && specs.length) {
-          for (const spec of specs) ctx.imports[spec.name] = spec;
-          continue;
-        }
-      }
-      // Estree offsets count from the start of the file, not of this block.
-      const base = node.position?.start.offset;
-      const start = (stmt as ES.Node & { start?: number }).start;
-      const end = (stmt as ES.Node & { end?: number }).end;
-      leftovers.push(
-        typeof base === "number" &&
-          typeof start === "number" &&
-          typeof end === "number"
-          ? node.value.slice(start - base, end - base)
-          : node.value,
-      );
-    }
-  } else {
-    leftovers.push(node.value);
+  // Estree offsets count from the start of the file, not of this block.
+  const base = node.position?.start.offset;
+  if (!program || typeof base !== "number")
+    return { type: "mdxEsm", attrs: { value: node.value } };
+  // Cut recognized imports out of the block's source; everything else,
+  // comments and blank lines included, stays as written.
+  let rest = "";
+  let pos = 0;
+  for (const stmt of program.body) {
+    const { start, end } = stmt as ES.Node & { start?: number; end?: number };
+    if (typeof start !== "number" || typeof end !== "number") continue;
+    if (!recordImport(stmt, ctx)) continue;
+    rest += node.value.slice(pos, start - base);
+    pos = end - base;
+    // Drop the rest of the line when only whitespace follows the import.
+    const eol = /^[ \t]*(\r?\n|$)/.exec(node.value.slice(pos));
+    if (eol) pos += eol[0].length;
   }
-  if (!leftovers.length) return null;
-  return { type: "mdxEsm", attrs: { value: leftovers.join("\n") } };
+  rest = (rest + node.value.slice(pos)).trim();
+  return rest ? { type: "mdxEsm", attrs: { value: rest } } : null;
+}
+
+/**
+ * Record an import statement's bindings if all of them can be re-emitted from
+ * ImportSpecs; the caller then drops the statement. Otherwise it is kept
+ * verbatim.
+ */
+function recordImport(stmt: ES.Node, ctx: Ctx): boolean {
+  if (
+    stmt.type !== "ImportDeclaration" ||
+    typeof stmt.source.value !== "string"
+  )
+    return false;
+  const from = stmt.source.value;
+  const specs: ImportSpec[] = [];
+  for (const spec of stmt.specifiers) {
+    if (spec.type === "ImportDefaultSpecifier") {
+      specs.push({ name: spec.local.name, from });
+    } else if (spec.type === "ImportSpecifier") {
+      const imported =
+        spec.imported.type === "Identifier"
+          ? spec.imported.name
+          : String(spec.imported.value);
+      specs.push({
+        name: spec.local.name,
+        from,
+        named: true,
+        ...(imported === spec.local.name ? {} : { imported }),
+      });
+    } else {
+      return false;
+    }
+  }
+  if (!specs.length) return false;
+  for (const spec of specs) ctx.imports[spec.name] = spec;
+  return true;
 }
 
 function attrsToProps(

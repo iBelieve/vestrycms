@@ -253,7 +253,9 @@ export const FootnoteReference = Node.create({
     return footnoteAttributes;
   },
   parseHTML() {
-    return [{ tag: "sup[data-footnote-reference]" }];
+    // Ahead of Superscript's `sup` rule, or a pasted reference turns into
+    // superscript text.
+    return [{ tag: "sup[data-footnote-reference]", priority: 60 }];
   },
   renderHTML({ HTMLAttributes, node }) {
     return [

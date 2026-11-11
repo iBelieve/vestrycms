@@ -681,6 +681,16 @@ exports[`fixtures > imports.mdx parses to the expected document 1`] = `
       {
         "attrs": {
           "hasChildren": false,
+          "name": "ui.Badge",
+          "props": {},
+          "spreads": [],
+        },
+        "content": [],
+        "type": "mdxComponent",
+      },
+      {
+        "attrs": {
+          "hasChildren": false,
           "name": "Card",
           "props": {
             "date": {
@@ -728,6 +738,10 @@ exports[`fixtures > imports.mdx parses to the expected document 1`] = `
       "from": "../lib/dates.ts",
       "name": "formatDate",
       "named": true,
+    },
+    "ui": {
+      "from": "./ui.ts",
+      "name": "ui",
     },
   },
 }

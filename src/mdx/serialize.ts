@@ -10,7 +10,12 @@ import type {
 } from "mdast-util-mdx";
 import { gfmToMarkdown } from "mdast-util-gfm";
 import { mdxToMarkdown } from "mdast-util-mdx";
-import { toMarkdown, type Info, type State } from "mdast-util-to-markdown";
+import {
+  defaultHandlers,
+  toMarkdown,
+  type Info,
+  type State,
+} from "mdast-util-to-markdown";
 import { isPlainString, valueToSource } from "./expressions.js";
 import type { ComponentRegistry, ImportSpec, PMMark, PMNode } from "./types.js";
 
@@ -35,11 +40,12 @@ interface Uses {
  * strings or comments count too, which at worst keeps an unused import.
  */
 function scan(source: string, used: Uses) {
-  for (const m of source.matchAll(new RegExp(IDENTIFIER, "gu")))
-    used.identifiers.add(m[0]);
+  for (const m of source.matchAll(IDENTIFIERS)) used.identifiers.add(m[0]);
 }
 
 const IDENTIFIER = "[\\p{ID_Start}$_][\\p{ID_Continue}$\\u200c\\u200d]*";
+const IDENTIFIERS = new RegExp(IDENTIFIER, "gu");
+const IS_IDENTIFIER = new RegExp(`^${IDENTIFIER}$`, "u");
 
 export interface SerializeOptions {
   format?: "md" | "mdx";
@@ -84,6 +90,7 @@ export function serializeMdx(
       rawHtml: (node: { value: string }) => node.value,
       rawInlineHtml: (node: { value: string }) => node.value,
       ...(libFlow ? { mdxJsxFlowElement: flowElementHandler(libFlow) } : {}),
+      list: listHandler(defaultHandlers.list as Handler),
     } as never,
   });
   // Place a blank line after the import block like Prettier/MDX conventions.
@@ -142,6 +149,52 @@ function flowElementHandler(lib: Handler): Handler {
   };
 }
 
+/**
+ * A tight list is written without blank lines, but some neighbouring blocks
+ * need one to stay apart (two paragraphs would merge, kind 7 HTML would join
+ * the paragraph before it, ...), and a blank line anywhere in a list makes it
+ * loose when read back. Ask the serializer's own join rules whether any
+ * neighbours in the list or its items need a blank line, and if so write the
+ * whole list loose.
+ */
+function listHandler(lib: Handler): Handler {
+  return (node, parent, state, info) => {
+    const list = node as Md.List;
+    if (
+      !list.spread &&
+      [list, ...list.children].some((p) => needsBlankLine(p, state))
+    ) {
+      list.spread = true;
+      for (const item of list.children) item.spread = true;
+    }
+    return lib(node, parent, state, info);
+  };
+}
+
+/** Mirrors mdast-util-to-markdown's `between`: tight only if a join says 0. */
+function needsBlankLine(parent: Md.List | Md.ListItem, state: State): boolean {
+  const children = parent.children as Md.Nodes[];
+  for (let i = 1; i < children.length; i++) {
+    let index = state.join.length;
+    let lines: number | undefined;
+    while (index--) {
+      const result = state.join[index](
+        children[i - 1] as never,
+        children[i] as never,
+        parent as never,
+        state,
+      );
+      if (result === true || result === 1) break;
+      if (typeof result === "number" || result === false) {
+        lines = result === false ? 1 : result;
+        break;
+      }
+    }
+    if (lines !== 0) return true;
+  }
+  return false;
+}
+
 function importStatements(used: Uses, options: SerializeOptions): string[] {
   const lines = new Map<string, string>();
   const add = (name: string, spec: ImportSpec | undefined) => {
@@ -179,7 +232,7 @@ function importLine(spec: ImportSpec): string {
   const imported =
     spec.imported === undefined || spec.imported === spec.name
       ? ""
-      : new RegExp(`^${IDENTIFIER}$`, "u").test(spec.imported)
+      : IS_IDENTIFIER.test(spec.imported)
         ? `${spec.imported} as `
         : `${JSON.stringify(spec.imported)} as `;
   return `import { ${imported}${spec.name} } from ${from};`;
@@ -217,29 +270,18 @@ function block(node: PMNode, used: Uses): AnyNode | null {
     case "bulletList":
     case "orderedList": {
       const ordered = node.type === "orderedList";
-      const items = (node.content ?? []).map((item) => {
+      // Lists that must be loose to keep their content apart are loosened
+      // while serializing; see listHandler.
+      const spread = node.attrs?.spread === true;
+      const items = (node.content ?? []).map((item): Md.ListItem => {
         const checked = item.attrs?.checked;
         return {
           type: "listItem",
-          spread: false as boolean,
+          spread,
           checked: typeof checked === "boolean" ? checked : null,
           children: blocks(item.content ?? [], used) as Md.BlockContent[],
-        } satisfies Md.ListItem;
+        };
       });
-      // A loose list has blank lines between its items and between the blocks
-      // inside them. Two paragraphs in one item need a blank line or they
-      // merge, which also makes the list loose.
-      const spread =
-        node.attrs?.spread === true ||
-        items.some((item) =>
-          item.children.some(
-            (c, i) =>
-              i > 0 &&
-              c.type === "paragraph" &&
-              item.children[i - 1].type === "paragraph",
-          ),
-        );
-      for (const item of items) item.spread = spread;
       return {
         type: "list",
         ordered,
@@ -364,6 +406,8 @@ function jsxElement(
 ): MdxJsxFlowElement | MdxJsxTextElement {
   const name = String(node.attrs?.name ?? "");
   if (name && /^[A-Z]/.test(name)) used.components.add(name);
+  // `<ui.Card />` needs the import of `ui`.
+  scan(name, used);
   const attributes = propsToAttributes(node, used, inline);
   if (inline) {
     return {
