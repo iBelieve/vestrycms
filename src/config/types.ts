@@ -450,6 +450,15 @@ export interface AuthConfig {
    * be removed or demoted from the control panel.
    */
   admins?: string[];
+  /**
+   * Prefix for the sign-in tables (`user`, `session`, `account`,
+   * `verification`, `rateLimit`), e.g. `mysite_` for `mysite_user`. Lets
+   * several sites share one D1 database, each with its own users and
+   * sessions. Lowercase letters, digits and underscores, starting with a
+   * letter (table names ignore case, so `Site_` would clash with `site_`).
+   * Changing it on a live site starts it with an empty user list.
+   */
+  tablePrefix?: string;
 }
 
 export interface MailConfig {

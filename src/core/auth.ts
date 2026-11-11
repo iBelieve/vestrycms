@@ -40,6 +40,8 @@ export interface VestryAuthOptions {
   dev?: boolean;
   /** Create or update the tables on first use (Kysely-backed databases only). */
   migrate?: boolean;
+  /** Prefix for the table names, so several sites can share one database. */
+  tablePrefix?: string;
 }
 
 /** Vestry's two roles in Better Auth's access-control terms: admins manage users, editors don't. */
@@ -72,16 +74,42 @@ export function nameFromEmail(email: string): string {
   return pretty || local || email;
 }
 
+/** The tables Better Auth (with Vestry's plugins) keeps. */
+export const AUTH_TABLES = [
+  "user",
+  "session",
+  "account",
+  "verification",
+  "rateLimit",
+] as const;
+
+// Lowercase only: SQLite (and so D1) table names ignore case, so `Site_`
+// and `site_` would silently name the same tables.
+const TABLE_PREFIX = /^[a-z][a-z0-9_]*$/;
+
+/** Why a `tablePrefix` is unusable, or undefined when it is fine. */
+export function tablePrefixError(prefix: string | undefined) {
+  if (prefix === undefined || prefix === "" || TABLE_PREFIX.test(prefix))
+    return undefined;
+  return `auth.tablePrefix ${JSON.stringify(prefix)} must be lowercase letters, digits and underscores, starting with a letter.`;
+}
+
 /**
- * Migrations run once per database per isolate, whichever origin asked
- * first (the instances per origin share the database).
+ * Migrations run once per database and table prefix per isolate, whichever
+ * origin asked first (the instances per origin share the database).
  */
-const migratedByDatabase = new WeakMap<object, Promise<void>>();
+const migratedByDatabase = new WeakMap<object, Map<string, Promise<void>>>();
 
 export function createVestryAuth(opts: VestryAuthOptions) {
   const admins = (opts.admins ?? []).map(normalizeEmail);
   const isConfigAdmin = (email: string) =>
     admins.includes(normalizeEmail(email));
+
+  const prefixError = tablePrefixError(opts.tablePrefix);
+  if (prefixError) throw new Error(prefixError);
+  const prefix = opts.tablePrefix ?? "";
+  const modelName = (table: (typeof AUTH_TABLES)[number]) =>
+    prefix ? { modelName: `${prefix}${table}` } : {};
 
   const auth = betterAuth({
     appName: opts.siteName,
@@ -90,10 +118,14 @@ export function createVestryAuth(opts: VestryAuthOptions) {
     basePath: opts.basePath,
     database: opts.database,
     session: {
+      ...modelName("session"),
       expiresIn: SESSION_TTL_SECONDS,
       updateAge: 60 * 60 * 24,
     },
+    account: modelName("account"),
+    verification: modelName("verification"),
     rateLimit: {
+      ...modelName("rateLimit"),
       enabled: !opts.dev,
       storage: "database",
     },
@@ -109,6 +141,7 @@ export function createVestryAuth(opts: VestryAuthOptions) {
       },
     },
     user: {
+      ...modelName("user"),
       additionalFields: {
         lastLoginAt: { type: "date", required: false, input: false },
       },
@@ -187,7 +220,9 @@ export function createVestryAuth(opts: VestryAuthOptions) {
   const ensureMigrated = () => {
     if (opts.migrate === false) return Promise.resolve();
     const key = opts.database as object;
-    const pending = migratedByDatabase.get(key);
+    let byPrefix = migratedByDatabase.get(key);
+    if (!byPrefix) migratedByDatabase.set(key, (byPrefix = new Map()));
+    const pending = byPrefix.get(prefix);
     if (pending) return pending;
     const run = (async () => {
       const { runMigrations, unsafeChanges } = await getMigrations(
@@ -207,10 +242,10 @@ export function createVestryAuth(opts: VestryAuthOptions) {
           throw e;
       }
     })().catch((e) => {
-      migratedByDatabase.delete(key);
+      byPrefix.delete(prefix);
       throw e;
     });
-    migratedByDatabase.set(key, run);
+    byPrefix.set(prefix, run);
     return run;
   };
 
