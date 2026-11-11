@@ -6,6 +6,8 @@
  */
 import { createServer } from "node:http";
 import { afterAll, describe, expect, it } from "vitest";
+import { collection, defineConfig, fields } from "../src/config/index.js";
+import { ContentService } from "../src/core/service.js";
 import { GitHubSource } from "../src/core/sources/github.js";
 import { base64Decode, toText } from "../src/core/source.js";
 
@@ -221,5 +223,42 @@ describe("GitHubSource.commit", () => {
       "Update Sermon: C\n\nCo-authored-by: Pastor Example <pastor@example.org>",
     );
     expect(commit.author).toBeUndefined();
+  });
+});
+
+// Runs last: it builds on the repository the commits above left behind.
+describe("renaming an entry through GitHub", () => {
+  const service = new ContentService(
+    defineConfig({
+      repo: { owner: "o", name: "r" },
+      collections: {
+        sermons: collection({
+          label: "Sermons",
+          path: "src/content/sermons/*.mdx",
+          schema: { title: fields.text() },
+        }),
+      },
+    }),
+    src,
+    { builtAt: "", files: {} },
+  );
+
+  it("adds the new file and removes the old one in one commit", async () => {
+    const entry = (await service.getEntry("sermons", "coauthor"))!;
+    const before = commits.size;
+    const saved = await service.saveEntry("sermons", "coauthor", {
+      data: entry.data,
+      body: entry.body,
+      sha: entry.sha,
+      slug: "renamed",
+    });
+
+    expect(saved.path).toBe("src/content/sermons/renamed.mdx");
+    expect(commits.size).toBe(before + 1);
+    expect(commits.get(saved.commit)!.message).toBe("Rename Sermons: C");
+    const paths = (await src.list("src/content/sermons")).map((f) => f.path);
+    expect(paths).toContain("src/content/sermons/renamed.mdx");
+    expect(paths).not.toContain("src/content/sermons/coauthor.mdx");
+    expect(await text("src/content/sermons/renamed.mdx")).toContain("title: C");
   });
 });

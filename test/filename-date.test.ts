@@ -13,7 +13,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { collection, defineConfig, fields } from "../src/config/index.js";
+import {
+  collection,
+  defineConfig,
+  fields,
+  singleton,
+} from "../src/config/index.js";
 import { ContentService } from "../src/core/service.js";
 import { LocalSource } from "../src/core/sources/local.js";
 import {
@@ -39,6 +44,35 @@ const config = defineConfig({
       label: "Notes",
       path: "content/notes/*.md",
       schema: { title: fields.text() },
+    }),
+    // Collections and a singleton that refer to notes, in each storage shape.
+    essays: collection({
+      label: "Essays",
+      path: "content/essays/*.md",
+      schema: {
+        title: fields.text(),
+        note: fields.reference({ collection: "notes" }),
+        related: fields.array(fields.reference({ collection: "notes" })),
+      },
+    }),
+    links: collection({
+      label: "Links",
+      path: "content/links.yaml",
+      body: false,
+      schema: {
+        id: fields.slug(),
+        target: fields.object({
+          note: fields.reference({ collection: "notes" }),
+        }),
+      },
+    }),
+  },
+  singletons: {
+    site: singleton({
+      label: "Site",
+      path: "content/site.json",
+      body: false,
+      schema: { featured: fields.reference({ collection: "notes" }) },
     }),
   },
 });
@@ -195,5 +229,59 @@ describe("renaming an entry", () => {
     await expect(
       service.saveEntry("notes", "b", { ...input, slug: "c" }),
     ).rejects.toMatchObject({ code: "exists" });
+  });
+});
+
+describe("references to a renamed entry", () => {
+  beforeAll(() => {
+    mkdirSync(join(root, "content/essays"), { recursive: true });
+    writeFileSync(join(root, "content/notes/ref.md"), "---\ntitle: Ref\n---\n");
+    writeFileSync(
+      join(root, "content/essays/one.md"),
+      "---\ntitle: One\nnote: ref\nrelated:\n  - c\n  - ref\n---\n\nBody stays.\n",
+    );
+    writeFileSync(
+      join(root, "content/essays/two.md"),
+      "---\ntitle: Two\nnote: c\n---\n",
+    );
+    writeFileSync(
+      join(root, "content/links.yaml"),
+      "- id: x\n  target:\n    note: ref\n- id: y\n  target:\n    note: c\n",
+    );
+    writeFileSync(join(root, "content/site.json"), '{ "featured": "ref" }\n');
+  });
+
+  it("finds every entry and singleton that refers to it", async () => {
+    const found = await service.referencesTo("notes", "ref");
+    expect(found.map((r) => `${r.kind}:${r.key}:${r.slug}`).sort()).toEqual([
+      "collection:essays:one",
+      "collection:links:x",
+      "singleton:site:site",
+    ]);
+    expect(await service.referencesTo("notes", "unused")).toEqual([]);
+  });
+
+  it("repoints them in the same commit as the rename", async () => {
+    const entry = (await service.getEntry("notes", "ref"))!;
+    await service.saveEntry("notes", "ref", {
+      data: entry.data,
+      body: entry.body,
+      sha: entry.sha,
+      slug: "renamed",
+    });
+
+    expect(read("content/essays/one.md")).toBe(
+      "---\ntitle: One\nnote: renamed\nrelated:\n  - c\n  - renamed\n---\n\nBody stays.\n",
+    );
+    // Entries that refer to other notes are left alone.
+    expect(read("content/essays/two.md")).toBe(
+      "---\ntitle: Two\nnote: c\n---\n",
+    );
+    expect(read("content/links.yaml")).toContain("note: renamed");
+    expect(read("content/links.yaml")).toContain("note: c");
+    expect(JSON.parse(read("content/site.json"))).toEqual({
+      featured: "renamed",
+    });
+    expect(await service.referencesTo("notes", "ref")).toEqual([]);
   });
 });

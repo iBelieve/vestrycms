@@ -131,7 +131,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p style={{ margin: 0 }}>{message}</p>
+      <div style={{ margin: 0 }}>{message}</div>
     </Modal>
   );
 }

@@ -178,7 +178,8 @@ Routes injected into the site:
 - `/admin/[...path]` – the control panel shell (on-demand, no auth needed to
   load the shell; data comes from the API).
 - `/admin/api/[...path]` – JSON API. `config`, `status`, `collections/:key`,
-  `collections/:key/entries/:slug`, `singletons/:key`, `assets/:container`,
+  `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
+  `singletons/:key`, `assets/:container`,
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
 
 Virtual modules provided by the Vite plugin: `virtual:vestry/config`,
@@ -235,7 +236,13 @@ previewUrl: "/articles/{slug|year}/{slug|month}/{slug|nodate}",
 In a collection with one file per entry, the **Slug** box in the editor's
 sidebar can be changed on an existing entry. Saving then moves the file: the
 new file and the removal of the old one go in a single commit. Vestry refuses
-a slug that another entry already has.
+a slug that another entry already has, and checks the slug as it is typed.
+
+`reference` fields store the slug of the entry they point at, so a rename
+also updates every entry and singleton that refers to the renamed one, in
+the same commit. The editor lists them and asks before saving. Those files
+are rewritten from their parsed contents without passing through Prettier,
+and references inside MDX component props are not found.
 
 A date field can live in the file name instead of the frontmatter:
 
@@ -254,7 +261,9 @@ posts: collection({
 The entry is saved as `2026-03-01-title.mdx` and its file holds no `date`
 key. The editor still shows a date picker, and lists sort and display by it.
 Changing the date renames the file, so a URL built from the slug changes
-with it; add a redirect if the old address matters. On the site, read the
+with it; add a redirect if the old address matters. The Slug box then holds
+only the part after the date, with the date shown in front of it. A slug
+template that leaves the date out still gets it as a prefix. On the site, read the
 date from the entry id (`entry.id.slice(0, 10)`). One such field per
 collection, at the top level of the schema, without `time`.
 
@@ -413,6 +422,11 @@ pnpm test -u                 # update snapshots after an intended change
 - `test/github-app.test.ts`: GitHub App JWT and installation token cache.
 - `test/templates.test.ts`: `{field|filter}` placeholders in URL and slug
   templates.
+- `test/config-validate.test.ts`: the mistakes the config check reports at
+  startup.
+- `test/filename-date.test.ts`: dates kept in the file name, renaming on
+  save and the references a rename updates (local source, temporary
+  directory).
 - `test/mdx.test.ts`: MDX round trips. Each file in `test/fixtures/mdx` must
   survive parse → serialize byte for byte, so write fixtures in the
   serializer's canonical style (`_emphasis_`, `-` bullets, blank lines around
@@ -435,7 +449,8 @@ GH_TOKEN=… node --import tsx/esm test/manual/github-write.ts  # live commits o
 
 ### Releasing
 
-1. Bump `version` in `package.json` and commit.
+1. Bump `version` in `package.json`, add the release to `CHANGELOG.md` and
+   commit.
 2. Publish a GitHub release tagged `v<version>`. The **Publish** workflow
    checks the tag against `package.json`, runs the checks and publishes to
    npm with provenance through npm trusted publishing (configure it on

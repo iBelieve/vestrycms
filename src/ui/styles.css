@@ -2552,3 +2552,26 @@ button.v-tree__toggle:hover {
   max-width: 420px;
   cursor: grabbing;
 }
+
+/* Slug box: a date held by the date field is shown, fixed, in front. */
+.v-slug {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.v-slug__prefix {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--v-text-muted);
+  white-space: nowrap;
+}
+.v-slug .v-input {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Entries listed in the rename confirmation. */
+.v-reference-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+}

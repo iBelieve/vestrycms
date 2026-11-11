@@ -8,6 +8,8 @@ import type {
 import {
   applyAutoFields,
   filenameDateKey,
+  referencesCollection,
+  rewriteReferences,
   slugWithDate,
   toEditorValues,
   toStoredValues,
@@ -54,6 +56,19 @@ export interface EntrySummary {
   data: Record<string, unknown>;
   status: "published" | "draft" | null;
   excerpt?: string;
+}
+
+/** An entry or singleton with a reference field pointing at another entry. */
+export interface EntryReference {
+  kind: "collection" | "singleton";
+  /** Collection or singleton key. */
+  key: string;
+  /** Collection or singleton label. */
+  label: string;
+  /** Entry slug (the singleton key for singletons). */
+  slug: string;
+  title: string;
+  path: string;
 }
 
 export interface EntryDetail extends EntrySummary {
@@ -360,8 +375,17 @@ export class ContentService {
       serializeEntry(format, { data: stored, body: input.body ?? "" });
     const changes: FileChange[] = [
       { path, content: text },
-      // A rename is the new file and the removal of the old one, together.
-      ...(renamedFrom ? [{ path: renamedFrom, delete: true as const }] : []),
+      // A rename is the new file and the removal of the old one, together
+      // with every entry that referred to the old slug.
+      ...(renamedFrom
+        ? [
+            { path: renamedFrom, delete: true as const },
+            ...(await this.referenceChanges(key, slug!, finalSlug, [
+              path,
+              renamedFrom,
+            ])),
+          ]
+        : []),
       ...uploadChanges(input.uploads),
     ];
     const commit = await this.source.commit(changes, {
@@ -380,6 +404,98 @@ export class ContentService {
       commit: commit.sha,
       path,
     };
+  }
+
+  /**
+   * Entries and singletons whose reference fields point at entry `slug` of
+   * collection `key`. References inside MDX component props are not found.
+   */
+  async referencesTo(key: string, slug: string): Promise<EntryReference[]> {
+    this.collection(key);
+    const found: EntryReference[] = [];
+    for (const [colKey, col] of Object.entries(this.config.collections ?? {})) {
+      if (!referencesCollection(col.schema, key)) continue;
+      for (const entry of await this.listEntries(colKey)) {
+        if (colKey === key && entry.slug === slug) continue;
+        if (!rewriteReferences(col.schema, entry.data, key, slug, slug))
+          continue;
+        found.push({
+          kind: "collection",
+          key: colKey,
+          label: col.label,
+          slug: entry.slug,
+          title: entry.title,
+          path: entry.path,
+        });
+      }
+    }
+    for (const [sKey, s] of Object.entries(this.config.singletons ?? {})) {
+      if (!referencesCollection(s.schema, key)) continue;
+      const entry = await this.getSingleton(sKey);
+      if (!rewriteReferences(s.schema, entry.data, key, slug, slug)) continue;
+      found.push({
+        kind: "singleton",
+        key: sKey,
+        label: s.label,
+        slug: sKey,
+        title: s.label,
+        path: entry.path,
+      });
+    }
+    return found;
+  }
+
+  /**
+   * File changes that repoint every reference to a renamed entry. Each file
+   * is rewritten from its parsed contents, so only the references change in
+   * the data, though the frontmatter is serialized afresh.
+   */
+  private async referenceChanges(
+    key: string,
+    from: string,
+    to: string,
+    skipPaths: string[],
+  ): Promise<FileChange[]> {
+    const references = await this.referencesTo(key, from);
+    const paths = [...new Set(references.map((r) => r.path))].filter(
+      (path) => !skipPaths.includes(path),
+    );
+    const changes: FileChange[] = [];
+    for (const path of paths) {
+      const reference = references.find((r) => r.path === path)!;
+      const owner =
+        reference.kind === "collection"
+          ? this.collection(reference.key)
+          : this.singleton(reference.key);
+      const format = collectionFormat(owner);
+      const file = await this.source.read(path);
+      if (!file) continue;
+      const text = toText(file.bytes);
+      const single =
+        reference.kind === "collection" && parsePathPattern(owner.path).single;
+      if (single) {
+        const items = parseEntryList(format, text).map(
+          (item) =>
+            rewriteReferences(owner.schema, item, key, from, to) ?? item,
+        );
+        changes.push({ path, content: serializeEntryList(format, items) });
+      } else {
+        const parsed = parseEntry(format, text);
+        const data = rewriteReferences(
+          owner.schema,
+          parsed.data,
+          key,
+          from,
+          to,
+        );
+        if (!data) continue;
+        changes.push({
+          path,
+          content: serializeEntry(format, { data, body: parsed.body }),
+        });
+      }
+    }
+    return changes;
   }
 
   async deleteEntry(key: string, slug: string): Promise<{ commit: string }> {

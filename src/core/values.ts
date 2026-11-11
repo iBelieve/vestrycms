@@ -175,6 +175,12 @@ export function slugWithDate(slug: string, date: unknown): string {
   return `${dir}${date}-${name.replace(SLUG_DATE, "")}`;
 }
 
+/** The slug without its file name's date prefix, if it has one. */
+export function slugWithoutDate(slug: string): string {
+  const [dir, name] = splitSlug(slug);
+  return `${dir}${name.replace(SLUG_DATE, "")}`;
+}
+
 /** Fill the file-name date field of an entry's editor values from its slug. */
 export function withFilenameDate(
   schema: Schema,
@@ -231,4 +237,46 @@ export function applyAutoFields(
     }
   }
   return out;
+}
+
+/** Whether a schema has a reference field (at any depth) to `collection`. */
+export function referencesCollection(
+  schema: Schema,
+  collection: string,
+): boolean {
+  const refers = (field: Field): boolean => {
+    if (field.type === "reference") return field.collection === collection;
+    if (field.type === "object")
+      return Object.values(field.fields).some(refers);
+    if (field.type === "array") return refers(field.of);
+    if (field.type === "tree") return Object.values(field.fields).some(refers);
+    return false;
+  };
+  return Object.values(schema).some(refers);
+}
+
+/**
+ * Point every reference to entry `from` of `collection` at `to` instead.
+ * Returns the new data, or null when nothing referred to it.
+ */
+export function rewriteReferences(
+  schema: Schema,
+  data: Record<string, unknown>,
+  collection: string,
+  from: string,
+  to: string,
+): Record<string, unknown> | null {
+  let changed = false;
+  const next = walkValues(schema, data, (field, value) => {
+    if (
+      field.type === "reference" &&
+      field.collection === collection &&
+      value === from
+    ) {
+      changed = true;
+      return to;
+    }
+    return value;
+  });
+  return changed ? next : null;
 }

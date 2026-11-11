@@ -49,7 +49,8 @@ main consumer; keep it free of site-specific code.
 - Product-facing names stay "Vestry": the integration name, `virtual:vestry/*`
   modules, `VESTRY_*` variables and the `vestry` cookie prefix. Renaming any
   of these breaks existing sites.
-- Releases: bump `version`, publish a GitHub release tagged `v<version>`;
+- Releases: bump `version`, add the release to `CHANGELOG.md`, publish a
+  GitHub release tagged `v<version>`;
   `.github/workflows/publish.yml` publishes with provenance via npm trusted
   publishing.
 - `pnpm-workspace.yaml` holds pnpm settings (7-day `minimumReleaseAge`,

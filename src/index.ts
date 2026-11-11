@@ -14,6 +14,7 @@ import { nodeToFetchHandler } from "./integration/dev-middleware.js";
 import { LocalSource } from "./core/sources/local.js";
 import { consoleMailer } from "./core/mail.js";
 import { clientDependencies } from "./integration/client-deps.js";
+import { validateConfig } from "./config/validate.js";
 
 export type { VestryConfig } from "./config/types.js";
 export {
@@ -200,29 +201,4 @@ export default function vestry(
       },
     },
   };
-}
-
-function validateConfig(config: VestryConfig) {
-  if (!config.repo?.owner || !config.repo?.name) {
-    throw new Error(
-      "[vestry] config.repo.owner and config.repo.name are required",
-    );
-  }
-  for (const [key, col] of Object.entries(config.collections ?? {})) {
-    if (!col.path) throw new Error(`[vestry] collection "${key}" needs a path`);
-    if (col.body) {
-      for (const name of col.body.components ?? []) {
-        if (!config.components?.[name]) {
-          throw new Error(
-            `[vestry] collection "${key}" references unknown component "${name}"`,
-          );
-        }
-      }
-    }
-  }
-  try {
-    JSON.stringify(config);
-  } catch {
-    throw new Error("[vestry] config must be JSON-serializable (no functions)");
-  }
 }

@@ -153,7 +153,7 @@ export function slugify(input: string): string {
  * - `nodate`: the value without a leading `YYYY-MM-DD-`, for collections
  *   whose file names carry the date but whose URLs do not.
  */
-const TEMPLATE_FILTERS: Record<string, (value: string) => string> = {
+export const TEMPLATE_FILTERS: Record<string, (value: string) => string> = {
   year: (v) => /^(\d{4})-\d{2}-\d{2}/.exec(v)?.[1] ?? "",
   month: (v) => /^\d{4}-(\d{2})-\d{2}/.exec(v)?.[1] ?? "",
   day: (v) => /^\d{4}-\d{2}-(\d{2})/.exec(v)?.[1] ?? "",
@@ -180,6 +180,7 @@ export function fillTemplate(
       if (raw === undefined || raw === null) return "";
       let s =
         raw instanceof Date ? raw.toISOString().slice(0, 10) : String(raw);
+      // Unknown filters are rejected when the config is loaded.
       if (filter) s = TEMPLATE_FILTERS[filter]?.(s) ?? s;
       if (opts.slug) s = slugify(s);
       return s;
