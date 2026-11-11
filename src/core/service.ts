@@ -5,7 +5,14 @@ import type {
   SingletonConfig,
   VestryConfig,
 } from "../config/types.js";
-import { applyAutoFields, toEditorValues, toStoredValues } from "./values.js";
+import {
+  applyAutoFields,
+  filenameDateKey,
+  slugWithDate,
+  toEditorValues,
+  toStoredValues,
+  withFilenameDate,
+} from "./values.js";
 import {
   parseEntry,
   parseEntryList,
@@ -70,7 +77,10 @@ export interface SaveEntryInput {
    * written verbatim; `data`/`body` are still used for slugs and messages.
    */
   raw?: string;
-  /** Slug for a new entry (otherwise derived from the slug template / title). */
+  /**
+   * Slug for a new entry (otherwise derived from the slug template / title).
+   * For an existing entry, a different slug renames its file.
+   */
   slug?: string;
   /** Blob SHA the client last saw for this entry (omit for new entries). */
   sha?: string | null;
@@ -166,7 +176,11 @@ export class ContentService {
           path: f.path,
           sha: f.sha,
           title: this.titleOf(col, data, slug),
-          data: toEditorValues(col.schema, data, f.path),
+          data: withFilenameDate(
+            col.schema,
+            toEditorValues(col.schema, data, f.path),
+            slug,
+          ),
           status: statusOf(col, data),
           excerpt,
         } satisfies EntrySummary;
@@ -230,7 +244,11 @@ export class ContentService {
       path,
       sha: file.sha,
       title: this.titleOf(col, parsed.data, slug),
-      data: toEditorValues(col.schema, parsed.data, path),
+      data: withFilenameDate(
+        col.schema,
+        toEditorValues(col.schema, parsed.data, path),
+        slug,
+      ),
       status: statusOf(col, parsed.data),
       body: parsed.body,
       head,
@@ -304,18 +322,31 @@ export class ContentService {
       };
     }
 
-    const finalSlug = slug ?? (input.slug?.trim() || this.newSlug(col, data));
+    // The slug to save under. A new entry takes the one given or derives
+    // it; an existing entry keeps its own unless a different one is given
+    // (a rename). A date kept in the file name is then made its prefix, so
+    // changing that date renames the file too.
+    const requested = input.slug?.trim();
+    let finalSlug = isNew
+      ? requested || this.newSlug(col, data)
+      : requested || slug;
+    const filenameDate = filenameDateKey(col.schema);
+    if (filenameDate) finalSlug = slugWithDate(finalSlug, data[filenameDate]);
     if (!isSafeSlug(finalSlug))
       throw new SourceError(`Invalid slug "${finalSlug}"`, 400, "bad_slug");
+
     const path = entryPath(pattern, finalSlug);
-    const existing = await this.source.read(path);
-    if (isNew && existing) {
+    const renamedFrom =
+      !isNew && finalSlug !== slug ? entryPath(pattern, slug) : null;
+    const target = await this.source.read(path);
+    if ((isNew || renamedFrom) && target) {
       throw new SourceError(
         `An entry at "${path}" already exists`,
         409,
         "exists",
       );
     }
+    const existing = renamedFrom ? await this.source.read(renamedFrom) : target;
     if (!isNew && existing && input.sha && input.sha !== existing.sha) {
       throw new SourceError(
         "This entry changed since you opened it.",
@@ -329,12 +360,14 @@ export class ContentService {
       serializeEntry(format, { data: stored, body: input.body ?? "" });
     const changes: FileChange[] = [
       { path, content: text },
+      // A rename is the new file and the removal of the old one, together.
+      ...(renamedFrom ? [{ path: renamedFrom, delete: true as const }] : []),
       ...uploadChanges(input.uploads),
     ];
     const commit = await this.source.commit(changes, {
       message: this.commitMessage(
         col,
-        isNew ? "Create" : "Update",
+        isNew ? "Create" : renamedFrom ? "Rename" : "Update",
         finalSlug,
         this.titleOf(col, data, finalSlug),
         key,

@@ -90,6 +90,15 @@ export interface DateField extends FieldBase<"date"> {
   time?: "optional";
   /** Hint shown next to the time input when it is empty, e.g. "defaults to 9:00 AM". */
   timeHint?: string;
+  /**
+   * Where the value is kept. With `"filename"` the date is the `YYYY-MM-DD-`
+   * prefix of the entry's file name (`2026-03-01-title.mdx`) instead of a
+   * frontmatter key, so there is one date and it sorts the folder. Changing
+   * it in the editor renames the file, which also changes any URL built
+   * from the slug. For collections with one file per entry, on a top-level
+   * field, at most one per collection; `time` is not supported.
+   */
+  storeIn?: "frontmatter" | "filename";
 }
 
 export interface DatetimeField extends FieldBase<"datetime"> {

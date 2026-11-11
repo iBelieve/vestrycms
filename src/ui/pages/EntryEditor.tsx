@@ -23,7 +23,9 @@ import {
 import {
   applyAutoFields,
   assetToRepoPath,
+  filenameDateKey,
   repoPathToAsset,
+  slugWithDate,
   toStoredValues,
 } from "../../core/values.js";
 import { ApiError, type EntryDetail, type SaveEntryInput } from "../api.js";
@@ -175,16 +177,33 @@ function EntryEditor({
     [col],
   );
 
+  // The slug the entry will be saved under: what was typed, else the
+  // current one, else (for a new entry) one derived from its fields. A date
+  // kept in the file name is always its prefix, so changing that date
+  // changes the slug.
   const effectiveSlug = useMemo(() => {
     if (!collection || !state) return slug ?? "";
-    if (!isNew) return slug ?? "";
-    if (slugInput) return slugInput;
-    const template = collection.slug?.template;
-    if (template) return fillPathTemplate(template, state.data, { slug: true });
-    const from = collection.slug?.from ?? collection.titleField ?? "title";
-    const v = state.data[from];
-    return slugify(String(v ?? ""));
-  }, [collection, state, isNew, slug, slugInput]);
+    if (pattern?.single) return slug ?? "";
+    let base: string;
+    if (slugInput) base = slugInput;
+    else if (!isNew) base = slug ?? "";
+    else {
+      const template = collection.slug?.template;
+      const from = collection.slug?.from ?? collection.titleField ?? "title";
+      base = template
+        ? fillPathTemplate(template, state.data, { slug: true })
+        : slugify(String(state.data[from] ?? ""));
+    }
+    const dateKey = filenameDateKey(collection.schema);
+    return dateKey ? slugWithDate(base, state.data[dateKey]) : base;
+  }, [collection, state, isNew, slug, slugInput, pattern]);
+
+  /** Saving will move an existing entry to a different file. */
+  const renaming =
+    kind === "collection" &&
+    !isNew &&
+    !!effectiveSlug &&
+    effectiveSlug !== slug;
 
   const filePath = useMemo(() => {
     if (!pattern) return "";
@@ -266,6 +285,7 @@ function EntryEditor({
         input.slug = effectiveSlug;
         return { ...(await api.createEntry(collectionKey, input)), data };
       }
+      if (renaming) input.slug = effectiveSlug;
       return { ...(await api.updateEntry(collectionKey, slug!, input)), data };
     },
     onSuccess: (res) => {
@@ -281,10 +301,14 @@ function EntryEditor({
       qc.invalidateQueries({ queryKey: ["assets"] });
       if (kind === "collection")
         qc.setQueryData(["entry", collectionKey, res.slug], undefined);
-      if (isNew)
+      // A new or renamed entry now lives at a different address.
+      if (isNew || (kind === "collection" && res.slug !== slug)) {
+        if (!isNew)
+          qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
         navigate(`/collections/${collectionKey}/${res.slug}`, {
           replace: true,
         });
+      }
     },
     onError: (e) => {
       if (e instanceof ApiError && e.status === 409) {
@@ -471,7 +495,7 @@ function EntryEditor({
         }
         actions={
           <>
-            {dirty && (
+            {(dirty || renaming) && (
               <span className="v-unsaved">
                 <AlertTriangle size={13} /> Unsaved changes
               </span>
@@ -503,7 +527,10 @@ function EntryEditor({
               onClick={() => save.mutate()}
               disabled={
                 save.isPending ||
-                (!dirty && !isNew && Object.keys(uploads).length === 0)
+                (!dirty &&
+                  !renaming &&
+                  !isNew &&
+                  Object.keys(uploads).length === 0)
               }
             >
               {save.isPending ? <Spinner /> : <Save />}{" "}
@@ -601,7 +628,7 @@ function EntryEditor({
                   {kind === "collection" && (
                     <div>
                       <label className="v-field__label">Slug</label>
-                      {isNew && !pattern?.single ? (
+                      {!pattern?.single ? (
                         <input
                           className="v-input v-input--mono"
                           value={slugInput || effectiveSlug}
@@ -615,11 +642,12 @@ function EntryEditor({
                           value={effectiveSlug}
                         />
                       )}
-                      {isNew && pattern && !pattern.single && (
+                      {(isNew || renaming) && pattern && !pattern.single && (
                         <div
                           className="v-field__hint v-mono"
                           style={{ fontSize: 11.5 }}
                         >
+                          {renaming && "Renames the file to "}
                           {entryPath(pattern, effectiveSlug || "…")}
                         </div>
                       )}

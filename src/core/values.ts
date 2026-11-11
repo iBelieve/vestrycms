@@ -142,7 +142,64 @@ export function toEditorValues(
   });
 }
 
+/** Key of the date field kept in the file name (`storeIn: "filename"`), if any. */
+export function filenameDateKey(schema: Schema): string | null {
+  for (const [key, field] of Object.entries(schema)) {
+    if (field.type === "date" && field.storeIn === "filename") return key;
+  }
+  return null;
+}
+
+const SLUG_DATE = /^(\d{4}-\d{2}-\d{2})-(?=.)/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Split a slug into its directory part (with trailing slash) and file name. */
+function splitSlug(slug: string): [string, string] {
+  const i = slug.lastIndexOf("/");
+  return [slug.slice(0, i + 1), slug.slice(i + 1)];
+}
+
+/** The `YYYY-MM-DD` a slug's file name starts with, or null. */
+export function dateFromSlug(slug: string): string | null {
+  return SLUG_DATE.exec(splitSlug(slug)[1])?.[1] ?? null;
+}
+
+/**
+ * The slug with `date` as its file name's date prefix, replacing the one it
+ * has or adding one. Anything that is not a `YYYY-MM-DD` date leaves the
+ * slug as it is.
+ */
+export function slugWithDate(slug: string, date: unknown): string {
+  if (typeof date !== "string" || !ISO_DATE.test(date)) return slug;
+  const [dir, name] = splitSlug(slug);
+  return `${dir}${date}-${name.replace(SLUG_DATE, "")}`;
+}
+
+/** Fill the file-name date field of an entry's editor values from its slug. */
+export function withFilenameDate(
+  schema: Schema,
+  data: Record<string, unknown>,
+  slug: string,
+): Record<string, unknown> {
+  const key = filenameDateKey(schema);
+  if (!key) return data;
+  const date = dateFromSlug(slug);
+  return date ? { ...data, [key]: date } : data;
+}
+
 export function toStoredValues(
+  schema: Schema,
+  data: Record<string, unknown>,
+  filePath: string,
+): Record<string, unknown> {
+  const stored = storedFieldValues(schema, data, filePath);
+  // A date kept in the file name is not written to the file as well.
+  const filenameDate = filenameDateKey(schema);
+  if (filenameDate) delete stored[filenameDate];
+  return stored;
+}
+
+function storedFieldValues(
   schema: Schema,
   data: Record<string, unknown>,
   filePath: string,

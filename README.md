@@ -230,6 +230,34 @@ slug: { template: "{date}-{title}" },
 previewUrl: "/articles/{slug|year}/{slug|month}/{slug|nodate}",
 ```
 
+## Renaming entries and dates in file names
+
+In a collection with one file per entry, the **Slug** box in the editor's
+sidebar can be changed on an existing entry. Saving then moves the file: the
+new file and the removal of the old one go in a single commit. Vestry refuses
+a slug that another entry already has.
+
+A date field can live in the file name instead of the frontmatter:
+
+```ts
+posts: collection({
+  path: "src/content/posts/*.mdx",
+  slug: { template: "{date}-{title}" },
+  sort: { field: "date", direction: "desc" },
+  schema: {
+    title: fields.text({ required: true }),
+    date: fields.date({ storeIn: "filename", default: "now" }),
+  },
+}),
+```
+
+The entry is saved as `2026-03-01-title.mdx` and its file holds no `date`
+key. The editor still shows a date picker, and lists sort and display by it.
+Changing the date renames the file, so a URL built from the slug changes
+with it; add a redirect if the old address matters. On the site, read the
+date from the entry id (`entry.id.slice(0, 10)`). One such field per
+collection, at the top level of the schema, without `time`.
+
 ## Editor sections
 
 By default the editor shows a "Details" card with every field, the content
