@@ -22,6 +22,25 @@ type AnyNode =
   | MdxTextExpression
   | MdxjsEsm;
 
+/** What the document references, to decide which imports to emit. */
+interface Uses {
+  /** Capitalized JSX element names. */
+  components: Set<string>;
+  /** Identifier-like words in expressions, attribute values and ESM. */
+  identifiers: Set<string>;
+}
+
+/**
+ * Note every identifier-like word in a piece of JS source. Words inside
+ * strings or comments count too, which at worst keeps an unused import.
+ */
+function scan(source: string, used: Uses) {
+  for (const m of source.matchAll(new RegExp(IDENTIFIER, "gu")))
+    used.identifiers.add(m[0]);
+}
+
+const IDENTIFIER = "[\\p{ID_Start}$_][\\p{ID_Continue}$\\u200c\\u200d]*";
+
 export interface SerializeOptions {
   format?: "md" | "mdx";
   /** Known components; used to emit imports for the ones the document uses. */
@@ -35,7 +54,7 @@ export function serializeMdx(
   options: SerializeOptions = {},
 ): string {
   const isMdx = options.format !== "md";
-  const used = new Set<string>();
+  const used: Uses = { components: new Set(), identifiers: new Set() };
   const root: Md.Root = {
     type: "root",
     children: blocks(doc.content ?? [], used) as Md.RootContent[],
@@ -123,22 +142,24 @@ function flowElementHandler(lib: Handler): Handler {
   };
 }
 
-function importStatements(
-  used: Set<string>,
-  options: SerializeOptions,
-): string[] {
+function importStatements(used: Uses, options: SerializeOptions): string[] {
   const lines = new Map<string, string>();
-  for (const name of used) {
+  const add = (name: string, spec: ImportSpec | undefined) => {
+    if (spec) lines.set(name, importLine(spec));
+  };
+  // Components get the registry's import, falling back to the source's.
+  for (const name of used.components) {
     const reg = options.components?.[name];
-    const spec: ImportSpec | undefined = reg?.import
-      ? { name, from: reg.import, named: reg.namedImport }
-      : options.existingImports?.[name];
-    if (!spec) continue;
-    const line = spec.named
-      ? `import { ${spec.name} } from "${spec.from}";`
-      : `import ${spec.name} from "${spec.from}";`;
-    lines.set(name, line);
+    add(
+      name,
+      reg?.import
+        ? { name, from: reg.import, named: reg.namedImport }
+        : options.existingImports?.[name],
+    );
   }
+  // Anything else the source imported stays while it is still referenced.
+  for (const [name, spec] of Object.entries(options.existingImports ?? {}))
+    if (!lines.has(name) && used.identifiers.has(name)) add(name, spec);
   const originalOrder = Object.keys(options.existingImports ?? {});
   return [...lines.entries()]
     .sort(([a], [b]) => {
@@ -152,7 +173,19 @@ function importStatements(
     .map(([, l]) => l);
 }
 
-function blocks(nodes: PMNode[], used: Set<string>): AnyNode[] {
+function importLine(spec: ImportSpec): string {
+  const from = JSON.stringify(spec.from);
+  if (!spec.named) return `import ${spec.name} from ${from};`;
+  const imported =
+    spec.imported === undefined || spec.imported === spec.name
+      ? ""
+      : new RegExp(`^${IDENTIFIER}$`, "u").test(spec.imported)
+        ? `${spec.imported} as `
+        : `${JSON.stringify(spec.imported)} as `;
+  return `import { ${imported}${spec.name} } from ${from};`;
+}
+
+function blocks(nodes: PMNode[], used: Uses): AnyNode[] {
   const out: AnyNode[] = [];
   for (const node of nodes) {
     const converted = block(node, used);
@@ -161,7 +194,7 @@ function blocks(nodes: PMNode[], used: Set<string>): AnyNode[] {
   return out;
 }
 
-function block(node: PMNode, used: Set<string>): AnyNode | null {
+function block(node: PMNode, used: Uses): AnyNode | null {
   switch (node.type) {
     case "paragraph": {
       const children = inlines(node.content ?? [], used);
@@ -188,16 +221,30 @@ function block(node: PMNode, used: Set<string>): AnyNode | null {
         const checked = item.attrs?.checked;
         return {
           type: "listItem",
-          spread: false,
+          spread: false as boolean,
           checked: typeof checked === "boolean" ? checked : null,
           children: blocks(item.content ?? [], used) as Md.BlockContent[],
         } satisfies Md.ListItem;
       });
+      // A loose list has blank lines between its items and between the blocks
+      // inside them. Two paragraphs in one item need a blank line or they
+      // merge, which also makes the list loose.
+      const spread =
+        node.attrs?.spread === true ||
+        items.some((item) =>
+          item.children.some(
+            (c, i) =>
+              i > 0 &&
+              c.type === "paragraph" &&
+              item.children[i - 1].type === "paragraph",
+          ),
+        );
+      for (const item of items) item.spread = spread;
       return {
         type: "list",
         ordered,
         start: ordered ? Number(node.attrs?.start ?? 1) : null,
-        spread: false,
+        spread,
         children: items,
       };
     }
@@ -214,13 +261,22 @@ function block(node: PMNode, used: Set<string>): AnyNode | null {
       return table(node, used);
     case "mdxComponent":
       return jsxElement(node, used, false) as MdxJsxFlowElement;
-    case "mdxExpression":
+    case "footnoteDefinition":
       return {
-        type: "mdxFlowExpression",
-        value: String(node.attrs?.value ?? ""),
+        type: "footnoteDefinition",
+        ...footnoteLabel(node),
+        children: blocks(node.content ?? [], used) as Md.BlockContent[],
       };
-    case "mdxEsm":
-      return { type: "mdxjsEsm", value: String(node.attrs?.value ?? "") };
+    case "mdxExpression": {
+      const value = String(node.attrs?.value ?? "");
+      scan(value, used);
+      return { type: "mdxFlowExpression", value };
+    }
+    case "mdxEsm": {
+      const value = String(node.attrs?.value ?? "");
+      scan(value, used);
+      return { type: "mdxjsEsm", value };
+    }
     case "image":
       return {
         type: "paragraph",
@@ -235,11 +291,17 @@ function block(node: PMNode, used: Set<string>): AnyNode | null {
   }
 }
 
+function footnoteLabel(node: PMNode): { identifier: string; label: string } {
+  const label = String(node.attrs?.label ?? node.attrs?.identifier ?? "");
+  const identifier = String(node.attrs?.identifier ?? label.toLowerCase());
+  return { identifier, label };
+}
+
 function clampDepth(n: number): 1 | 2 | 3 | 4 | 5 | 6 {
   return Math.min(6, Math.max(1, Math.round(n))) as 1 | 2 | 3 | 4 | 5 | 6;
 }
 
-function table(node: PMNode, used: Set<string>): Md.Table {
+function table(node: PMNode, used: Uses): Md.Table {
   const rows = node.content ?? [];
   const align: Md.AlignType[] = [];
   const children: Md.TableRow[] = rows.map((row, rowIdx) => ({
@@ -264,6 +326,7 @@ function table(node: PMNode, used: Set<string>): Md.Table {
 
 function propsToAttributes(
   node: PMNode,
+  used: Uses,
   inline = false,
 ): (MdxJsxAttribute | MdxJsxExpressionAttribute)[] {
   const props = (node.attrs?.props ?? {}) as Record<string, unknown>;
@@ -276,31 +339,32 @@ function propsToAttributes(
     } else if (isPlainString(value)) {
       attrs.push({ type: "mdxJsxAttribute", name, value });
     } else {
+      // Block components print each attribute on its own line, indented
+      // two spaces, so nested lines are indented relative to that.
+      const source = valueToSource(value, inline ? "" : "  ");
+      scan(source, used);
       attrs.push({
         type: "mdxJsxAttribute",
         name,
-        value: {
-          type: "mdxJsxAttributeValueExpression",
-          // Block components print each attribute on its own line, indented
-          // two spaces, so nested lines are indented relative to that.
-          value: valueToSource(value, inline ? "" : "  "),
-        },
+        value: { type: "mdxJsxAttributeValueExpression", value: source },
       });
     }
   }
-  for (const s of spreads)
+  for (const s of spreads) {
+    scan(s, used);
     attrs.push({ type: "mdxJsxExpressionAttribute", value: s });
+  }
   return attrs;
 }
 
 function jsxElement(
   node: PMNode,
-  used: Set<string>,
+  used: Uses,
   inline: boolean,
 ): MdxJsxFlowElement | MdxJsxTextElement {
   const name = String(node.attrs?.name ?? "");
-  if (name && /^[A-Z]/.test(name)) used.add(name);
-  const attributes = propsToAttributes(node, inline);
+  if (name && /^[A-Z]/.test(name)) used.components.add(name);
+  const attributes = propsToAttributes(node, used, inline);
   if (inline) {
     return {
       type: "mdxJsxTextElement",
@@ -337,7 +401,7 @@ const MARK_ORDER: MarkKind[] = [
  * following nodes becomes the outer wrapper, so `**a <sup>6</sup> b**`
  * keeps bold outermost.
  */
-function inlines(nodes: PMNode[], used: Set<string>): AnyNode[] {
+function inlines(nodes: PMNode[], used: Uses): AnyNode[] {
   return group(nodes, used);
 }
 
@@ -356,7 +420,7 @@ function stripMark(node: PMNode, key: string): PMNode {
   };
 }
 
-function group(nodes: PMNode[], used: Set<string>): AnyNode[] {
+function group(nodes: PMNode[], used: Uses): AnyNode[] {
   const out: AnyNode[] = [];
   let i = 0;
   while (i < nodes.length) {
@@ -433,7 +497,7 @@ function wrap(mark: PMMark, children: Md.PhrasingContent[]): AnyNode {
   }
 }
 
-function leaf(node: PMNode, used: Set<string>): AnyNode[] {
+function leaf(node: PMNode, used: Uses): AnyNode[] {
   switch (node.type) {
     case "text":
       return node.text ? [{ type: "text", value: node.text }] : [];
@@ -452,10 +516,13 @@ function leaf(node: PMNode, used: Set<string>): AnyNode[] {
       return [{ type: "html", value: String(node.attrs?.value ?? "") }];
     case "mdxInlineComponent":
       return [jsxElement(node, used, true)];
-    case "mdxInlineExpression":
-      return [
-        { type: "mdxTextExpression", value: String(node.attrs?.value ?? "") },
-      ];
+    case "mdxInlineExpression": {
+      const value = String(node.attrs?.value ?? "");
+      scan(value, used);
+      return [{ type: "mdxTextExpression", value }];
+    }
+    case "footnoteReference":
+      return [{ type: "footnoteReference", ...footnoteLabel(node) }];
     case "mdxComponent":
       return [jsxElement(node, used, true)];
     default:

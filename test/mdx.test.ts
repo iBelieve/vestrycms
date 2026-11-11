@@ -85,30 +85,32 @@ describe("imports", () => {
   });
 });
 
-// Known gaps: these fail today. Vitest reports them if they start passing,
-// so move them into the fixtures once fixed.
-describe("known gaps", () => {
-  it.fails("keeps footnotes", () => {
-    const source = "Text[^1].\n\n[^1]: The note.\n";
-    expect(roundTrip(source, "md")).toBe(source);
-  });
-
-  it.fails("keeps loose lists loose", () => {
-    const source = "- One\n\n  More.\n\n- Two\n";
-    expect(roundTrip(source, "md")).toBe(source);
-  });
-
-  // Only components count as uses, so the import is dropped and the
-  // expression no longer compiles.
-  it.fails("keeps imports used only in expressions", () => {
-    const source = 'import data from "./data.json";\n\n{data.title}\n';
-    expect(roundTrip(source)).toBe(source);
-  });
-
-  // Comes back as a wrong default import plus the original statement, so B is
-  // declared twice.
-  it.fails("keeps aliased named imports", () => {
-    const source = 'import { A as B } from "./x.ts";\n\n<B />\n';
-    expect(roundTrip(source)).toBe(source);
+describe("lists", () => {
+  it("loosens a list when an item holds two paragraphs", () => {
+    // The editor can put two paragraphs in an item of a tight list; written
+    // tight they would merge into one.
+    const paragraph = (text: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    });
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { spread: false },
+          content: [
+            {
+              type: "listItem",
+              content: [paragraph("One"), paragraph("More")],
+            },
+            { type: "listItem", content: [paragraph("Two")] },
+          ],
+        },
+      ],
+    };
+    expect(serializeMdx(doc, { format: "md" })).toBe(
+      "- One\n\n  More\n\n- Two\n",
+    );
   });
 });

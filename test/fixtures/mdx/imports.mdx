@@ -1,0 +1,16 @@
+import data from "./data.json";
+import { A as B } from "./x.ts";
+import { formatDate } from "../lib/dates.ts";
+import Card from "./Card.astro";
+
+import Icons, * as icons from "./icons.ts";
+
+export const title = data.title;
+
+# {title}
+
+<B />
+
+<Card date={formatDate(data.date)} />
+
+<Icons name={icons.cross} />
