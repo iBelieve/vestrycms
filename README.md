@@ -133,7 +133,7 @@ shows both and the editor's account never needs push access.
 ```
 
 Several sites can share one D1 database (handy on the free plan's database
-limit): give each a different `auth.tablePrefix`, e.g. `"mysite_"`, and bind
+limit): give each a different `auth.tablePrefix` (lowercase, e.g. `"mysite_"`), and bind
 the same `database_id` as `VESTRY_DB` in each site's `wrangler.jsonc`. Each
 site then gets its own tables (`mysite_user`, `mysite_session`, …), so users,
 roles and sessions stay separate. Without a prefix the tables keep Better

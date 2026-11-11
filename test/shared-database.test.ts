@@ -7,6 +7,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createApi } from "../src/core/api.js";
+import { AUTH_TABLES } from "../src/core/auth.js";
 import { memoryMailer } from "../src/core/mail.js";
 import { LocalSource } from "../src/core/sources/local.js";
 import type { VestryConfig } from "../src/config/types.js";
@@ -32,7 +33,8 @@ function site(admin: string, tablePrefix?: string) {
       mailer,
       secret: "test-secret-test-secret-test-secret-1234",
       required: true,
-      dev: true,
+      // Not dev: keeps rate limiting on, so its prefixed table is used too.
+      dev: false,
     },
   });
   const sendCode = (email: string) =>
@@ -44,6 +46,7 @@ function site(admin: string, tablePrefix?: string) {
           headers: {
             origin: "http://vestry.test",
             "content-type": "application/json",
+            "cf-connecting-ip": "203.0.113.7",
           },
           body: JSON.stringify({ email, type: "sign-in" }),
         },
@@ -70,13 +73,7 @@ describe("auth.tablePrefix", () => {
   it("gives each site its own tables in the shared database", async () => {
     for (const s of [a, b, plain]) await s.sendCode("nobody@example.org");
     const names = tables();
-    for (const t of [
-      "user",
-      "session",
-      "account",
-      "verification",
-      "rateLimit",
-    ]) {
+    for (const t of AUTH_TABLES) {
       expect(names).toContain(`a_${t}`);
       expect(names).toContain(`b_${t}`);
       expect(names).toContain(t);
@@ -104,12 +101,28 @@ describe("auth.tablePrefix", () => {
     expect(rows("user")).toEqual([]);
   });
 
+  it("rate-limits each site in its own table", () => {
+    const keys = (t: string) =>
+      (database.prepare(`SELECT key FROM "${t}"`).all() as { key: string }[])
+        .length;
+    expect(keys("a_rateLimit")).toBeGreaterThan(0);
+    expect(keys("b_rateLimit")).toBeGreaterThan(0);
+    expect(keys("rateLimit")).toBeGreaterThan(0);
+  });
+
   it("rejects a prefix that is not a plain identifier", async () => {
     const bad = site("x@example.org", "x-y; DROP");
+    const mixed = site("x@example.org", "Site_");
     const res = await bad.api.handle(
       new Request("http://vestry.test/admin/api/config"),
     );
     const body = (await res.json()) as { setupError?: string };
     expect(body.setupError).toMatch(/tablePrefix/);
+    const res2 = await mixed.api.handle(
+      new Request("http://vestry.test/admin/api/config"),
+    );
+    expect(((await res2.json()) as { setupError?: string }).setupError).toMatch(
+      /lowercase/,
+    );
   });
 });
