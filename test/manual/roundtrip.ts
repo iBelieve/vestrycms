@@ -8,8 +8,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { splitFrontmatter } from "../../src/core/entries.ts";
-import { parseMdx, serializeMdx } from "../../src/mdx/index.ts";
+import { splitFrontmatter } from "../../src/core/entries.js";
+import { parseMdx, serializeMdx } from "../../src/mdx/index.js";
 
 const require = createRequire(import.meta.url);
 let prettier: typeof import("prettier") | null = null;

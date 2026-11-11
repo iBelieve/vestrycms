@@ -1,11 +1,13 @@
 /**
  * Runs GitHubSource.commit against an in-process fake of the Git Data API,
- * checking the blob → tree → commit → ref sequence and payloads.
+ * checking the blob → tree → commit → ref sequence and payloads. The commit
+ * tests share the fake repository and build on each other, so run the file
+ * whole rather than filtering to one of them.
  */
 import { createServer } from "node:http";
 import { afterAll, describe, expect, it } from "vitest";
-import { GitHubSource } from "../src/core/sources/github.ts";
-import { base64Decode, toText } from "../src/core/source.ts";
+import { GitHubSource } from "../src/core/sources/github.js";
+import { base64Decode, toText } from "../src/core/source.js";
 
 const blobs = new Map<string, Uint8Array>();
 const trees = new Map<
@@ -14,7 +16,7 @@ const trees = new Map<
 >();
 const commits = new Map<
   string,
-  { tree: string; parents: string[]; message: string }
+  { tree: string; parents: string[]; message: string; author?: unknown }
 >();
 let n = 0;
 const sha = (p: string) =>
@@ -159,9 +161,7 @@ describe("GitHubSource.commit", () => {
   });
 
   it("leaves the author to the token's identity", () => {
-    expect(
-      (commits.get(c1.sha) as { author?: unknown }).author,
-    ).toBeUndefined();
+    expect(commits.get(c1.sha)!.author).toBeUndefined();
   });
 
   it("applies deletes and binary additions to the tree", () => {
@@ -171,7 +171,9 @@ describe("GitHubSource.commit", () => {
   });
 
   it("advances the cached head without refetching", async () => {
+    log.length = 0;
     expect(await src.head()).toBe(c1.sha);
+    expect(log).not.toContain("GET /repos/o/r/git/ref/heads/main");
   });
 
   it("round-trips binary content", async () => {
@@ -214,7 +216,7 @@ describe("GitHubSource.commit", () => {
         author: { name: "Pastor Example", email: "pastor@example.org" },
       },
     );
-    const commit = commits.get(c3.sha) as { message: string; author?: unknown };
+    const commit = commits.get(c3.sha)!;
     expect(commit.message).toBe(
       "Update Sermon: C\n\nCo-authored-by: Pastor Example <pastor@example.org>",
     );

@@ -8,7 +8,13 @@ import { describe, expect, it } from "vitest";
 import { parseMdx, serializeMdx } from "../src/mdx/index.js";
 
 const dir = new URL("./fixtures/mdx/", import.meta.url);
-const fixtures = readdirSync(dir).filter((f) => /\.mdx?$/.test(f));
+const fixtures = readdirSync(dir)
+  .filter((f) => /\.mdx?$/.test(f))
+  .map((name) => ({
+    name,
+    source: readFileSync(new URL(name, dir), "utf8"),
+    format: name.endsWith(".mdx") ? ("mdx" as const) : ("md" as const),
+  }));
 
 function roundTrip(source: string, format: "md" | "mdx" = "mdx") {
   const parsed = parseMdx(source, { format });
@@ -16,17 +22,16 @@ function roundTrip(source: string, format: "md" | "mdx" = "mdx") {
 }
 
 describe("fixtures", () => {
-  it.each(fixtures)("%s round-trips unchanged", (name) => {
-    const source = readFileSync(new URL(name, dir), "utf8");
-    const format = name.endsWith(".mdx") ? "mdx" : "md";
+  it.each(fixtures)("$name round-trips unchanged", ({ source, format }) => {
     expect(roundTrip(source, format)).toBe(source);
   });
 
-  it.each(fixtures)("%s parses to the expected document", (name) => {
-    const source = readFileSync(new URL(name, dir), "utf8");
-    const format = name.endsWith(".mdx") ? "mdx" : "md";
-    expect(parseMdx(source, { format })).toMatchSnapshot();
-  });
+  it.each(fixtures)(
+    "$name parses to the expected document",
+    ({ source, format }) => {
+      expect(parseMdx(source, { format })).toMatchSnapshot();
+    },
+  );
 });
 
 describe("normalization to the canonical style", () => {
@@ -91,5 +96,19 @@ describe("known gaps", () => {
   it.fails("keeps loose lists loose", () => {
     const source = "- One\n\n  More.\n\n- Two\n";
     expect(roundTrip(source, "md")).toBe(source);
+  });
+
+  // Only components count as uses, so the import is dropped and the
+  // expression no longer compiles.
+  it.fails("keeps imports used only in expressions", () => {
+    const source = 'import data from "./data.json";\n\n{data.title}\n';
+    expect(roundTrip(source)).toBe(source);
+  });
+
+  // Comes back as a wrong default import plus the original statement, so B is
+  // declared twice.
+  it.fails("keeps aliased named imports", () => {
+    const source = 'import { A as B } from "./x.ts";\n\n<B />\n';
+    expect(roundTrip(source)).toBe(source);
   });
 });

@@ -128,16 +128,18 @@ describe("anonymous visitors", () => {
 
 describe("sign-in with an emailed code", () => {
   let ownerCode: string;
+  let strangerAnswer: Awaited<ReturnType<typeof sendCode>>;
 
-  it("sends no email to unknown addresses, with the same answer", async () => {
-    const r = await sendCode(owner, "stranger@example.org");
-    expect(r.status).toBe(200);
+  it("sends no email to unknown addresses", async () => {
+    strangerAnswer = await sendCode(owner, "stranger@example.org");
+    expect(strangerAnswer.status).toBe(200);
     expect(mailer.sent).toHaveLength(0);
   });
 
   it("lets a config admin request a code before any invitation", async () => {
     const r = await sendCode(owner, "Owner@Example.org");
-    expect(r.status).toBe(200);
+    // Same answer as for an unknown address, so it reveals nothing.
+    expect(r).toEqual(strangerAnswer);
     expect(mailer.sent).toHaveLength(1);
     expect(mailer.sent[0]!.to).toBe("owner@example.org");
     ownerCode = codeFrom(mailer.sent[0]!.text);
@@ -176,6 +178,7 @@ describe("invitations", () => {
       name: "Ed",
       role: "editor",
     });
+    ed = r.data.user;
     expect(r.status).toBe(201);
     expect(r.data.user).toMatchObject({
       email: "ed@example.org",
@@ -191,8 +194,6 @@ describe("invitations", () => {
       role: "editor",
     });
     expect(r.status).toBeGreaterThanOrEqual(400);
-    const { data } = await owner.call<{ users: User[] }>("GET", "/users");
-    ed = data.users.find((u) => u.email === "ed@example.org")!;
   });
 
   it("are activated by the first sign-in", async () => {

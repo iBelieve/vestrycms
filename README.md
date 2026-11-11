@@ -327,7 +327,7 @@ pnpm link ../vestrycms
 ### Tests
 
 Tests use [Vitest](https://vitest.dev). Files matching `test/**/*.test.ts`
-run in CI; `pnpm typecheck` covers them too.
+run in CI; `pnpm typecheck` covers everything under `test/`.
 
 ```sh
 pnpm test                    # run the suite once
@@ -345,11 +345,14 @@ pnpm test -u                 # update snapshots after an intended change
   component children). Prettier skips that directory. Known gaps are
   `it.fails` tests; move them into the fixtures once fixed.
 
+The auth and GitHub source tests are ordered scenarios that build on shared
+state, so filter them by file, not by test name (`-t`).
+
 `test/manual` holds scripts that run outside the suite:
 
 ```sh
 pnpm test:roundtrip path/to/file.mdx                       # round-trip a site's content through Prettier
-GH_TOKEN=… node --import tsx/esm test/manual/github-read.ts   # live read path
+GH_TOKEN=… node --import tsx/esm test/manual/github-read.ts path/to/site  # time the live read path
 GH_TOKEN=… node --import tsx/esm test/manual/github-write.ts  # live commits on a throwaway branch
 ```
 

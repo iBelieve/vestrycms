@@ -25,12 +25,12 @@ main consumer; keep it free of site-specific code.
   (`.github/workflows/ci.yml`) runs, plus `pnpm build` and `npm pack --dry-run`.
 - `pnpm test` runs Vitest over `test/**/*.test.ts`; `pnpm test:watch`
   re-runs on change, `pnpm test -u` updates snapshots. `pnpm typecheck`
-  includes the tests.
+  covers everything under `test/`.
 - `test/fixtures/mdx` files must round-trip byte for byte, so Prettier skips
   them; write them in the serializer's canonical style.
-- `test/manual/*` are scripts outside the suite. `github-read.ts` and
-  `github-write.ts` need `GH_TOKEN` (push access for the write test) and
-  cannot run through the sandbox proxy.
+- `test/manual/*` are scripts outside the suite. `github-read.ts` (given a
+  site checkout) and `github-write.ts` need `GH_TOKEN` (push access for the
+  write test) and cannot run through the sandbox proxy.
 
 ## Conventions
 

@@ -5,10 +5,11 @@
  */
 import { createServer, type IncomingMessage } from "node:http";
 import { generateKeyPairSync, verify } from "node:crypto";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   installationTokenProvider,
   signAppJwt,
+  type TokenProvider,
 } from "../src/core/sources/github-app.js";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", {
@@ -40,7 +41,7 @@ describe("signAppJwt", () => {
   });
 });
 
-describe("installationTokenProvider", async () => {
+describe("installationTokenProvider", () => {
   const requests: IncomingMessage[] = [];
   const server = createServer((req, res) => {
     requests.push(req);
@@ -52,15 +53,18 @@ describe("installationTokenProvider", async () => {
       }),
     );
   });
-  await new Promise<void>((r) => server.listen(0, r));
-  afterAll(() => void server.close());
-  const port = (server.address() as { port: number }).port;
-  const provider = installationTokenProvider({
-    appId: "12345",
-    installationId: "777",
-    privateKey: pkcs1,
-    apiBase: `http://127.0.0.1:${port}`,
+  let provider: TokenProvider;
+  beforeAll(async () => {
+    await new Promise<void>((r) => server.listen(0, r));
+    const port = (server.address() as { port: number }).port;
+    provider = installationTokenProvider({
+      appId: "12345",
+      installationId: "777",
+      privateKey: pkcs1,
+      apiBase: `http://127.0.0.1:${port}`,
+    });
   });
+  afterAll(() => void server.close());
 
   it("mints a token at the installation endpoint with the app JWT", async () => {
     expect(await provider()).toBe("ghs_1");
