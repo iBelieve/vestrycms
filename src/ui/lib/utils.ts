@@ -1,4 +1,5 @@
 import type { Field, Schema } from "../../config/types.js";
+import { fillTemplate as fillPathTemplate } from "../../core/paths.js";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
@@ -265,20 +266,7 @@ export function fillTemplate(
   values: Record<string, unknown>,
   slug = false,
 ): string {
-  return template.replace(/\{([\w.]+)\}/g, (_, key: string) => {
-    const raw = key
-      .split(".")
-      .reduce<unknown>(
-        (acc, k) =>
-          acc && typeof acc === "object"
-            ? (acc as Record<string, unknown>)[k]
-            : undefined,
-        values,
-      );
-    if (raw === undefined || raw === null) return "";
-    const s = String(raw);
-    return slug ? slugify(s) : s;
-  });
+  return fillPathTemplate(template, values, { slug });
 }
 
 export function deepEqual(a: unknown, b: unknown): boolean {

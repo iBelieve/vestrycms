@@ -482,6 +482,15 @@ export interface VestryConfig {
   navigation?: NavigationGroup[];
   /** Default commit message template. */
   commitMessage?: string;
+  /**
+   * Format files with the project's Prettier before saving, when Prettier is
+   * installed. Defaults to true. Set to false if Prettier does not format
+   * your content safely: its MDX support predates MDX 2 and can break, for
+   * example, a blockquote that contains inline HTML. Files are then saved
+   * exactly as the editor serialises them, so add the content directories to
+   * `.prettierignore`.
+   */
+  format?: boolean;
   /** Sign-in: who may edit. Users sign in with a code emailed to them. */
   auth?: AuthConfig;
   /** Outbound email for sign-in codes and invitations. Required in production. */

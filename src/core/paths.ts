@@ -145,23 +145,46 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Fill `{field}` placeholders from a record. Values are slugified when `slug` is true. */
+/**
+ * Filters for template placeholders, written `{field|filter}`:
+ *
+ * - `year`, `month`, `day`: that part of a value starting `YYYY-MM-DD`
+ *   (a date field, or a slug with a date prefix).
+ * - `nodate`: the value without a leading `YYYY-MM-DD-`, for collections
+ *   whose file names carry the date but whose URLs do not.
+ */
+const TEMPLATE_FILTERS: Record<string, (value: string) => string> = {
+  year: (v) => /^(\d{4})-\d{2}-\d{2}/.exec(v)?.[1] ?? "",
+  month: (v) => /^\d{4}-(\d{2})-\d{2}/.exec(v)?.[1] ?? "",
+  day: (v) => /^\d{4}-\d{2}-(\d{2})/.exec(v)?.[1] ?? "",
+  nodate: (v) => v.replace(/^\d{4}-\d{2}-\d{2}-/, ""),
+};
+
+/**
+ * Fill `{field}` and `{field|filter}` placeholders from a record. Values are
+ * slugified when `slug` is true.
+ */
 export function fillTemplate(
   template: string,
   values: Record<string, unknown>,
   opts: { slug?: boolean } = {},
 ): string {
-  return template.replace(/\{([\w.]+)\}/g, (_, key: string) => {
-    const raw = key.split(".").reduce<unknown>((acc, k) => {
-      if (acc && typeof acc === "object")
-        return (acc as Record<string, unknown>)[k];
-      return undefined;
-    }, values);
-    if (raw === undefined || raw === null) return "";
-    let s = raw instanceof Date ? raw.toISOString().slice(0, 10) : String(raw);
-    if (opts.slug) s = slugify(s);
-    return s;
-  });
+  return template.replace(
+    /\{([\w.]+)(?:\|(\w+))?\}/g,
+    (_, key: string, filter?: string) => {
+      const raw = key.split(".").reduce<unknown>((acc, k) => {
+        if (acc && typeof acc === "object")
+          return (acc as Record<string, unknown>)[k];
+        return undefined;
+      }, values);
+      if (raw === undefined || raw === null) return "";
+      let s =
+        raw instanceof Date ? raw.toISOString().slice(0, 10) : String(raw);
+      if (filter) s = TEMPLATE_FILTERS[filter]?.(s) ?? s;
+      if (opts.slug) s = slugify(s);
+      return s;
+    },
+  );
 }
 
 const SAFE_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;

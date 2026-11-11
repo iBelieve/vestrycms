@@ -8,8 +8,16 @@ import { pathToFileURL } from "node:url";
  * Prettier installed, the control panel formats files with it before saving
  * (using the project's own Prettier config), so commits made through Vestry
  * match what `prettier --check` expects. Otherwise the module is a no-op.
+ *
+ * `enabled: false` (the `format: false` config option) always gives the
+ * no-op module, for projects whose content Prettier does not format safely.
  */
-export async function formatterModule(root: string): Promise<string> {
+export async function formatterModule(
+  root: string,
+  enabled = true,
+): Promise<string> {
+  const none = `export const available = false;\nexport async function formatFile(text) { return text; }\n`;
+  if (!enabled) return none;
   const require = createRequire(path.join(root, "package.json"));
   let standalone: string;
   let plugins: Record<string, string>;
@@ -27,7 +35,7 @@ export async function formatterModule(root: string): Promise<string> {
     if (![standalone, ...Object.values(plugins)].every((p) => existsSync(p)))
       throw new Error("prettier layout");
   } catch {
-    return `export const available = false;\nexport async function formatFile(text) { return text; }\n`;
+    return none;
   }
 
   let options: Record<string, unknown> = {};

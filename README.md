@@ -19,7 +19,8 @@ React app served from your site at `/admin`, and every save is a commit.
   panel stays snappy; the only database is the small one sign-in needs. `astro dev` edits your working
   copy directly.
 - **Prettier-clean commits.** When the project has Prettier installed, files
-  are formatted with the project's own config before they are committed.
+  are formatted with the project's own config before they are committed
+  (`format: false` turns this off).
 
 ## Setup
 
@@ -200,6 +201,25 @@ from the injected Astro endpoint in production. Both call the same
 - Uploads chosen from an image/file field are committed together with the
   entry in one commit.
 
+## URL and slug templates
+
+`previewUrl` and `slug.template` fill `{field}` placeholders from the entry
+(`{slug}` is always available in `previewUrl`). A placeholder can take a
+filter, `{field|filter}`:
+
+| Filter                 | Result                                     |
+| ---------------------- | ------------------------------------------ |
+| `year`, `month`, `day` | That part of a value starting `YYYY-MM-DD` |
+| `nodate`               | The value without a leading `YYYY-MM-DD-`  |
+
+So a collection whose files are named `2012-07-31-title.mdx` but whose pages
+live at `/articles/2012/07/title` uses:
+
+```ts
+slug: { template: "{date}-{title}" },
+previewUrl: "/articles/{slug|year}/{slug|month}/{slug|nodate}",
+```
+
 ## Editor sections
 
 By default the editor shows a "Details" card with every field, the content
@@ -298,6 +318,18 @@ freshly uploaded images before they are committed.
 Fields accept `label`, `description`, `required`, `sidebar`, `hidden`,
 `readOnly` and `width` (`full` | `half` | `third`).
 
+`fields.array` takes the item field and then its options,
+`fields.array(fields.text(), { addLabel: "Add tag" })`, or a single options
+object like the other builders: `fields.array({ of: fields.text(), addLabel:
+"Add tag" })`.
+
+## MDX conversion
+
+`vestrycms/mdx` exports the converter the editor uses: `parseMdx(source)`
+turns MDX into a ProseMirror document and `serializeMdx(doc)` writes one back
+out. Use it to produce files in exactly the form the control panel saves,
+for example when migrating content from another CMS.
+
 ## Development
 
 ```sh
@@ -327,7 +359,7 @@ pnpm link ../vestrycms
 ### Tests
 
 ```sh
-pnpm test                                                  # github-mock, auth, github-app
+pnpm test                                                  # templates, github-mock, auth, github-app
 node --import tsx/esm test/auth.ts                         # sign-in, users and guards over HTTP (memory adapter)
 node --import tsx/esm test/github-app.ts                   # GitHub App JWT + installation token cache
 node --import tsx/esm test/roundtrip.ts path/to/file.mdx   # MDX round-trip

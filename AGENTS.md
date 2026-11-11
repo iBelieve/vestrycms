@@ -28,7 +28,7 @@ main consumer; keep it free of site-specific code.
 
 ## Conventions
 
-- Only `dist/` is published. Exports: `.`, `./config`, `./core`,
+- Only `dist/` is published. Exports: `.`, `./config`, `./core`, `./mdx`,
   `./pages/admin.astro`, `./pages/api`. The integration injects its routes
   by package specifier (`vestrycms/pages/...`), so the package name and
   these exports must stay in step.

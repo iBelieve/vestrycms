@@ -108,7 +108,9 @@ export default function vestry(
             if (id === `\0${VIRTUAL.runtime}`) {
               return `export const basePath = ${JSON.stringify(basePath)};\nexport const name = ${JSON.stringify(config.name ?? "Vestry")};`;
             }
-            if (id === `\0${VIRTUAL.formatter}`) return formatterModule(root);
+            if (id === `\0${VIRTUAL.formatter}`) {
+              return formatterModule(root, config.format !== false);
+            }
             if (id === `\0${VIRTUAL.index}`) {
               // Dev edits bypass the index (the local source reads disk), so
               // an empty index keeps dev startup instant.
