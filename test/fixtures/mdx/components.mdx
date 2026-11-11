@@ -1,0 +1,16 @@
+import Callout from "../../components/Callout.astro";
+import { Highlights } from "../../components/index.ts";
+
+# Components
+
+<Callout kind="note" count={3} open items={["a", "b"]} meta={{ level: 2 }}>
+
+Some _content_ inside a component.
+
+</Callout>
+
+<Highlights />
+
+Inline <Highlights compact /> component and an {1 + 1} expression.
+
+<Callout handler={() => alert("hi")} />

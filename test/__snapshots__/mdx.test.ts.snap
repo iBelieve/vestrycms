@@ -1,0 +1,683 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`fixtures > basics.md parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "attrs": {
+          "level": 1,
+        },
+        "content": [
+          {
+            "text": "Heading one",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "attrs": {
+          "level": 2,
+        },
+        "content": [
+          {
+            "text": "Heading ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "italic",
+              },
+            ],
+            "text": "two",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "text": "A paragraph with ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "italic",
+              },
+            ],
+            "text": "emphasis",
+            "type": "text",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "text": "strong",
+            "type": "text",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "code",
+              },
+            ],
+            "text": "code",
+            "type": "text",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "strike",
+              },
+            ],
+            "text": "strike",
+            "type": "text",
+          },
+          {
+            "text": " and a ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "href": "https://example.org",
+                  "title": "Title",
+                },
+                "type": "link",
+              },
+            ],
+            "text": "link",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "text": "A hard break, H",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "value": "<sub>",
+            },
+            "type": "rawInlineHtml",
+          },
+          {
+            "text": "2",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "value": "</sub>",
+            },
+            "type": "rawInlineHtml",
+          },
+          {
+            "text": "O and E = mc",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "value": "<sup>",
+            },
+            "type": "rawInlineHtml",
+          },
+          {
+            "text": "2",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "value": "</sup>",
+            },
+            "type": "rawInlineHtml",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Bullet one",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Bullet two",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+              {
+                "content": [
+                  {
+                    "attrs": {},
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Nested bullet",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                    ],
+                    "type": "listItem",
+                  },
+                ],
+                "type": "bulletList",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "attrs": {
+          "start": 1,
+        },
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "First",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Second",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "orderedList",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "text": "A quotation
+over two lines.",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
+          },
+        ],
+        "type": "blockquote",
+      },
+      {
+        "attrs": {
+          "language": "js",
+          "meta": null,
+        },
+        "content": [
+          {
+            "text": "const x = 1;",
+            "type": "text",
+          },
+        ],
+        "type": "codeBlock",
+      },
+      {
+        "type": "horizontalRule",
+      },
+      {
+        "content": [
+          {
+            "attrs": {
+              "alt": "Alt text",
+              "src": "/images/photo.jpg",
+              "title": null,
+            },
+            "type": "image",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": "left",
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Left",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "attrs": {
+                  "align": "right",
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Right",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": "left",
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "a",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "attrs": {
+                  "align": "right",
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "b",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+      {
+        "attrs": {
+          "value": "<div class="raw">Raw HTML stays put.</div>",
+        },
+        "type": "rawHtml",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
+
+exports[`fixtures > components.mdx parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "attrs": {
+          "level": 1,
+        },
+        "content": [
+          {
+            "text": "Components",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "attrs": {
+          "hasChildren": true,
+          "name": "Callout",
+          "props": {
+            "count": 3,
+            "items": [
+              "a",
+              "b",
+            ],
+            "kind": "note",
+            "meta": {
+              "level": 2,
+            },
+            "open": true,
+          },
+          "spreads": [],
+        },
+        "content": [
+          {
+            "content": [
+              {
+                "text": "Some ",
+                "type": "text",
+              },
+              {
+                "marks": [
+                  {
+                    "type": "italic",
+                  },
+                ],
+                "text": "content",
+                "type": "text",
+              },
+              {
+                "text": " inside a component.",
+                "type": "text",
+              },
+            ],
+            "type": "paragraph",
+          },
+        ],
+        "type": "mdxComponent",
+      },
+      {
+        "attrs": {
+          "hasChildren": false,
+          "name": "Highlights",
+          "props": {},
+          "spreads": [],
+        },
+        "content": [],
+        "type": "mdxComponent",
+      },
+      {
+        "content": [
+          {
+            "text": "Inline ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "hasChildren": false,
+              "name": "Highlights",
+              "props": {
+                "compact": true,
+              },
+              "spreads": [],
+            },
+            "content": [],
+            "type": "mdxInlineComponent",
+          },
+          {
+            "text": " component and an ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "value": "1 + 1",
+            },
+            "type": "mdxInlineExpression",
+          },
+          {
+            "text": " expression.",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "hasChildren": false,
+          "name": "Callout",
+          "props": {
+            "handler": {
+              "$raw": "() => alert("hi")",
+            },
+          },
+          "spreads": [],
+        },
+        "content": [],
+        "type": "mdxComponent",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {
+    "Callout": {
+      "from": "../../components/Callout.astro",
+      "name": "Callout",
+    },
+    "Highlights": {
+      "from": "../../components/index.ts",
+      "name": "Highlights",
+      "named": true,
+    },
+  },
+}
+`;
+
+exports[`fixtures > lists.md parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "content": [
+          {
+            "attrs": {
+              "checked": false,
+            },
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "An open task",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {
+              "checked": true,
+            },
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "A done task",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "attrs": {
+          "start": 3,
+        },
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Starting at three",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Then four",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "orderedList",
+      },
+      {
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "Bullet",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+              {
+                "content": [
+                  {
+                    "attrs": {},
+                    "content": [
+                      {
+                        "content": [
+                          {
+                            "text": "Nested bullet",
+                            "type": "text",
+                          },
+                        ],
+                        "type": "paragraph",
+                      },
+                      {
+                        "attrs": {
+                          "start": 1,
+                        },
+                        "content": [
+                          {
+                            "attrs": {},
+                            "content": [
+                              {
+                                "content": [
+                                  {
+                                    "text": "Nested ordered",
+                                    "type": "text",
+                                  },
+                                ],
+                                "type": "paragraph",
+                              },
+                            ],
+                            "type": "listItem",
+                          },
+                        ],
+                        "type": "orderedList",
+                      },
+                    ],
+                    "type": "listItem",
+                  },
+                ],
+                "type": "bulletList",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
