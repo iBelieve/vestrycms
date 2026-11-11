@@ -132,6 +132,16 @@ shows both and the editor's account never needs push access.
 "d1_databases": [{ "binding": "VESTRY_DB", "database_name": "my-site-vestry" }]
 ```
 
+Several sites can share one D1 database (handy on the free plan's database
+limit): give each a different `auth.tablePrefix`, e.g. `"mysite_"`, and bind
+the same `database_id` as `VESTRY_DB` in each site's `wrangler.jsonc`. Each
+site then gets its own tables (`mysite_user`, `mysite_session`, …), so users,
+roles and sessions stay separate. Without a prefix the tables keep Better
+Auth's plain names, so don't let two sites share a database unprefixed: they
+would share one user list, and anyone invited to one could sign in to both.
+Changing the prefix on a live site starts it with an empty user list (config
+admins can still sign in and invite everyone again).
+
 In `astro dev` no sign-in is needed by default: the panel edits the project
 directory and you commit with git. `VESTRY_MODE=auth` keeps the local source
 but requires sign-in, with users in git-ignored `.vestry/auth.sqlite`, for
@@ -337,6 +347,8 @@ pnpm test -u                 # update snapshots after an intended change
 ```
 
 - `test/auth.test.ts`: sign-in, users and guards over HTTP (memory adapter).
+- `test/shared-database.test.ts`: `auth.tablePrefix` keeping sites apart in one
+  database (`node:sqlite`, real migrations).
 - `test/github-source.test.ts`: commit sequencing against a fake Git Data API.
 - `test/github-app.test.ts`: GitHub App JWT and installation token cache.
 - `test/mdx.test.ts`: MDX round trips. Each file in `test/fixtures/mdx` must
