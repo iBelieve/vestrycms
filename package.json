@@ -94,7 +94,7 @@
     "astring": "^1.9.0",
     "better-auth": "1.7.15",
     "estree-util-value-to-estree": "^3.5.0",
-    "lucide-react": "^0.560.0",
+    "lucide-react": "^1.69.0",
     "mdast-util-from-markdown": "^2.0.2",
     "mdast-util-gfm": "^3.1.0",
     "mdast-util-mdx": "^3.0.0",

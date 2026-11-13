@@ -5,15 +5,15 @@ import {
   type Editor,
 } from "@tiptap/react";
 import {
-  Bold,
   Code,
-  Code2,
+  CodeXml,
   Eye,
   Heading1,
   Heading2,
   Heading3,
   Image as ImageIcon,
   Italic,
+  LetterB,
   Link as LinkIcon,
   List,
   ListOrdered,
@@ -349,7 +349,7 @@ function Toolbar({
         editor.chain().focus().toggleHeading({ level: 3 }).run(),
       )}
       <span className="v-rte__sep" />
-      {tool("Bold", state.bold, <Bold />, () =>
+      {tool("Bold", state.bold, <LetterB />, () =>
         editor.chain().focus().toggleBold().run(),
       )}
       {tool("Italic", state.italic, <Italic />, () =>
@@ -384,7 +384,7 @@ function Toolbar({
       {tool("Quote", state.quote, <Quote />, () =>
         editor.chain().focus().toggleBlockquote().run(),
       )}
-      {tool("Code block", state.codeBlock, <Code2 />, () =>
+      {tool("Code block", state.codeBlock, <CodeXml />, () =>
         editor.chain().focus().toggleCodeBlock().run(),
       )}
       {tool("Divider", false, <Minus />, () =>
@@ -539,7 +539,7 @@ function Toolbar({
           onClick={() => onMode("source")}
           title="Edit MDX source"
         >
-          <Code2 size={14} style={{ marginRight: 4, verticalAlign: -2 }} />{" "}
+          <CodeXml size={14} style={{ marginRight: 4, verticalAlign: -2 }} />{" "}
           Source
         </button>
       </div>
