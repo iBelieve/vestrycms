@@ -14,7 +14,17 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const src = path.join(root, "src");
 const dist = path.join(root, "dist");
 const watch = process.argv.includes("--watch");
-const tsc = createRequire(import.meta.url).resolve("typescript/bin/tsc");
+// TypeScript 7's export map includes `./package.json` and not `./bin/tsc`.
+// The `bin` field is the supported location of the compiler entry: a Node
+// launcher that execs the native binary.
+const manifestPath = createRequire(import.meta.url).resolve(
+  "typescript/package.json",
+);
+const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+if (typeof manifest.bin?.tsc !== "string") {
+  throw new Error("typescript package.json does not declare a tsc binary");
+}
+const tsc = path.resolve(path.dirname(manifestPath), manifest.bin.tsc);
 
 function runTsc(extra = []) {
   return new Promise((resolve, reject) => {
