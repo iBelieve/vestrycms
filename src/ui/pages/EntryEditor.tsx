@@ -18,7 +18,7 @@ import {
   collectionFormat,
   dirname,
   entryPath,
-  fillTemplate as fillPathTemplate,
+  fillTemplate,
   normalizePath,
   parsePathPattern,
   relativePath,
@@ -48,12 +48,11 @@ import {
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { formatSource } from "../lib/format.js";
+import { formatEntry } from "../lib/format.js";
 import {
   defaultValues,
   deepEqual,
   fieldLabel,
-  fillTemplate,
   formatDate,
   validate,
   type ValidationError,
@@ -185,7 +184,7 @@ function EntryEditor({
     if (!isNew) return slug ?? "";
     if (slugInput) return slugInput;
     const template = collection.slug?.template;
-    if (template) return fillPathTemplate(template, state.data, { slug: true });
+    if (template) return fillTemplate(template, state.data, { slug: true });
     const from = collection.slug?.from ?? collection.titleField ?? "title";
     const v = state.data[from];
     return slugify(String(v ?? ""));
@@ -217,6 +216,7 @@ function EntryEditor({
     ) as EditorEnv["components"];
     return {
       components,
+      textStyles: config.textStyles,
       imageDirectory: images?.directory,
       toRepoPath,
       toDocPath: (repoPath) =>
@@ -230,7 +230,14 @@ function EntryEditor({
         return pending ? pending.previewUrl : api.fileUrl(repo);
       },
     };
-  }, [bodyConfig, filePath, config.components, uploads, api]);
+  }, [
+    bodyConfig,
+    filePath,
+    config.components,
+    config.textStyles,
+    uploads,
+    api,
+  ]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -255,7 +262,7 @@ function EntryEditor({
         const stored = toStoredValues(col.schema, data, filePath);
         let raw = serializeEntry(format, { data: stored, body: state.body });
         try {
-          raw = await formatSource(raw, filePath);
+          raw = await formatEntry(raw, filePath, format);
         } catch (e) {
           console.warn("[vestry] formatting failed, saving unformatted", e);
         }

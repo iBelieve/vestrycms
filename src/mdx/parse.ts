@@ -25,8 +25,16 @@ type AnyNode =
   | MdxTextExpression
   | MdxjsEsm;
 
-const SUPERSCRIPT_TAGS = new Set(["sup"]);
-const SUBSCRIPT_TAGS = new Set(["sub"]);
+/** Inline HTML tags that are edited as marks rather than as components. */
+const MARK_TAGS: Record<string, string> = {
+  sup: "superscript",
+  sub: "subscript",
+  u: "underline",
+  small: "small",
+};
+
+/** A raw HTML line break, which Markdown needs where it has no hard break. */
+const HTML_BREAK = /^<br\s*\/?>$/i;
 
 export interface ParseOptions {
   /** `md` disables JSX/ESM parsing (raw HTML is preserved as html nodes). */
@@ -59,6 +67,11 @@ export function parseMdx(
 interface Ctx {
   imports: Record<string, ImportSpec>;
   definitions: Map<string, Md.Definition>;
+  /**
+   * Inside a table cell or heading of a Markdown file, where a hard break can
+   * only be written as raw HTML (`<br>`); see `htmlBreaks` in the serializer.
+   */
+  htmlBreaks?: boolean;
 }
 
 function collectDefinitions(tree: Md.Root, ctx: Ctx) {
@@ -94,7 +107,7 @@ function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
       return {
         type: "heading",
         attrs: { level: node.depth },
-        content: inlines(node.children as AnyNode[], ctx),
+        content: lineInlines(node.children as AnyNode[], ctx),
       };
     case "thematicBreak":
       return { type: "horizontalRule" };
@@ -133,7 +146,7 @@ function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
         content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
       };
     case "mdxJsxFlowElement":
-      return jsxElement(node, ctx, false);
+      return jsxBlock(node, ctx);
     case "mdxFlowExpression":
       return { type: "mdxExpression", attrs: { value: node.value } };
     case "mdxjsEsm":
@@ -177,7 +190,7 @@ function table(node: Md.Table, ctx: Ctx): PMNode {
       content: [
         {
           type: "paragraph",
-          content: inlines(cell.children as AnyNode[], ctx),
+          content: lineInlines(cell.children as AnyNode[], ctx),
         },
       ],
     })),
@@ -270,31 +283,60 @@ function attrsToProps(
   return { props, spreads };
 }
 
-function jsxElement(
+/**
+ * The mark an inline element stands for, if any: `<u>`, `<small>`, `<sup>` and
+ * `<sub>` without attributes, and a `<span>` whose only attribute is a string
+ * `class`. Anything else (and an element without children, which a mark
+ * could not represent) stays a component, so nothing is lost on save.
+ */
+function jsxMark(node: MdxJsxFlowElement | MdxJsxTextElement): PMMark | null {
+  if (!node.children.length) return null;
+  const name = node.name ?? "";
+  if (!node.attributes.length)
+    return Object.hasOwn(MARK_TAGS, name) ? { type: MARK_TAGS[name] } : null;
+  const [attr] = node.attributes;
+  if (
+    name === "span" &&
+    node.attributes.length === 1 &&
+    attr.type === "mdxJsxAttribute" &&
+    attr.name === "class" &&
+    typeof attr.value === "string"
+  )
+    return { type: "textClass", attrs: { class: attr.value } };
+  return null;
+}
+
+/** An element within a paragraph: a line break, a mark on its children, or an inline component. */
+function jsxInline(
   node: MdxJsxFlowElement | MdxJsxTextElement,
   ctx: Ctx,
-  inline: boolean,
-): PMNode | PMNode[] {
+  marks: PMMark[],
+): PMNode[] {
+  const name = node.name ?? "";
+  const children = node.children as AnyNode[];
+  if (name === "br" && !node.attributes.length && !children.length)
+    return [withMarks({ type: "hardBreak" }, marks)];
+  const mark = jsxMark(node);
+  if (mark) return inlines(children, ctx, [...marks, mark]);
+  const { props, spreads } = attrsToProps(node.attributes);
+  return [
+    withMarks(
+      {
+        type: "mdxInlineComponent",
+        attrs: { name, props, spreads, hasChildren: children.length > 0 },
+        content: inlines(children, ctx),
+      },
+      marks,
+    ),
+  ];
+}
+
+function jsxBlock(node: MdxJsxFlowElement, ctx: Ctx): PMNode {
   const name = node.name ?? "";
   const { props, spreads } = attrsToProps(node.attributes);
   const children = node.children as AnyNode[];
-
-  if (inline) {
-    if (SUPERSCRIPT_TAGS.has(name) || SUBSCRIPT_TAGS.has(name)) {
-      const mark: PMMark = {
-        type: SUPERSCRIPT_TAGS.has(name) ? "superscript" : "subscript",
-      };
-      return inlines(children, ctx, [mark]);
-    }
-    return {
-      type: "mdxInlineComponent",
-      attrs: { name, props, spreads, hasChildren: children.length > 0 },
-      content: inlines(children, ctx),
-    };
-  }
-
-  // Block element. Children may be flow content or phrasing content (MDX
-  // allows `<Foo>text</Foo>`); normalise to blocks.
+  // Children may be flow content or phrasing content (MDX allows
+  // `<Foo>text</Foo>`); normalise to blocks.
   const hasFlowChildren = children.some((c) => !isPhrasing(c));
   const content = hasFlowChildren
     ? blocks(children, ctx)
@@ -333,6 +375,17 @@ function inlines(nodes: AnyNode[], ctx: Ctx, marks: PMMark[] = []): PMNode[] {
   const out: PMNode[] = [];
   for (const node of nodes) out.push(...inlineNode(node, ctx, marks));
   return mergeText(out);
+}
+
+/** The content of a table cell or heading, which cannot hold a Markdown hard break. */
+function lineInlines(nodes: AnyNode[], ctx: Ctx): PMNode[] {
+  const outer = ctx.htmlBreaks;
+  ctx.htmlBreaks = true;
+  try {
+    return inlines(nodes, ctx);
+  } finally {
+    ctx.htmlBreaks = outer;
+  }
 }
 
 function withMarks(node: PMNode, marks: PMMark[]): PMNode {
@@ -415,9 +468,16 @@ function inlineNode(node: AnyNode, ctx: Ctx, marks: PMMark[]): PMNode[] {
         : [];
     }
     case "break":
-      return [{ type: "hardBreak" }];
+      return [withMarks({ type: "hardBreak" }, marks)];
     case "html":
-      return [{ type: "rawInlineHtml", attrs: { value: node.value } }];
+      if (ctx.htmlBreaks && HTML_BREAK.test(node.value))
+        return [withMarks({ type: "hardBreak" }, marks)];
+      return [
+        withMarks(
+          { type: "rawInlineHtml", attrs: { value: node.value } },
+          marks,
+        ),
+      ];
     case "footnoteReference":
       return [
         withMarks(
@@ -425,17 +485,16 @@ function inlineNode(node: AnyNode, ctx: Ctx, marks: PMMark[]): PMNode[] {
           marks,
         ),
       ];
-    case "mdxJsxTextElement": {
-      const converted = jsxElement(node, ctx, true);
-      const arr = Array.isArray(converted) ? converted : [converted];
-      return arr.map((n) => (n.type === "text" ? withMarks(n, marks) : n));
-    }
+    case "mdxJsxTextElement":
+    case "mdxJsxFlowElement":
+      return jsxInline(node, ctx, marks);
     case "mdxTextExpression":
-      return [{ type: "mdxInlineExpression", attrs: { value: node.value } }];
-    case "mdxJsxFlowElement": {
-      const converted = jsxElement(node, ctx, true);
-      return Array.isArray(converted) ? converted : [converted];
-    }
+      return [
+        withMarks(
+          { type: "mdxInlineExpression", attrs: { value: node.value } },
+          marks,
+        ),
+      ];
     default: {
       // Block content inside inline context: flatten to text.
       const children = (node as Md.Parent).children as AnyNode[] | undefined;

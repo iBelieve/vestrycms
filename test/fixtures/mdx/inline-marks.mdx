@@ -1,0 +1,23 @@
+# Inline marks
+
+Plain <u>underline</u>, <small>small print</small> and a <span class="text-red">styled span</span>.
+
+A **bold phrase with an <u>underlined</u> word** and <u>an underlined phrase with a **bold** word</u>.
+
+All at once: [**_<span class="text-red"><u><small>linked, bold, emphasised, styled, underlined and small</small></u></span>_**](https://example.org).
+
+<span class="lead">A styled span holding _emphasis_, a [link](https://example.org), an {expression} and <small>small <u>underlined</u> print</small>.</span>
+
+<span class="outer">Nested <span class="inner">spans</span> keep both classes</span>, as do <span class="outer"><span class="inner">spans on the same text</span></span>.
+
+**<u>Bold</u>** and underlined, H<sub><u>2</u></sub>O, x<sup>**<small>2</small>**</sup> and ~~<u>struck</u> out~~.
+
+Elements that are more than a mark stay components: <span class="a" id="b">two attributes</span>, <span className="a">another attribute</span>, <u {...props}>a spread</u>, <small title="t">a title</small>, <span>no class</span> and an empty <u />.
+
+- <u>Underlined</u> list item
+- **<span class="text-red">Bold and styled</span>** list item
+
+| Mark      | Example                                     |
+| --------- | ------------------------------------------- |
+| Underline | <u>cell</u>                                 |
+| Style     | <span class="text-red">**bold** cell</span> |

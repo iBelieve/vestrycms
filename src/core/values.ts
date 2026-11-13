@@ -2,7 +2,7 @@
  * Value transforms shared by the server and the control panel: asset path
  * normalisation and automatic fields. Pure functions, no I/O.
  */
-import type { Field, Schema } from "../config/types.js";
+import type { CollectionConfig, Field, Schema } from "../config/types.js";
 import {
   basename,
   dirname,
@@ -54,6 +54,60 @@ function walkValue(
     return walkNodes(value);
   }
   return fn(field, value);
+}
+
+/** Field types whose values are too large, or too structured, for a list. */
+const HEAVY_FIELDS = new Set<Field["type"]>([
+  "array",
+  "object",
+  "tree",
+  "markdown",
+  "code",
+  "json",
+]);
+
+/**
+ * The part of an entry's data that listings carry. Entry lists (and the
+ * build-time index, which is bundled into the server) only need what a list
+ * can show, sort or search by, so nested and long-form fields are left out
+ * unless the collection's title, status, sort, columns, search fields, slug
+ * source or preview URL name them. Open the entry for the full data.
+ */
+export function summaryData(
+  col: CollectionConfig,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const named = new Set<string>([
+    col.titleField ?? "title",
+    col.idField ?? "id",
+    "subtitle",
+  ]);
+  const add = (key: string | undefined) => {
+    if (key) named.add(key);
+  };
+  add(col.sort?.field);
+  add(col.status?.field);
+  add(col.slug?.from);
+  for (const column of col.columns ?? [])
+    add(typeof column === "string" ? column : column.field);
+  for (const key of col.searchFields ?? []) add(key);
+  for (const template of [col.previewUrl, col.slug?.template])
+    for (const match of template?.matchAll(/\{([\w]+)/g) ?? []) add(match[1]);
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!named.has(key)) {
+      const field = col.schema[key];
+      const heavy = field
+        ? HEAVY_FIELDS.has(field.type)
+        : value !== null &&
+          typeof value === "object" &&
+          !(value instanceof Date);
+      if (heavy) continue;
+    }
+    out[key] = value;
+  }
+  return out;
 }
 
 export type AssetField = Extract<Field, { type: "image" | "file" }>;

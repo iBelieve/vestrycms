@@ -26,10 +26,11 @@ export function MarkdownField({
           NonNullable<typeof config.components>[string],
         ][],
       ),
+      textStyles: config.textStyles,
       toRepoPath: () => null,
       toDocPath: (p) => p,
     }),
-    [components, config.components],
+    [components, config.components, config.textStyles],
   );
   return (
     <RichTextEditor

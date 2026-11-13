@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { loadEnv } from "vite";
 import type { VestryConfig } from "./config/types.js";
 import { createApi } from "./core/api.js";
+import { parsePathPattern, templateError } from "./core/paths.js";
 import type { BuildIndex } from "./core/index-types.js";
 import { buildIndex } from "./integration/build-index.js";
 import { formatterModule } from "./integration/formatter.js";
@@ -206,8 +207,25 @@ function validateConfig(config: VestryConfig) {
       "[vestry] config.repo.owner and config.repo.name are required",
     );
   }
+  const checkTemplate = (where: string, template: string | undefined) => {
+    const problem =
+      template === undefined ? undefined : templateError(template);
+    if (problem) throw new Error(`[vestry] ${where}: ${problem}`);
+  };
+  checkTemplate("commitMessage", config.commitMessage);
+  for (const [key, s] of Object.entries(config.singletons ?? {})) {
+    checkTemplate(`singleton "${key}" previewUrl`, s.previewUrl);
+    checkTemplate(`singleton "${key}" commitMessage`, s.commitMessage);
+  }
   for (const [key, col] of Object.entries(config.collections ?? {})) {
     if (!col.path) throw new Error(`[vestry] collection "${key}" needs a path`);
+    checkTemplate(`collection "${key}" slug.template`, col.slug?.template);
+    if (col.slug?.template?.includes("/") && !parsePathPattern(col.path).deep)
+      throw new Error(
+        `[vestry] collection "${key}" slug.template contains "/", which needs a "**" wildcard in its path`,
+      );
+    checkTemplate(`collection "${key}" previewUrl`, col.previewUrl);
+    checkTemplate(`collection "${key}" commitMessage`, col.commitMessage);
     if (col.body) {
       for (const name of col.body.components ?? []) {
         if (!config.components?.[name]) {

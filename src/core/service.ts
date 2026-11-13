@@ -5,7 +5,12 @@ import type {
   SingletonConfig,
   VestryConfig,
 } from "../config/types.js";
-import { applyAutoFields, toEditorValues, toStoredValues } from "./values.js";
+import {
+  applyAutoFields,
+  summaryData,
+  toEditorValues,
+  toStoredValues,
+} from "./values.js";
 import {
   parseEntry,
   parseEntryList,
@@ -44,6 +49,7 @@ export interface EntrySummary {
   path: string;
   sha: string;
   title: string;
+  /** The fields a list can show, sort or search by (see `summaryData`). */
   data: Record<string, unknown>;
   status: "published" | "draft" | null;
   excerpt?: string;
@@ -148,7 +154,11 @@ export class ContentService {
           path: pattern.prefix,
           sha: file.sha,
           title: this.titleOf(col, data, slug),
-          data: toEditorValues(col.schema, data, pattern.prefix),
+          data: toEditorValues(
+            col.schema,
+            summaryData(col, data),
+            pattern.prefix,
+          ),
           status: statusOf(col, data),
         };
       });
@@ -166,7 +176,7 @@ export class ContentService {
           path: f.path,
           sha: f.sha,
           title: this.titleOf(col, data, slug),
-          data: toEditorValues(col.schema, data, f.path),
+          data: toEditorValues(col.schema, summaryData(col, data), f.path),
           status: statusOf(col, data),
           excerpt,
         } satisfies EntrySummary;
@@ -307,6 +317,14 @@ export class ContentService {
     const finalSlug = slug ?? (input.slug?.trim() || this.newSlug(col, data));
     if (!isSafeSlug(finalSlug))
       throw new SourceError(`Invalid slug "${finalSlug}"`, 400, "bad_slug");
+    // A `*` path lists only the files directly in its directory, so an entry
+    // written into a subfolder would never show up again.
+    if (!pattern.deep && finalSlug.includes("/"))
+      throw new SourceError(
+        `Slug "${finalSlug}" contains "/", which needs a "**" wildcard in the collection's path`,
+        400,
+        "bad_slug",
+      );
     const path = entryPath(pattern, finalSlug);
     const existing = await this.source.read(path);
     if (isNew && existing) {

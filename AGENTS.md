@@ -28,13 +28,18 @@ main consumer; keep it free of site-specific code.
   covers everything under `test/`.
 - `test/fixtures/mdx` files must round-trip byte for byte, so Prettier skips
   them; write them in the serializer's canonical style.
+- The fixtures also pass through the editor schema
+  (`test/editor-schema.test.ts`), and `test/editor-commands.test.ts` runs
+  editor commands on a headless Tiptap editor (`element: null`; there is no
+  DOM, so insert text with `tr.insertText`, not `insertContent`).
 - `test/manual/*` are scripts outside the suite. `github-read.ts` (given a
   site checkout) and `github-write.ts` need `GH_TOKEN` (push access for the
   write test) and cannot run through the sandbox proxy.
 
 ## Conventions
 
-- Only `dist/` is published. Exports: `.`, `./config`, `./core`,
+- Only `dist/` is published. Exports: `.`, `./config`, `./core`, `./mdx`
+  (the MDX ⇄ editor document converter, for migration scripts),
   `./pages/admin.astro`, `./pages/api`. The integration injects its routes
   by package specifier (`vestrycms/pages/...`), so the package name and
   these exports must stay in step.
@@ -44,6 +49,17 @@ main consumer; keep it free of site-specific code.
   integration feeds that list to Vite's `optimizeDeps.include` as
   `vestrycms > dep`, because Astro excludes installed integrations from the
   optimizer and dev would otherwise serve CommonJS deps raw.
+- An inline mark lives in three places that must agree: `MARK_TAGS` in
+  `src/mdx/parse.ts` (element → mark), `MARK_TAGS`/`MARK_ORDER` in
+  `src/mdx/serialize.ts` (mark → element, and the canonical nesting) and
+  the Tiptap schema in `src/ui/components/editor/schema.ts`. Parsing never
+  consults the site config (`textStyles` only drives the editor's menu and
+  preview), so any file round-trips.
+- A line that begins with a tag is a hazard: MDX reads a line of only tags
+  as a block, and Prettier's MDX parser does so for any such line. The
+  serializer writes `<br />` instead of a Markdown hard break before one,
+  and `keepDocument` (`src/mdx/format.ts`) discards Prettier's body when
+  it would parse differently.
 - `zod` is a direct dependency only so declaration emit can name Better
   Auth's zod types (TS2883); keep its range in line with `better-auth`'s.
 - Product-facing names stay "Vestry": the integration name, `virtual:vestry/*`

@@ -352,7 +352,12 @@ export interface CollectionConfig {
   slug?: {
     /** Field key the slug is derived from; defaults to the title field. */
     from?: string;
-    /** Template, e.g. `{date}` or `{date}-{title}`. Field values are slugified. */
+    /**
+     * Template, e.g. `{date}-{title}` or `{date|year}/{date|month}/{title}`.
+     * Field values are slugified; the rest is kept, so a `/` makes folders
+     * (which needs a `**` path). `|year`, `|month` and `|day` take the parts
+     * of a date.
+     */
     template?: string;
   };
   status?: StatusConfig;
@@ -362,7 +367,8 @@ export interface CollectionConfig {
   searchFields?: string[];
   /**
    * Preview URL template, e.g. `/sermons/{slug}`. Any schema field may be
-   * referenced in braces.
+   * referenced in braces, with the same filters as `slug.template`
+   * (`/{date|year}/{slug}`).
    */
   previewUrl?: string;
   /** Lucide icon name used in navigation. */
@@ -417,6 +423,20 @@ export interface ComponentConfig {
   children?: boolean | "text";
   /** Render inline (within a paragraph) rather than as a block. */
   inline?: boolean;
+}
+
+/** A named inline style for rich text: a class on a `<span>`. */
+export interface TextStyleConfig {
+  /** Shown in the editor's Styles menu. */
+  label: string;
+  /** Class written to the span, e.g. `text-red` for `<span class="text-red">`. */
+  class: string;
+  /**
+   * CSS declarations that preview the style in the editor, e.g.
+   * `color: #dc2626`. The site styles the class itself; without a preview
+   * the editor outlines the text.
+   */
+  css?: string;
 }
 
 export interface AssetContainerConfig {
@@ -486,6 +506,12 @@ export interface VestryConfig {
   collections?: Record<string, CollectionConfig>;
   singletons?: Record<string, SingletonConfig>;
   components?: Record<string, ComponentConfig>;
+  /**
+   * Inline styles offered in the rich text editor's Styles menu, keyed by a
+   * name of your choosing. Each wraps the selection in a `<span>` with the
+   * style's class.
+   */
+  textStyles?: Record<string, TextStyleConfig>;
   assets?: Record<string, AssetContainerConfig>;
   /** Optional navigation grouping; defaults to Collections / Singletons / Assets. */
   navigation?: NavigationGroup[];

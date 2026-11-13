@@ -145,23 +145,77 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Fill `{field}` placeholders from a record. Values are slugified when `slug` is true. */
+/** A date as its `[year, month, day]`, zero-padded, or null if `value` isn't one. */
+function dateParts(value: unknown): [string, string, string] | null {
+  // A string is read as written, whatever time zone it names; a Date (as
+  // YAML parses `2026-11-13`) is midnight UTC on its day.
+  const text =
+    value instanceof Date
+      ? Number.isNaN(value.getTime())
+        ? ""
+        : value.toISOString()
+      : typeof value === "string"
+        ? value
+        : "";
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?!\d)/.exec(text);
+  return match ? [match[1], match[2], match[3]] : null;
+}
+
+/**
+ * Filters for template placeholders, written `{field|filter}`. Each takes the
+ * field's value and returns the text to insert.
+ */
+const TEMPLATE_FILTERS: Record<string, (value: unknown) => string> = {
+  /** Four-digit year of a date, `2026`. */
+  year: (value) => dateParts(value)?.[0] ?? "",
+  /** Zero-padded month of a date, `01`–`12`. */
+  month: (value) => dateParts(value)?.[1] ?? "",
+  /** Zero-padded day of the month of a date, `01`–`31`. */
+  day: (value) => dateParts(value)?.[2] ?? "",
+};
+
+const PLACEHOLDER = /\{([\w.]+)(?:\s*\|\s*(\w+))?\}/g;
+
+/**
+ * Fill `{field}` and `{field|filter}` placeholders from a record. With
+ * `slug`, each inserted value is slugified; the template's own text (a `/`
+ * between placeholders, say) is kept as written.
+ */
 export function fillTemplate(
   template: string,
   values: Record<string, unknown>,
   opts: { slug?: boolean } = {},
 ): string {
-  return template.replace(/\{([\w.]+)\}/g, (_, key: string) => {
+  return template.replace(PLACEHOLDER, (_, key: string, filter?: string) => {
     const raw = key.split(".").reduce<unknown>((acc, k) => {
       if (acc && typeof acc === "object")
         return (acc as Record<string, unknown>)[k];
       return undefined;
     }, values);
     if (raw === undefined || raw === null) return "";
-    let s = raw instanceof Date ? raw.toISOString().slice(0, 10) : String(raw);
+    // An unknown filter is reported when the config is validated; here the
+    // value goes in unfiltered.
+    const apply =
+      filter && Object.hasOwn(TEMPLATE_FILTERS, filter)
+        ? TEMPLATE_FILTERS[filter]
+        : undefined;
+    let s = apply
+      ? apply(raw)
+      : raw instanceof Date
+        ? raw.toISOString().slice(0, 10)
+        : String(raw);
     if (opts.slug) s = slugify(s);
     return s;
   });
+}
+
+/** Why a template is unusable (it names an unknown filter), or undefined when it is fine. */
+export function templateError(template: string): string | undefined {
+  for (const [placeholder, , filter] of template.matchAll(PLACEHOLDER)) {
+    if (filter && !Object.hasOwn(TEMPLATE_FILTERS, filter))
+      return `unknown filter "${filter}" in "${placeholder}" (filters: ${Object.keys(TEMPLATE_FILTERS).join(", ")})`;
+  }
+  return undefined;
 }
 
 const SAFE_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;

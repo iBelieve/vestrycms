@@ -1,9 +1,14 @@
 import { createContext, useContext } from "react";
-import type { ComponentConfig } from "../../../config/types.js";
+import type {
+  ComponentConfig,
+  TextStyleConfig,
+} from "../../../config/types.js";
 
 export interface EditorEnv {
   /** Components that may be inserted, keyed by name. */
   components: Record<string, ComponentConfig>;
+  /** The site's text styles, offered in the Styles menu. */
+  textStyles?: Record<string, TextStyleConfig>;
   /** Resolve an image/file reference in the document to a repository path. */
   toRepoPath: (src: string) => string | null;
   /** Repository path → reference to write into the document. */

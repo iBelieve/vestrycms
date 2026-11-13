@@ -10,9 +10,11 @@ import {
   slugFromPath,
 } from "../core/paths.js";
 import { gitBlobSha } from "../core/source.js";
+import { summaryData } from "../core/values.js";
 
 /**
- * Scan every file-per-entry collection and record blob SHA + frontmatter.
+ * Scan every file-per-entry collection and record blob SHA + the frontmatter
+ * that listings need (see `summaryData`).
  * Runs at build time inside the integration (Node), so it can read the
  * checked-out repository directly.
  */
@@ -35,7 +37,7 @@ export async function buildIndex(
         const parsed = parseEntry(format, text);
         files[repoPath] = {
           sha: await gitBlobSha(new Uint8Array(buf)),
-          data: JSON.parse(JSON.stringify(parsed.data)),
+          data: JSON.parse(JSON.stringify(summaryData(col, parsed.data))),
           excerpt: excerpt(parsed.body),
           hasBody: parsed.body.trim().length > 0,
         };

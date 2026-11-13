@@ -1419,6 +1419,36 @@ a.v-chrome__chip:hover {
   width: 14px;
   height: 14px;
 }
+.v-rte__styles {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--v-text-muted);
+  font-weight: 500;
+  font-size: 12.5px;
+}
+.v-rte__styles svg {
+  width: 14px;
+  height: 14px;
+}
+.v-rte__styles:hover {
+  background: #e9ecf1;
+  color: var(--v-text);
+}
+.v-rte__styles.is-active {
+  background: #dbe4f8;
+  color: var(--v-primary);
+}
+.v-rte__styles:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .v-prose {
   padding: 18px 24px 28px;
@@ -1561,6 +1591,16 @@ a.v-chrome__chip:hover {
 .v-prose sup,
 .v-prose sub {
   font-size: 0.7em;
+}
+.v-prose small {
+  font-size: 0.8em;
+}
+/* A styled span with no preview: a class the config doesn't list, or a
+   style without `css`. */
+.v-prose .v-text-class {
+  outline: 1px dotted var(--v-text-faint);
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 .v-prose .ProseMirror-gapcursor:after {
   border-top: 1px solid var(--v-text);

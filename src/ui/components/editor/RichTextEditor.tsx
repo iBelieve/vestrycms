@@ -5,6 +5,9 @@ import {
   type Editor,
 } from "@tiptap/react";
 import {
+  ALargeSmall,
+  Check,
+  ChevronDown,
   Code,
   CodeXml,
   Eye,
@@ -25,6 +28,7 @@ import {
   Subscript as SubIcon,
   Superscript as SupIcon,
   Table as TableIcon,
+  Underline as UnderlineIcon,
   Undo2,
   Unlink,
 } from "lucide-react";
@@ -35,7 +39,7 @@ import type {
   ImportSpec,
   PMNode,
 } from "../../../mdx/types.js";
-import { cx, defaultValues } from "../../lib/utils.js";
+import { cssToStyle, cx, defaultValues } from "../../lib/utils.js";
 import { AssetPicker } from "../AssetPicker.js";
 import { Icon } from "../Icon.js";
 import { CodeInput } from "../fields/CodeInput.js";
@@ -138,6 +142,7 @@ function EditorInner({
       editorExtensions({
         resolveSrc: (src) => env.resolveImage?.(src) ?? src,
         placeholder,
+        textStyles: env.textStyles,
       }),
     [env, placeholder],
   );
@@ -253,6 +258,10 @@ function Toolbar({
   format: "md" | "mdx";
 }) {
   const env = useEditorEnv();
+  const textStyles = useMemo(
+    () => Object.entries(env.textStyles ?? {}),
+    [env.textStyles],
+  );
   const [linkOpen, setLinkOpen] = useState(false);
   const [imageOpen, setImageOpen] = useState(false);
   const state = useEditorState({
@@ -261,6 +270,12 @@ function Toolbar({
       bold: editor.isActive("bold"),
       italic: editor.isActive("italic"),
       strike: editor.isActive("strike"),
+      underline: editor.isActive("underline"),
+      small: editor.isActive("small"),
+      // The classes of the configured styles that the selection carries.
+      styles: textStyles
+        .map(([, style]) => style.class)
+        .filter((c) => editor.isActive("textClass", { class: c })),
       code: editor.isActive("code"),
       sup: editor.isActive("superscript"),
       sub: editor.isActive("subscript"),
@@ -358,6 +373,14 @@ function Toolbar({
       {tool("Strikethrough", state.strike, <Strikethrough />, () =>
         editor.chain().focus().toggleStrike().run(),
       )}
+      {format === "mdx" &&
+        tool("Underline", state.underline, <UnderlineIcon />, () =>
+          editor.chain().focus().toggleUnderline().run(),
+        )}
+      {format === "mdx" &&
+        tool("Small text", state.small, <ALargeSmall />, () =>
+          editor.chain().focus().toggleSmall().run(),
+        )}
       {tool("Inline code", state.code, <Code />, () =>
         editor.chain().focus().toggleCode().run(),
       )}
@@ -374,6 +397,52 @@ function Toolbar({
             editor.chain().focus().unsetLink().run(),
           )
         : tool("Link", false, <LinkIcon />, () => setLinkOpen(true))}
+      {format === "mdx" && textStyles.length > 0 && (
+        <Menu
+          trigger={({ toggle }) => (
+            <button
+              type="button"
+              className={cx(
+                "v-rte__styles",
+                state.styles.length > 0 && "is-active",
+              )}
+              title="Text styles"
+              disabled={disabled}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={toggle}
+            >
+              Styles <ChevronDown />
+            </button>
+          )}
+        >
+          {(close) => (
+            <>
+              <div className="v-menu__heading">Text styles</div>
+              {textStyles.map(([key, style]) => {
+                const active = state.styles.includes(style.class);
+                return (
+                  <button
+                    key={key}
+                    className="v-menu__item"
+                    role="menuitemcheckbox"
+                    aria-checked={active}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      editor.chain().focus().toggleTextClass(style.class).run();
+                      close();
+                    }}
+                  >
+                    <Check
+                      style={{ visibility: active ? "visible" : "hidden" }}
+                    />
+                    <span style={cssToStyle(style.css)}>{style.label}</span>
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </Menu>
+      )}
       <span className="v-rte__sep" />
       {tool("Bullet list", state.bullet, <List />, () =>
         editor.chain().focus().toggleBulletList().run(),

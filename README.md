@@ -65,6 +65,9 @@ export default defineConfig({
       },
     }),
   },
+  textStyles: {
+    red: { label: "Red", class: "text-red", css: "color: #dc2626" },
+  },
   assets: {
     covers: { label: "Covers", directory: "src/assets/covers" },
   },
@@ -185,6 +188,16 @@ Virtual modules provided by the Vite plugin: `virtual:vestry/config`,
 index keyed by git blob SHA) and `virtual:vestry/formatter` (Prettier, when
 installed).
 
+The index is bundled into the server, so it holds only what entry lists
+show: nested and long-form fields (`array`, `object`, `tree`, `markdown`,
+`code`, `json`) are left out unless the collection's title, status, sort,
+columns, search fields or preview URL name them. A collection of large data
+files therefore costs little.
+
+`vestrycms/mdx` exports the converter between MDX and the editor's document
+(`parseMdx`, `serializeMdx`), for scripts that generate content: serialize
+with it and the files come out exactly as the control panel would save them.
+
 ### Dev vs production
 
 With the Cloudflare adapter, on-demand routes run inside workerd even in
@@ -204,9 +217,18 @@ from the injected Astro endpoint in production. Both call the same
   they are literals (anything else is kept verbatim as an expression).
   Imports for known components are regenerated on save; other ESM is kept as
   a raw block.
+- Inline formatting that Markdown has no syntax for is written as plain
+  HTML elements and edited as marks: `<sup>`, `<sub>`, `<u>`, `<small>` and
+  `<span class="…">` (see [Text styles](#text-styles)).
+- A line break is a Markdown hard break (a backslash before the line ending)
+  wherever that works, and a `<br />` element where it doesn't: in table
+  cells and headings, at the end of a paragraph, and before a line that
+  would begin with a tag. `<br />` in the source is read as a line break.
 - Saving composes the full file (YAML frontmatter + body) in the browser,
   formats it with Prettier when available, and sends it with the blob SHA
-  the editor loaded. A changed SHA is reported as a conflict.
+  the editor loaded. A changed SHA is reported as a conflict. If Prettier
+  would change what the body says (see [Prettier and MDX](#prettier-and-mdx)),
+  the body is saved as Vestry wrote it.
 - Uploads chosen from an image/file field are committed together with the
   entry in one commit.
 
@@ -236,6 +258,109 @@ sections: [
 Sections render in order; `sidebar: true` puts a card in the rail. Fields
 not named by any section still fall into "Details" or the rail, and the
 content editor renders after the sections unless `"body"` places it.
+
+## Text styles
+
+Besides Markdown's own formatting, the rich text editor (the body editor and
+`fields.markdown`) has underline, small text, superscript and subscript, and
+a **Styles** menu for the inline styles a site defines:
+
+```ts
+textStyles: {
+  red: { label: "Red", class: "text-red", css: "color: #dc2626" },
+  caps: { label: "Small caps", class: "small-caps", css: "font-variant: small-caps" },
+},
+```
+
+| Option  | Purpose                                                               |
+| ------- | --------------------------------------------------------------------- |
+| `label` | Name shown in the Styles menu                                         |
+| `class` | Class written to the span                                             |
+| `css`   | Declarations that preview the style in the editor (the menu and text) |
+
+Choosing a style toggles it on the selection; text can carry several. The
+site's own stylesheet gives the class its look on the published page: `css`
+is only the editor's preview, and without it the styled text is outlined.
+
+These are written to MDX as plain inline HTML, which needs no component or
+import:
+
+| Format      | MDX                                  |
+| ----------- | ------------------------------------ |
+| Underline   | `<u>text</u>`                        |
+| Small       | `<small>text</small>`                |
+| Superscript | `<sup>text</sup>`                    |
+| Subscript   | `<sub>text</sub>`                    |
+| Text style  | `<span class="text-red">text</span>` |
+
+Reading does not depend on the config: any `<span>` whose only attribute is
+a `class` becomes a styled span, whether or not `textStyles` lists the class
+(unlisted ones are outlined in the editor and saved unchanged). An element
+with other attributes (`<span class="a" id="b">`, `<u title="…">`), a spread
+or no children stays an inline component, so nothing is lost on save.
+
+Where marks cover the same text they nest in one order, outermost first:
+link, superscript, subscript, bold, italic, strikethrough, text style,
+underline, small, code. So bold underlined text is `**<u>text</u>**`.
+
+In `.md` files the same tags are raw HTML: they are kept as written, but
+edited as HTML snippets rather than marks, so the toolbar offers these
+formats for MDX only.
+
+### Prettier and MDX
+
+Prettier's MDX parser predates MDX 2. A paragraph or list item that _begins_
+with a tag (`<u>Note:</u> …`, `<span class="lead">…</span>`) is a JSX block
+to it: an element longer than the print width is spread over several lines,
+which MDX then reads as a block element wrapped around a paragraph, and a
+Markdown hard break inside becomes a stray backslash. Vestry therefore
+checks Prettier's output before saving, and if the body no longer parses to
+the same document it keeps Prettier's frontmatter and its own body. Such a
+file fails `prettier --check`, and `prettier --write` would damage it, so
+list those content files in `.prettierignore`.
+
+Vestry honours `.prettierignore` when it saves: a file the project tells
+Prettier to ignore is written exactly as the editor serializes it. Ignoring
+the content directory is the simplest setup for content with a lot of inline
+tags, and keeps `prettier --check` and the control panel in agreement.
+
+## Templates
+
+`slug.template`, `previewUrl` and `commitMessage` are templates with
+`{field}` placeholders (`{meta.kind}` reaches into an object). A filter
+after a `|` takes part of a value:
+
+| Placeholder     | Result                         |
+| --------------- | ------------------------------ |
+| `{date}`        | The value, `2026-11-13`        |
+| `{date\|year}`  | Four-digit year, `2026`        |
+| `{date\|month}` | Zero-padded month, `11`        |
+| `{date\|day}`   | Zero-padded day of month, `13` |
+
+The date filters read the parts as written at the start of the value
+(`2026-11-13`, `2026-11-13T23:30:00-06:00`), without converting between time
+zones, and give nothing for a value that isn't a date. An unknown filter is
+a config error.
+
+```ts
+articles: collection({
+  path: "src/content/articles/**.mdx",
+  slug: { template: "{date|year}/{date|month}/{title}" },
+  previewUrl: "/articles/{slug}",
+  // …
+}),
+```
+
+In `slug.template` each inserted value is slugified and the rest is kept as
+written, so a new entry titled "My Title" and dated 13 November 2026 is
+created at `src/content/articles/2026/11/my-title.mdx`, with the slug
+`2026/11/my-title` and the preview URL `/articles/2026/11/my-title`. A slug
+with a `/` needs a `**` wildcard in `path`; `*` matches one file name. The
+slug is set when the entry is created and does not follow later changes to
+its fields.
+
+`previewUrl` also has `{slug}`; `commitMessage` has `{action}`,
+`{collection}`, `{slug}`, `{title}`, `{label}` and `{singular}`.
 
 ## Trees (menus)
 
@@ -359,6 +484,15 @@ pnpm test -u                 # update snapshots after an intended change
 - `test/editor-schema.test.ts`: the same fixtures pass through the editor's
   Tiptap schema (`src/ui/components/editor/schema.ts`) without losing node
   types or attributes, so a page saved from the editor matches its source.
+- `test/editor-commands.test.ts`: the editor's own commands (text styles,
+  line breaks) on a headless Tiptap editor, checked through the MDX they
+  save as.
+- `test/format.test.ts`: saving keeps the body as written where Prettier
+  would change the document.
+- `test/paths.test.ts`: template placeholders and filters, and the config
+  errors for them.
+- `test/service.test.ts`: `ContentService` on the local source in a
+  temporary directory (entries with nested slugs).
 
 The auth and GitHub source tests are ordered scenarios that build on shared
 state, so filter them by file, not by test name (`-t`).
