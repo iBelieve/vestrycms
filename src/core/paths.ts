@@ -145,7 +145,10 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** A date as its `[year, month, day]`, zero-padded, or null if `value` isn't one. */
+/**
+ * A date as its `[year, month, day]`, zero-padded, or null if `value` isn't
+ * one. A slug with a date prefix (`2026-11-13-title`) counts.
+ */
 function dateParts(value: unknown): [string, string, string] | null {
   // A string is read as written, whatever time zone it names; a Date (as
   // YAML parses `2026-11-13`) is midnight UTC on its day.
@@ -165,13 +168,22 @@ function dateParts(value: unknown): [string, string, string] | null {
  * Filters for template placeholders, written `{field|filter}`. Each takes the
  * field's value and returns the text to insert.
  */
-const TEMPLATE_FILTERS: Record<string, (value: unknown) => string> = {
+export const TEMPLATE_FILTERS: Record<string, (value: unknown) => string> = {
   /** Four-digit year of a date, `2026`. */
   year: (value) => dateParts(value)?.[0] ?? "",
   /** Zero-padded month of a date, `01`–`12`. */
   month: (value) => dateParts(value)?.[1] ?? "",
   /** Zero-padded day of the month of a date, `01`–`31`. */
   day: (value) => dateParts(value)?.[2] ?? "",
+  /**
+   * The value without a leading `YYYY-MM-DD-`, for collections whose file
+   * names carry the date but whose URLs do not.
+   */
+  nodate: (value) =>
+    (value instanceof Date ? "" : String(value)).replace(
+      /^\d{4}-\d{2}-\d{2}-/,
+      "",
+    ),
 };
 
 const PLACEHOLDER = /\{([\w.]+)(?:\s*\|\s*(\w+))?\}/g;

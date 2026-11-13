@@ -90,7 +90,7 @@ describe("templateError", () => {
 
   it("names an unknown filter", () => {
     expect(templateError("{date|yaer}/{title}")).toBe(
-      'unknown filter "yaer" in "{date|yaer}" (filters: year, month, day)',
+      'unknown filter "yaer" in "{date|yaer}" (filters: year, month, day, nodate)',
     );
     expect(templateError("{title|constructor}")).toMatch(/unknown filter/);
   });

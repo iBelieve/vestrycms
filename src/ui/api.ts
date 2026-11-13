@@ -3,6 +3,7 @@ import type { PublicUser, Role } from "../core/roles.js";
 import type {
   AssetItem,
   EntryDetail,
+  EntryReference,
   EntrySummary,
   SaveEntryInput,
 } from "../core/service.js";
@@ -11,6 +12,7 @@ export type {
   ClientConfig,
   AssetItem,
   EntryDetail,
+  EntryReference,
   EntrySummary,
   SaveEntryInput,
   PublicUser,
@@ -113,6 +115,11 @@ export function createClient(basePath: string) {
       request<{ slug: string; sha: string; commit: string; path: string }>(
         `/collections/${enc(collection)}/entries/${enc(slug)}`,
         { method: "PUT", body: JSON.stringify(input) },
+      ),
+    /** Entries that refer to this one, which a rename would update. */
+    references: (collection: string, slug: string) =>
+      request<{ references: EntryReference[] }>(
+        `/collections/${enc(collection)}/references?slug=${enc(slug)}`,
       ),
     deleteEntry: (collection: string, slug: string) =>
       request<{ commit: string }>(

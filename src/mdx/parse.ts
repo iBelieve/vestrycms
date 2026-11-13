@@ -36,6 +36,19 @@ const MARK_TAGS: Record<string, string> = {
 /** A raw HTML line break, which Markdown needs where it has no hard break. */
 const HTML_BREAK = /^<br\s*\/?>$/i;
 
+/**
+ * GFM, without its pass that links bare addresses found in text nodes.
+ *
+ * Addresses written bare in the source (`www.example.com`) are already
+ * recognised as links by the tokenizer. The extra pass runs on the text
+ * afterwards, where an escape (`www\.example.com`, which is how the
+ * serializer writes an address that is meant to stay plain text) is no
+ * longer visible, so it would turn that text into a link on every save.
+ */
+function gfmExtensions() {
+  return gfmFromMarkdown().map(({ transforms: _, ...extension }) => extension);
+}
+
 export interface ParseOptions {
   /** `md` disables JSX/ESM parsing (raw HTML is preserved as html nodes). */
   format?: "md" | "mdx";
@@ -49,8 +62,8 @@ export function parseMdx(
   const tree = fromMarkdown(source, {
     extensions: isMdx ? [mdxjs(), gfm()] : [gfm()],
     mdastExtensions: isMdx
-      ? [mdxFromMarkdown(), gfmFromMarkdown()]
-      : [gfmFromMarkdown()],
+      ? [mdxFromMarkdown(), ...gfmExtensions()]
+      : gfmExtensions(),
   });
   const ctx: Ctx = { imports: {}, definitions: new Map() };
   collectDefinitions(tree, ctx);

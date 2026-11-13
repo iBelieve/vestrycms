@@ -80,11 +80,17 @@ export const fields = {
       ...extra,
     };
   },
-  array: (of: Field, opts: Omit<Opts<ArrayField>, "of"> = {}): ArrayField => ({
-    type: "array",
-    of,
-    ...opts,
-  }),
+  /**
+   * `array(of, opts)` or, like every other builder, a single options
+   * object: `array({ of, addLabel })`.
+   */
+  array: (
+    ofOrOpts: Field | Opts<ArrayField>,
+    extra: Omit<Opts<ArrayField>, "of"> = {},
+  ): ArrayField => {
+    if (!("type" in ofOrOpts)) return { type: "array", ...ofOrOpts };
+    return { type: "array", of: ofOrOpts, ...extra };
+  },
   markdown: (opts: Opts<MarkdownField> = {}): MarkdownField => ({
     type: "markdown",
     ...opts,

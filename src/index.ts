@@ -7,7 +7,6 @@ import { createRequire } from "node:module";
 import { loadEnv } from "vite";
 import type { VestryConfig } from "./config/types.js";
 import { createApi } from "./core/api.js";
-import { parsePathPattern, templateError } from "./core/paths.js";
 import type { BuildIndex } from "./core/index-types.js";
 import { buildIndex } from "./integration/build-index.js";
 import { formatterModule } from "./integration/formatter.js";
@@ -15,6 +14,7 @@ import { nodeToFetchHandler } from "./integration/dev-middleware.js";
 import { LocalSource } from "./core/sources/local.js";
 import { consoleMailer } from "./core/mail.js";
 import { clientDependencies } from "./integration/client-deps.js";
+import { validateConfig } from "./config/validate.js";
 
 export type { VestryConfig } from "./config/types.js";
 export {
@@ -109,7 +109,9 @@ export default function vestry(
             if (id === `\0${VIRTUAL.runtime}`) {
               return `export const basePath = ${JSON.stringify(basePath)};\nexport const name = ${JSON.stringify(config.name ?? "Vestry")};`;
             }
-            if (id === `\0${VIRTUAL.formatter}`) return formatterModule(root);
+            if (id === `\0${VIRTUAL.formatter}`) {
+              return formatterModule(root, config.format !== false);
+            }
             if (id === `\0${VIRTUAL.index}`) {
               // Dev edits bypass the index (the local source reads disk), so
               // an empty index keeps dev startup instant.
@@ -199,46 +201,4 @@ export default function vestry(
       },
     },
   };
-}
-
-function validateConfig(config: VestryConfig) {
-  if (!config.repo?.owner || !config.repo?.name) {
-    throw new Error(
-      "[vestry] config.repo.owner and config.repo.name are required",
-    );
-  }
-  const checkTemplate = (where: string, template: string | undefined) => {
-    const problem =
-      template === undefined ? undefined : templateError(template);
-    if (problem) throw new Error(`[vestry] ${where}: ${problem}`);
-  };
-  checkTemplate("commitMessage", config.commitMessage);
-  for (const [key, s] of Object.entries(config.singletons ?? {})) {
-    checkTemplate(`singleton "${key}" previewUrl`, s.previewUrl);
-    checkTemplate(`singleton "${key}" commitMessage`, s.commitMessage);
-  }
-  for (const [key, col] of Object.entries(config.collections ?? {})) {
-    if (!col.path) throw new Error(`[vestry] collection "${key}" needs a path`);
-    checkTemplate(`collection "${key}" slug.template`, col.slug?.template);
-    if (col.slug?.template?.includes("/") && !parsePathPattern(col.path).deep)
-      throw new Error(
-        `[vestry] collection "${key}" slug.template contains "/", which needs a "**" wildcard in its path`,
-      );
-    checkTemplate(`collection "${key}" previewUrl`, col.previewUrl);
-    checkTemplate(`collection "${key}" commitMessage`, col.commitMessage);
-    if (col.body) {
-      for (const name of col.body.components ?? []) {
-        if (!config.components?.[name]) {
-          throw new Error(
-            `[vestry] collection "${key}" references unknown component "${name}"`,
-          );
-        }
-      }
-    }
-  }
-  try {
-    JSON.stringify(config);
-  } catch {
-    throw new Error("[vestry] config must be JSON-serializable (no functions)");
-  }
 }

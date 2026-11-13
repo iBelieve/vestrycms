@@ -96,10 +96,10 @@ describe("normalization to the canonical style", () => {
   });
 });
 
-describe("known gaps", () => {
-  // mdast-util-gfm linkifies bare URLs in text after parsing, escaped or not,
-  // so text that was written not to be a link is saved as one.
-  it.fails("keeps an escaped URL as text", () => {
+describe("bare addresses", () => {
+  // mdast-util-gfm linkifies bare URLs in text after parsing, escaped or not;
+  // the parser undoes that for an address the source escaped.
+  it("keeps an escaped URL as text", () => {
     expect(roundTrip("Visit www\\.example.com today.\n")).toBe(
       "Visit www\\.example.com today.\n",
     );

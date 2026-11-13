@@ -1,5 +1,52 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`fixtures > bare-addresses.md parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "content": [
+          {
+            "text": "Addresses typed as plain text stay text: www.example.com, http://example.com/page and
+user@example.com.",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "An address that is a link stays one: ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "href": "http://www.example.com",
+                  "title": null,
+                },
+                "type": "link",
+              },
+            ],
+            "text": "www.example.com",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
+
 exports[`fixtures > basics.md parses to the expected document 1`] = `
 {
   "doc": {

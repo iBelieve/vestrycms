@@ -66,12 +66,22 @@ const HEAVY_FIELDS = new Set<Field["type"]>([
   "json",
 ]);
 
+/** Whether a field is, or contains, a reference to another entry. */
+function holdsReference(field: Field): boolean {
+  if (field.type === "reference") return true;
+  if (field.type === "object" || field.type === "tree")
+    return Object.values(field.fields).some(holdsReference);
+  if (field.type === "array") return holdsReference(field.of);
+  return false;
+}
+
 /**
  * The part of an entry's data that listings carry. Entry lists (and the
  * build-time index, which is bundled into the server) only need what a list
  * can show, sort or search by, so nested and long-form fields are left out
  * unless the collection's title, status, sort, columns, search fields, slug
- * source or preview URL name them. Open the entry for the full data.
+ * source or preview URL name them, or they hold references to other entries
+ * (which a rename has to find). Open the entry for the full data.
  */
 export function summaryData(
   col: CollectionConfig,
@@ -99,7 +109,7 @@ export function summaryData(
     if (!named.has(key)) {
       const field = col.schema[key];
       const heavy = field
-        ? HEAVY_FIELDS.has(field.type)
+        ? HEAVY_FIELDS.has(field.type) && !holdsReference(field)
         : value !== null &&
           typeof value === "object" &&
           !(value instanceof Date);
@@ -196,7 +206,70 @@ export function toEditorValues(
   });
 }
 
+/** Key of the date field kept in the file name (`storeIn: "filename"`), if any. */
+export function filenameDateKey(schema: Schema): string | null {
+  for (const [key, field] of Object.entries(schema)) {
+    if (field.type === "date" && field.storeIn === "filename") return key;
+  }
+  return null;
+}
+
+const SLUG_DATE = /^(\d{4}-\d{2}-\d{2})-(?=.)/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Split a slug into its directory part (with trailing slash) and file name. */
+function splitSlug(slug: string): [string, string] {
+  const i = slug.lastIndexOf("/");
+  return [slug.slice(0, i + 1), slug.slice(i + 1)];
+}
+
+/** The `YYYY-MM-DD` a slug's file name starts with, or null. */
+export function dateFromSlug(slug: string): string | null {
+  return SLUG_DATE.exec(splitSlug(slug)[1])?.[1] ?? null;
+}
+
+/**
+ * The slug with `date` as its file name's date prefix, replacing the one it
+ * has or adding one. Anything that is not a `YYYY-MM-DD` date leaves the
+ * slug as it is.
+ */
+export function slugWithDate(slug: string, date: unknown): string {
+  if (typeof date !== "string" || !ISO_DATE.test(date)) return slug;
+  const [dir, name] = splitSlug(slug);
+  return `${dir}${date}-${name.replace(SLUG_DATE, "")}`;
+}
+
+/** The slug without its file name's date prefix, if it has one. */
+export function slugWithoutDate(slug: string): string {
+  const [dir, name] = splitSlug(slug);
+  return `${dir}${name.replace(SLUG_DATE, "")}`;
+}
+
+/** Fill the file-name date field of an entry's editor values from its slug. */
+export function withFilenameDate(
+  schema: Schema,
+  data: Record<string, unknown>,
+  slug: string,
+): Record<string, unknown> {
+  const key = filenameDateKey(schema);
+  if (!key) return data;
+  const date = dateFromSlug(slug);
+  return date ? { ...data, [key]: date } : data;
+}
+
 export function toStoredValues(
+  schema: Schema,
+  data: Record<string, unknown>,
+  filePath: string,
+): Record<string, unknown> {
+  const stored = storedFieldValues(schema, data, filePath);
+  // A date kept in the file name is not written to the file as well.
+  const filenameDate = filenameDateKey(schema);
+  if (filenameDate) delete stored[filenameDate];
+  return stored;
+}
+
+function storedFieldValues(
   schema: Schema,
   data: Record<string, unknown>,
   filePath: string,
@@ -228,4 +301,46 @@ export function applyAutoFields(
     }
   }
   return out;
+}
+
+/** Whether a schema has a reference field (at any depth) to `collection`. */
+export function referencesCollection(
+  schema: Schema,
+  collection: string,
+): boolean {
+  const refers = (field: Field): boolean => {
+    if (field.type === "reference") return field.collection === collection;
+    if (field.type === "object")
+      return Object.values(field.fields).some(refers);
+    if (field.type === "array") return refers(field.of);
+    if (field.type === "tree") return Object.values(field.fields).some(refers);
+    return false;
+  };
+  return Object.values(schema).some(refers);
+}
+
+/**
+ * Point every reference to entry `from` of `collection` at `to` instead.
+ * Returns the new data, or null when nothing referred to it.
+ */
+export function rewriteReferences(
+  schema: Schema,
+  data: Record<string, unknown>,
+  collection: string,
+  from: string,
+  to: string,
+): Record<string, unknown> | null {
+  let changed = false;
+  const next = walkValues(schema, data, (field, value) => {
+    if (
+      field.type === "reference" &&
+      field.collection === collection &&
+      value === from
+    ) {
+      changed = true;
+      return to;
+    }
+    return value;
+  });
+  return changed ? next : null;
 }

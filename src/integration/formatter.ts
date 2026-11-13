@@ -10,8 +10,16 @@ import { pathToFileURL } from "node:url";
  * match what `prettier --check` expects. Otherwise the module is a no-op.
  * The project's `.prettierignore` is passed along too, so files Prettier is
  * told to leave alone are saved as written.
+ *
+ * `enabled: false` (the `format: false` config option) always gives the
+ * no-op module, for projects whose content Prettier does not format safely.
  */
-export async function formatterModule(root: string): Promise<string> {
+export async function formatterModule(
+  root: string,
+  enabled = true,
+): Promise<string> {
+  const none = `export const available = false;\nexport const ignore = "";\nexport async function formatFile(text) { return text; }\n`;
+  if (!enabled) return none;
   const require = createRequire(path.join(root, "package.json"));
   let standalone: string;
   let plugins: Record<string, string>;
@@ -29,7 +37,7 @@ export async function formatterModule(root: string): Promise<string> {
     if (![standalone, ...Object.values(plugins)].every((p) => existsSync(p)))
       throw new Error("prettier layout");
   } catch {
-    return `export const available = false;\nexport const ignore = "";\nexport async function formatFile(text) { return text; }\n`;
+    return none;
   }
 
   let options: Record<string, unknown> = {};
