@@ -9,10 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import {
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
+  CircleCheck,
+  CircleExclamationPoint,
   Info,
+  TriangleExclamationPoint,
   X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -164,9 +164,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div key={t.id} className={cx("v-toast", `v-toast--${t.kind}`)}>
             {t.kind === "success" ? (
-              <CheckCircle2 />
+              <CircleCheck />
             ) : t.kind === "error" ? (
-              <AlertCircle />
+              <CircleExclamationPoint />
             ) : (
               <Info />
             )}
@@ -208,9 +208,9 @@ export function Alert({
       role={kind === "error" ? "alert" : undefined}
     >
       {kind === "error" ? (
-        <AlertCircle />
+        <CircleExclamationPoint />
       ) : kind === "warning" ? (
-        <AlertTriangle />
+        <TriangleExclamationPoint />
       ) : (
         <Info />
       )}

@@ -7,7 +7,7 @@ import {
   GripVertical,
   Image as ImageIcon,
   Plus,
-  Trash2,
+  Trash,
   X,
 } from "lucide-react";
 import { useId, useRef, useState, type ReactNode } from "react";
@@ -857,7 +857,7 @@ function ArrayInput(props: FieldProps<Extract<Field, { type: "array" }>>) {
               title="Remove"
               onClick={() => remove(i)}
             >
-              <Trash2 />
+              <Trash />
             </Button>
           </div>
         )}
@@ -898,7 +898,7 @@ function ArrayInput(props: FieldProps<Extract<Field, { type: "array" }>>) {
           title="Remove"
           onClick={() => remove(i)}
         >
-          <Trash2 />
+          <Trash />
         </Button>
       </div>
     </>

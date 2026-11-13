@@ -1,5 +1,4 @@
 import {
-  AlignLeft,
   AppWindow,
   BookOpen,
   Box,
@@ -10,10 +9,10 @@ import {
   Files,
   Folder,
   GalleryHorizontal,
-  Heading,
   Image,
   Images,
   LayoutGrid,
+  LetterH,
   Link,
   List,
   ListOrdered,
@@ -31,6 +30,7 @@ import {
   Sparkles,
   Table,
   Tag,
+  TextAlignStart,
   Users,
   Video,
   type LucideProps,
@@ -43,7 +43,6 @@ type IconComponent = React.ComponentType<LucideProps>;
  * keeps the control panel bundle small; unknown names fall back to a file.
  */
 export const ICONS: Record<string, IconComponent> = {
-  "align-left": AlignLeft,
   "app-window": AppWindow,
   "book-open": BookOpen,
   box: Box,
@@ -54,10 +53,10 @@ export const ICONS: Record<string, IconComponent> = {
   files: Files,
   folder: Folder,
   "gallery-horizontal": GalleryHorizontal,
-  heading: Heading,
   image: Image,
   images: Images,
   "layout-grid": LayoutGrid,
+  "letter-h": LetterH,
   link: Link,
   list: List,
   "list-ordered": ListOrdered,
@@ -75,6 +74,7 @@ export const ICONS: Record<string, IconComponent> = {
   sparkles: Sparkles,
   table: Table,
   tag: Tag,
+  "text-align-start": TextAlignStart,
   users: Users,
   video: Video,
 };

@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ExternalLink, Save, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  Save,
+  Trash,
+  TriangleExclamationPoint,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import type {
@@ -473,7 +478,7 @@ function EntryEditor({
           <>
             {dirty && (
               <span className="v-unsaved">
-                <AlertTriangle size={13} /> Unsaved changes
+                <TriangleExclamationPoint size={13} /> Unsaved changes
               </span>
             )}
             {previewHref && (
@@ -495,7 +500,7 @@ function EntryEditor({
                   title="Delete"
                   onClick={() => setConfirmDelete(true)}
                 >
-                  <Trash2 />
+                  <Trash />
                 </Button>
               )}
             <Button

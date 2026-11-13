@@ -24,7 +24,7 @@ import {
   GripVertical,
   Pencil,
   Plus,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -507,7 +507,7 @@ function TreeRow({
             title="Remove"
             onClick={onRemove}
           >
-            <Trash2 />
+            <Trash />
           </Button>
         </div>
       </div>

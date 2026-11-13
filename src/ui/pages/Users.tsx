@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, MoreHorizontal, Plus, Trash2, UserCog } from "lucide-react";
+import { Ellipsis, Mail, Plus, Trash, UserCog } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router";
 import type { PublicUser, Role } from "../api.js";
@@ -152,7 +152,7 @@ export function UsersPage() {
                               title="Actions"
                               onClick={toggle}
                             >
-                              <MoreHorizontal />
+                              <Ellipsis />
                             </Button>
                           )}
                         >
@@ -188,7 +188,7 @@ export function UsersPage() {
                                     setRemoving(u);
                                   }}
                                 >
-                                  <Trash2 />
+                                  <Trash />
                                   <span>Remove</span>
                                 </button>
                               )}

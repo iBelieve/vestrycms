@@ -4,7 +4,7 @@ import {
   Copy,
   File as FileIcon,
   Folder,
-  Trash2,
+  Trash,
   Upload,
 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -222,7 +222,7 @@ export function AssetsPage() {
                 variant="danger"
                 onClick={() => setConfirmDelete(selectedItem.path)}
               >
-                <Trash2 /> Delete
+                <Trash /> Delete
               </Button>
               <Button
                 onClick={() => {

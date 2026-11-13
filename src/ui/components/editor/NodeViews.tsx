@@ -6,9 +6,9 @@ import {
 import {
   ChevronDown,
   ChevronRight,
-  Code2,
+  CodeXml,
   Settings2,
-  Trash2,
+  Trash,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Field, Schema } from "../../../config/types.js";
@@ -231,7 +231,7 @@ export function ComponentNodeView({
             title="Remove block"
             onClick={deleteNode}
           >
-            <Trash2 />
+            <Trash />
           </Button>
         </div>
       </div>
@@ -281,7 +281,7 @@ export function InlineComponentNodeView({
           footer={
             <>
               <Button variant="danger" onClick={deleteNode}>
-                <Trash2 /> Remove
+                <Trash /> Remove
               </Button>
               <Button variant="primary" onClick={() => setEditing(false)}>
                 Done
@@ -336,7 +336,7 @@ export function RawBlockNodeView({
         data-drag-handle=""
       >
         <span className="v-block__icon">
-          <Code2 />
+          <CodeXml />
         </span>
         <span className="v-block__name">{meta.label}</span>
         <span className="v-block__summary">{meta.hint}</span>
@@ -357,7 +357,7 @@ export function RawBlockNodeView({
             title="Remove"
             onClick={deleteNode}
           >
-            <Trash2 />
+            <Trash />
           </Button>
         </div>
       </div>
