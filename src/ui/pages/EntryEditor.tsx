@@ -358,7 +358,13 @@ function EntryEditor({
       }
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.status === 409) {
+      if (e instanceof ApiError && e.code === "exists") {
+        // Another entry has this file name: reloading would not help.
+        toast(
+          "error",
+          `${e.message}. Change the slug${dateKey ? " or the date" : ""}.`,
+        );
+      } else if (e instanceof ApiError && e.status === 409) {
         toast(
           "error",
           `${e.message} Reload the page to pick up the latest version.`,
