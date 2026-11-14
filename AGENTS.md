@@ -67,8 +67,9 @@ main consumer; keep it free of site-specific code.
   of these breaks existing sites.
 - Releases: bump `version`, add the release to `CHANGELOG.md`, publish a
   GitHub release tagged `v<version>`;
-  `.github/workflows/publish.yml` publishes with provenance via npm trusted
-  publishing.
+  `.github/workflows/publish.yml` stages it on npm with provenance via npm
+  trusted publishing (`npm stage publish`), and a maintainer approves the
+  staged version with 2FA before it is live.
 - `pnpm-workspace.yaml` holds pnpm settings (7-day `minimumReleaseAge`,
   `allowBuilds`); this is not a monorepo.
 

@@ -34,5 +34,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
-      # prepack builds dist/.
-      - run: npm publish --provenance --access public
+      # Stages the version on npm, where a maintainer approves it with 2FA
+      # before it goes live (staged publishing needs npm 11.15 or later, which
+      # Node 26 ships). prepack builds dist/.
+      - run: npm stage publish --provenance --access public
