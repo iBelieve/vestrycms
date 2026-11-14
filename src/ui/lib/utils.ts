@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Field, Schema } from "../../config/types.js";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -260,25 +261,24 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function fillTemplate(
-  template: string,
-  values: Record<string, unknown>,
-  slug = false,
-): string {
-  return template.replace(/\{([\w.]+)\}/g, (_, key: string) => {
-    const raw = key
-      .split(".")
-      .reduce<unknown>(
-        (acc, k) =>
-          acc && typeof acc === "object"
-            ? (acc as Record<string, unknown>)[k]
-            : undefined,
-        values,
-      );
-    if (raw === undefined || raw === null) return "";
-    const s = String(raw);
-    return slug ? slugify(s) : s;
-  });
+/** CSS declarations (`color: red; font-weight: 600`) as a React style object. */
+export function cssToStyle(css: string | undefined): CSSProperties {
+  const style: Record<string, string> = {};
+  for (const declaration of (css ?? "").split(";")) {
+    const colon = declaration.indexOf(":");
+    if (colon === -1) continue;
+    const property = declaration.slice(0, colon).trim();
+    const value = declaration.slice(colon + 1).trim();
+    if (!property || !value) continue;
+    // Custom properties keep their name; the rest are camel-cased.
+    const key = property.startsWith("--")
+      ? property
+      : property
+          .replace(/^-ms-/, "ms-")
+          .replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    style[key] = value;
+  }
+  return style as CSSProperties;
 }
 
 export function deepEqual(a: unknown, b: unknown): boolean {

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -8,8 +8,18 @@ import { pathToFileURL } from "node:url";
  * Prettier installed, the control panel formats files with it before saving
  * (using the project's own Prettier config), so commits made through Vestry
  * match what `prettier --check` expects. Otherwise the module is a no-op.
+ * The project's `.prettierignore` is passed along too, so files Prettier is
+ * told to leave alone are saved as written.
+ *
+ * `enabled: false` (the `format: false` config option) always gives the
+ * no-op module, for projects whose content Prettier does not format safely.
  */
-export async function formatterModule(root: string): Promise<string> {
+export async function formatterModule(
+  root: string,
+  enabled = true,
+): Promise<string> {
+  const none = `export const available = false;\nexport const ignore = "";\nexport async function formatFile(text) { return text; }\n`;
+  if (!enabled) return none;
   const require = createRequire(path.join(root, "package.json"));
   let standalone: string;
   let plugins: Record<string, string>;
@@ -27,7 +37,7 @@ export async function formatterModule(root: string): Promise<string> {
     if (![standalone, ...Object.values(plugins)].every((p) => existsSync(p)))
       throw new Error("prettier layout");
   } catch {
-    return `export const available = false;\nexport async function formatFile(text) { return text; }\n`;
+    return none;
   }
 
   let options: Record<string, unknown> = {};
@@ -48,12 +58,16 @@ export async function formatterModule(root: string): Promise<string> {
     /* fall back to defaults */
   }
 
+  const ignorePath = path.join(root, ".prettierignore");
+  const ignore = existsSync(ignorePath) ? readFileSync(ignorePath, "utf8") : "";
+
   return [
     `import * as prettier from ${JSON.stringify(standalone)};`,
     ...Object.entries(plugins).map(
       ([name, p]) => `import * as ${name} from ${JSON.stringify(p)};`,
     ),
     `export const available = true;`,
+    `export const ignore = ${JSON.stringify(ignore)};`,
     `const options = ${JSON.stringify(options)};`,
     `export async function formatFile(text, filepath) {`,
     `  return prettier.format(text, { ...options, filepath, plugins: [markdown, yaml, babel, estree] });`,

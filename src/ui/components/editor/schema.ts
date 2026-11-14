@@ -3,9 +3,11 @@ import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
+import type { TextStyleConfig } from "../../../config/types.js";
 import {
   FootnoteDefinition,
   FootnoteReference,
+  HardBreakMarks,
   ListAttributes,
   MdxComponent,
   MdxEsm,
@@ -15,12 +17,16 @@ import {
   MdxInlineExpression,
   RawHtml,
   RawInlineHtml,
+  Small,
+  TextClass,
 } from "./extensions.js";
 
 export interface EditorExtensionOptions {
   /** Maps a stored image path to a URL the browser can load. */
   resolveSrc?: (src: string) => string;
   placeholder?: string;
+  /** The site's text styles, to preview styled spans. */
+  textStyles?: Record<string, TextStyleConfig>;
 }
 
 /**
@@ -37,6 +43,9 @@ export function editorExtensions(options: EditorExtensionOptions = {}) {
     }),
     Superscript,
     Subscript,
+    // Underline comes with StarterKit.
+    Small,
+    TextClass.configure({ styles: options.textStyles ?? {} }),
     MdxImage.configure({ resolveSrc: options.resolveSrc ?? ((src) => src) }),
     TableKit.configure({ table: { resizable: false } }),
     Placeholder.configure({
@@ -50,6 +59,7 @@ export function editorExtensions(options: EditorExtensionOptions = {}) {
     RawHtml,
     RawInlineHtml,
     ListAttributes,
+    HardBreakMarks,
     FootnoteDefinition,
     FootnoteReference,
   ];

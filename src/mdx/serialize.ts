@@ -27,8 +27,13 @@ type AnyNode =
   | MdxTextExpression
   | MdxjsEsm;
 
-/** What the document references, to decide which imports to emit. */
+/**
+ * Serializer state: the target syntax, and what the document references (to
+ * decide which imports to emit).
+ */
 interface Uses {
+  /** MDX writes marks and breaks as JSX; Markdown gets the same tags as raw HTML. */
+  mdx: boolean;
   /** Capitalized JSX element names. */
   components: Set<string>;
   /** Identifier-like words in expressions, attribute values and ESM. */
@@ -60,7 +65,11 @@ export function serializeMdx(
   options: SerializeOptions = {},
 ): string {
   const isMdx = options.format !== "md";
-  const used: Uses = { components: new Set(), identifiers: new Set() };
+  const used: Uses = {
+    mdx: isMdx,
+    components: new Set(),
+    identifiers: new Set(),
+  };
   const root: Md.Root = {
     type: "root",
     children: blocks(doc.content ?? [], used) as Md.RootContent[],
@@ -249,16 +258,16 @@ function blocks(nodes: PMNode[], used: Uses): AnyNode[] {
 
 function block(node: PMNode, used: Uses): AnyNode | null {
   switch (node.type) {
-    case "paragraph": {
-      const children = inlines(node.content ?? [], used);
-      if (!children.length) return null;
-      return { type: "paragraph", children: children as Md.PhrasingContent[] };
-    }
+    case "paragraph":
+      return paragraph(node.content ?? [], used);
     case "heading":
       return {
         type: "heading",
         depth: clampDepth(Number(node.attrs?.level ?? 1)),
-        children: inlines(node.content ?? [], used) as Md.PhrasingContent[],
+        children: htmlBreaks(
+          inlines(node.content ?? [], used),
+          used,
+        ) as Md.PhrasingContent[],
       };
     case "horizontalRule":
       return { type: "thematicBreak" };
@@ -319,18 +328,98 @@ function block(node: PMNode, used: Uses): AnyNode | null {
       scan(value, used);
       return { type: "mdxjsEsm", value };
     }
-    case "image":
-      return {
-        type: "paragraph",
-        children: inlines([node], used) as Md.PhrasingContent[],
-      };
-    default: {
-      const children = inlines([node], used);
-      return children.length
-        ? { type: "paragraph", children: children as Md.PhrasingContent[] }
-        : null;
-    }
+    default:
+      return paragraph([node], used);
   }
+}
+
+/**
+ * A paragraph of inline content, or nothing when it is empty or holds only
+ * line breaks.
+ */
+function paragraph(content: PMNode[], used: Uses): Md.Paragraph | null {
+  if (content.every((n) => n.type === "hardBreak")) return null;
+  const children = elementBreaks(inlines(content, used), used);
+  if (!children.length) return null;
+  return { type: "paragraph", children: children as Md.PhrasingContent[] };
+}
+
+/**
+ * Rewrite as elements the hard breaks that Markdown's backslash and newline
+ * cannot stand for:
+ *
+ * - at the end of the paragraph, where the backslash would be literal;
+ * - before a line that would begin with a tag. MDX reads a line of only tags
+ *   and expressions (`</u>`, `<Icon />`) as a block, which ends the
+ *   paragraph, and Prettier's MDX parser does that for any line that begins
+ *   with a tag.
+ *
+ * Every other break has text right after it and stays a Markdown hard break.
+ */
+function elementBreaks(nodes: AnyNode[], used: Uses): AnyNode[] {
+  // Walking backwards: is the next thing written a tag (or the end of the
+  // paragraph), and does any text follow at all?
+  let tag = true;
+  let text = false;
+  const sawText = () => {
+    tag = false;
+    text = true;
+  };
+  const walk = (nodes: AnyNode[]): AnyNode[] => {
+    const out = [...nodes];
+    for (let i = out.length - 1; i >= 0; i--) out[i] = visit(out[i]);
+    return out;
+  };
+  const visit = (node: AnyNode): AnyNode => {
+    if (node.type === "break") {
+      if (!tag && text) return node;
+      tag = true;
+      return htmlBreak(used);
+    }
+    if (node.type === "text") {
+      // Whitespace alone doesn't make the line text.
+      if (/\S/.test(node.value)) sawText();
+      return node;
+    }
+    if (node.type === "mdxTextExpression") {
+      tag = false;
+      return node;
+    }
+    if (!("children" in node)) {
+      sawText();
+      return node;
+    }
+    // The closing and opening tags of an element, or the delimiters of
+    // `**strong**` and `[a link](url)`.
+    const edge = () =>
+      node.type === "mdxJsxTextElement" ? (tag = true) : sawText();
+    edge();
+    const children = walk(node.children as AnyNode[]);
+    edge();
+    return { ...node, children } as AnyNode;
+  };
+  return walk(nodes);
+}
+
+/** A line break as an element: `<br />` in MDX, raw HTML in Markdown. */
+function htmlBreak(used: Uses): AnyNode {
+  return used.mdx
+    ? { type: "mdxJsxTextElement", name: "br", attributes: [], children: [] }
+    : { type: "html", value: "<br>" };
+}
+
+/**
+ * Rewrite the hard breaks in a table cell or heading as elements. Both are
+ * one line of Markdown, so the library would write a space instead, or turn
+ * an h1/h2 into a setext heading.
+ */
+function htmlBreaks(nodes: AnyNode[], used: Uses): AnyNode[] {
+  return nodes.map((node) => {
+    if (node.type === "break") return htmlBreak(used);
+    if (!("children" in node)) return node;
+    const children = htmlBreaks(node.children as AnyNode[], used);
+    return { ...node, children } as AnyNode;
+  });
 }
 
 function footnoteLabel(node: PMNode): { identifier: string; label: string } {
@@ -359,7 +448,10 @@ function table(node: PMNode, used: Uses): Md.Table {
       });
       return {
         type: "tableCell",
-        children: inlines(inline, used) as Md.PhrasingContent[],
+        children: htmlBreaks(
+          inlines(inline, used),
+          used,
+        ) as Md.PhrasingContent[],
       };
     }),
   }));
@@ -427,17 +519,37 @@ function jsxElement(
 
 // ---------------------------------------------------------------- inlines
 
-type MarkKind =
-  "bold" | "italic" | "strike" | "code" | "link" | "superscript" | "subscript";
-const MARK_ORDER: MarkKind[] = [
+/**
+ * Nesting order for marks that cover the same text, outermost first.
+ * Superscript and subscript sit mid-word, where Markdown delimiters cannot
+ * open (`x**<sup>2</sup>**`), so they go outside those. The other elements
+ * go inside: a paragraph that begins `**<u>Note:</u>**` survives Prettier,
+ * whose MDX parser takes one that begins with a tag for a JSX block.
+ */
+const MARK_ORDER = [
   "link",
   "superscript",
   "subscript",
   "bold",
   "italic",
   "strike",
+  "textClass",
+  "underline",
+  "small",
   "code",
 ];
+
+/** Marks written as an inline HTML element (JSX in MDX). */
+const MARK_TAGS: Record<string, string> = {
+  underline: "u",
+  small: "small",
+  superscript: "sup",
+  subscript: "sub",
+  textClass: "span",
+};
+
+/** Marks written with Markdown delimiters, which cannot start or end at a line break. */
+const DELIMITER_MARKS = new Set(["bold", "italic", "strike"]);
 
 /**
  * Convert a flat run of inline PM nodes (text with marks) into nested mdast
@@ -446,7 +558,7 @@ const MARK_ORDER: MarkKind[] = [
  * keeps bold outermost.
  */
 function inlines(nodes: PMNode[], used: Uses): AnyNode[] {
-  return group(nodes, used);
+  return group(nodes.map(breakMarks), used);
 }
 
 function markKey(m: PMMark): string {
@@ -462,6 +574,29 @@ function stripMark(node: PMNode, key: string): PMNode {
     ...node,
     marks: (node.marks ?? []).filter((m) => markKey(m) !== key),
   };
+}
+
+/**
+ * The marks a hard break can be written with. Inline code holds no break,
+ * and `**a\` + newline + `**` would not close the strong, so a break keeps a
+ * delimiter mark only between marked content on both sides (the editor
+ * leaves one at the edge when a selection that is made bold ends at a
+ * break).
+ */
+function breakMarks(node: PMNode, index: number, nodes: PMNode[]): PMNode {
+  if (node.type !== "hardBreak" || !node.marks?.length) return node;
+  const inside = (key: string, step: 1 | -1) => {
+    let i = index + step;
+    while (nodes[i]?.type === "hardBreak" && hasMark(nodes[i], key)) i += step;
+    return Boolean(nodes[i]) && hasMark(nodes[i], key);
+  };
+  const marks = node.marks.filter((m) => {
+    if (m.type === "code") return false;
+    if (!DELIMITER_MARKS.has(m.type)) return true;
+    const key = markKey(m);
+    return inside(key, -1) && inside(key, 1);
+  });
+  return marks.length === node.marks.length ? node : { ...node, marks };
 }
 
 function group(nodes: PMNode[], used: Uses): AnyNode[] {
@@ -487,8 +622,7 @@ function group(nodes: PMNode[], used: Uses): AnyNode[] {
         len > bestLen ||
         (len === bestLen &&
           best !== null &&
-          MARK_ORDER.indexOf(m.type as MarkKind) <
-            MARK_ORDER.indexOf(best.type as MarkKind));
+          MARK_ORDER.indexOf(m.type) < MARK_ORDER.indexOf(best.type));
       if (better) {
         best = m;
         bestLen = len;
@@ -497,48 +631,77 @@ function group(nodes: PMNode[], used: Uses): AnyNode[] {
     const key = markKey(best!);
     const run = nodes.slice(i, i + bestLen).map((n) => stripMark(n, key));
     const children = group(run, used) as Md.PhrasingContent[];
-    out.push(wrap(best!, children));
+    out.push(...wrap(best!, children, used));
     i += bestLen;
   }
   return out;
 }
 
-function wrap(mark: PMMark, children: Md.PhrasingContent[]): AnyNode {
+function wrap(
+  mark: PMMark,
+  children: Md.PhrasingContent[],
+  used: Uses,
+): AnyNode[] {
   switch (mark.type) {
     case "bold":
-      return { type: "strong", children };
+      return [{ type: "strong", children }];
     case "italic":
-      return { type: "emphasis", children };
+      return [{ type: "emphasis", children }];
     case "strike":
-      return { type: "delete", children };
+      return [{ type: "delete", children }];
     case "link":
-      return {
-        type: "link",
-        url: String(mark.attrs?.href ?? ""),
-        title: (mark.attrs?.title as string | null) ?? null,
-        children,
-      };
-    case "superscript":
-      return {
-        type: "mdxJsxTextElement",
-        name: "sup",
-        attributes: [],
-        children,
-      };
-    case "subscript":
-      return {
-        type: "mdxJsxTextElement",
-        name: "sub",
-        attributes: [],
-        children,
-      };
+      return [
+        {
+          type: "link",
+          url: String(mark.attrs?.href ?? ""),
+          title: (mark.attrs?.title as string | null) ?? null,
+          children,
+        },
+      ];
     case "code": {
       const text = children.map((c) => ("value" in c ? c.value : "")).join("");
-      return { type: "inlineCode", value: text };
+      return [{ type: "inlineCode", value: text }];
     }
-    default:
-      return { type: "paragraph", children } as never;
+    default: {
+      // A mark this serializer doesn't know: keep the text.
+      if (!Object.hasOwn(MARK_TAGS, mark.type)) return children;
+      const name = MARK_TAGS[mark.type];
+      const className =
+        mark.type === "textClass" ? String(mark.attrs?.class ?? "") : null;
+      if (used.mdx)
+        return [
+          {
+            type: "mdxJsxTextElement",
+            name,
+            attributes:
+              className === null
+                ? []
+                : [
+                    {
+                      type: "mdxJsxAttribute",
+                      name: "class",
+                      value: className,
+                    },
+                  ],
+            children,
+          },
+        ];
+      const attributes =
+        className === null ? "" : ` class="${escapeAttribute(className)}"`;
+      return [
+        { type: "html", value: `<${name}${attributes}>` },
+        ...children,
+        { type: "html", value: `</${name}>` },
+      ];
+    }
   }
+}
+
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
 }
 
 function leaf(node: PMNode, used: Uses): AnyNode[] {

@@ -534,6 +534,11 @@ export function createApi(options: ApiOptions) {
             head: await source.head(),
           });
         }
+        // Slugs can contain "/", so the entry is named in the query string.
+        if (segments[2] === "references" && method === "GET") {
+          const slug = url.searchParams.get("slug") ?? "";
+          return json({ references: await service.referencesTo(key, slug) });
+        }
         if (segments[2] === "entries") {
           const slug = segments.slice(3).join("/");
           if (!slug && method === "POST") {

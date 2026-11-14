@@ -90,6 +90,15 @@ export interface DateField extends FieldBase<"date"> {
   time?: "optional";
   /** Hint shown next to the time input when it is empty, e.g. "defaults to 9:00 AM". */
   timeHint?: string;
+  /**
+   * Where the value is kept. With `"filename"` the date is the `YYYY-MM-DD-`
+   * prefix of the entry's file name (`2026-03-01-title.mdx`) instead of a
+   * frontmatter key, so there is one date and it sorts the folder. Changing
+   * it in the editor renames the file, which also changes any URL built
+   * from the slug. For collections with one file per entry, on a top-level
+   * field, at most one per collection; `time` is not supported.
+   */
+  storeIn?: "frontmatter" | "filename";
 }
 
 export interface DatetimeField extends FieldBase<"datetime"> {
@@ -352,7 +361,12 @@ export interface CollectionConfig {
   slug?: {
     /** Field key the slug is derived from; defaults to the title field. */
     from?: string;
-    /** Template, e.g. `{date}` or `{date}-{title}`. Field values are slugified. */
+    /**
+     * Template, e.g. `{date}-{title}` or `{date|year}/{date|month}/{title}`.
+     * Field values are slugified; the rest is kept, so a `/` makes folders
+     * (which needs a `**` path). `|year`, `|month` and `|day` take the parts
+     * of a date.
+     */
     template?: string;
   };
   status?: StatusConfig;
@@ -362,7 +376,8 @@ export interface CollectionConfig {
   searchFields?: string[];
   /**
    * Preview URL template, e.g. `/sermons/{slug}`. Any schema field may be
-   * referenced in braces.
+   * referenced in braces, with the same filters as `slug.template`
+   * (`/{date|year}/{slug}`).
    */
   previewUrl?: string;
   /** Lucide icon name used in navigation. */
@@ -417,6 +432,20 @@ export interface ComponentConfig {
   children?: boolean | "text";
   /** Render inline (within a paragraph) rather than as a block. */
   inline?: boolean;
+}
+
+/** A named inline style for rich text: a class on a `<span>`. */
+export interface TextStyleConfig {
+  /** Shown in the editor's Styles menu. */
+  label: string;
+  /** Class written to the span, e.g. `text-red` for `<span class="text-red">`. */
+  class: string;
+  /**
+   * CSS declarations that preview the style in the editor, e.g.
+   * `color: #dc2626`. The site styles the class itself; without a preview
+   * the editor outlines the text.
+   */
+  css?: string;
 }
 
 export interface AssetContainerConfig {
@@ -486,11 +515,26 @@ export interface VestryConfig {
   collections?: Record<string, CollectionConfig>;
   singletons?: Record<string, SingletonConfig>;
   components?: Record<string, ComponentConfig>;
+  /**
+   * Inline styles offered in the rich text editor's Styles menu, keyed by a
+   * name of your choosing. Each wraps the selection in a `<span>` with the
+   * style's class.
+   */
+  textStyles?: Record<string, TextStyleConfig>;
   assets?: Record<string, AssetContainerConfig>;
   /** Optional navigation grouping; defaults to Collections / Singletons / Assets. */
   navigation?: NavigationGroup[];
   /** Default commit message template. */
   commitMessage?: string;
+  /**
+   * Format files with the project's Prettier before saving, when Prettier is
+   * installed. Defaults to true. Set to false if Prettier does not format
+   * your content safely: its MDX support predates MDX 2 and can break, for
+   * example, a blockquote that contains inline HTML. Files are then saved
+   * exactly as the editor serialises them, so add the content directories to
+   * `.prettierignore`.
+   */
+  format?: boolean;
   /** Sign-in: who may edit. Users sign in with a code emailed to them. */
   auth?: AuthConfig;
   /** Outbound email for sign-in codes and invitations. Required in production. */

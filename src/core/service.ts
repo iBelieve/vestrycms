@@ -5,7 +5,17 @@ import type {
   SingletonConfig,
   VestryConfig,
 } from "../config/types.js";
-import { applyAutoFields, toEditorValues, toStoredValues } from "./values.js";
+import {
+  applyAutoFields,
+  filenameDateKey,
+  referencesCollection,
+  rewriteReferences,
+  slugWithDate,
+  summaryData,
+  toEditorValues,
+  toStoredValues,
+  withFilenameDate,
+} from "./values.js";
 import {
   parseEntry,
   parseEntryList,
@@ -44,9 +54,23 @@ export interface EntrySummary {
   path: string;
   sha: string;
   title: string;
+  /** The fields a list can show, sort or search by (see `summaryData`). */
   data: Record<string, unknown>;
   status: "published" | "draft" | null;
   excerpt?: string;
+}
+
+/** An entry or singleton with a reference field pointing at another entry. */
+export interface EntryReference {
+  kind: "collection" | "singleton";
+  /** Collection or singleton key. */
+  key: string;
+  /** Collection or singleton label. */
+  label: string;
+  /** Entry slug (the singleton key for singletons). */
+  slug: string;
+  title: string;
+  path: string;
 }
 
 export interface EntryDetail extends EntrySummary {
@@ -70,7 +94,10 @@ export interface SaveEntryInput {
    * written verbatim; `data`/`body` are still used for slugs and messages.
    */
   raw?: string;
-  /** Slug for a new entry (otherwise derived from the slug template / title). */
+  /**
+   * Slug for a new entry (otherwise derived from the slug template / title).
+   * For an existing entry, a different slug renames its file.
+   */
   slug?: string;
   /** Blob SHA the client last saw for this entry (omit for new entries). */
   sha?: string | null;
@@ -148,7 +175,11 @@ export class ContentService {
           path: pattern.prefix,
           sha: file.sha,
           title: this.titleOf(col, data, slug),
-          data: toEditorValues(col.schema, data, pattern.prefix),
+          data: toEditorValues(
+            col.schema,
+            summaryData(col, data),
+            pattern.prefix,
+          ),
           status: statusOf(col, data),
         };
       });
@@ -166,7 +197,11 @@ export class ContentService {
           path: f.path,
           sha: f.sha,
           title: this.titleOf(col, data, slug),
-          data: toEditorValues(col.schema, data, f.path),
+          data: withFilenameDate(
+            col.schema,
+            toEditorValues(col.schema, summaryData(col, data), f.path),
+            slug,
+          ),
           status: statusOf(col, data),
           excerpt,
         } satisfies EntrySummary;
@@ -230,7 +265,11 @@ export class ContentService {
       path,
       sha: file.sha,
       title: this.titleOf(col, parsed.data, slug),
-      data: toEditorValues(col.schema, parsed.data, path),
+      data: withFilenameDate(
+        col.schema,
+        toEditorValues(col.schema, parsed.data, path),
+        slug,
+      ),
       status: statusOf(col, parsed.data),
       body: parsed.body,
       head,
@@ -304,16 +343,44 @@ export class ContentService {
       };
     }
 
-    const finalSlug = slug ?? (input.slug?.trim() || this.newSlug(col, data));
+    // The slug to save under. A new entry takes the one given or derives
+    // it; an existing entry keeps its own unless a different one is given
+    // (a rename). A date kept in the file name is then made its prefix, so
+    // changing that date renames the file too.
+    const requested = input.slug?.trim();
+    let finalSlug = isNew
+      ? requested || this.newSlug(col, data)
+      : requested || slug;
+    const filenameDate = filenameDateKey(col.schema);
+    if (filenameDate) finalSlug = slugWithDate(finalSlug, data[filenameDate]);
     if (!isSafeSlug(finalSlug))
       throw new SourceError(`Invalid slug "${finalSlug}"`, 400, "bad_slug");
+    // A `*` path lists only the files directly in its directory, so an entry
+    // written into a subfolder would never show up again.
+    if (!pattern.deep && finalSlug.includes("/"))
+      throw new SourceError(
+        `Slug "${finalSlug}" contains "/", which needs a "**" wildcard in the collection's path`,
+        400,
+        "bad_slug",
+      );
     const path = entryPath(pattern, finalSlug);
-    const existing = await this.source.read(path);
-    if (isNew && existing) {
+    const renamedFrom =
+      !isNew && finalSlug !== slug ? entryPath(pattern, slug) : null;
+    const target = await this.source.read(path);
+    if ((isNew || renamedFrom) && target) {
       throw new SourceError(
         `An entry at "${path}" already exists`,
         409,
         "exists",
+      );
+    }
+    const existing = renamedFrom ? await this.source.read(renamedFrom) : target;
+    // The file to rename is gone: someone renamed or deleted the entry.
+    if (renamedFrom && !existing) {
+      throw new SourceError(
+        "This entry changed since you opened it.",
+        409,
+        "conflict",
       );
     }
     if (!isNew && existing && input.sha && input.sha !== existing.sha) {
@@ -323,18 +390,33 @@ export class ContentService {
         "conflict",
       );
     }
+    // An entry that refers to itself follows its own rename. (A file composed
+    // by the client, `raw`, has had the same done to it there.)
+    if (renamedFrom)
+      data = rewriteReferences(col.schema, data, key, slug!, finalSlug) ?? data;
     const stored = toStoredValues(col.schema, data, path);
     const text =
       input.raw ??
       serializeEntry(format, { data: stored, body: input.body ?? "" });
     const changes: FileChange[] = [
       { path, content: text },
+      // A rename is the new file and the removal of the old one, together
+      // with every entry that referred to the old slug.
+      ...(renamedFrom
+        ? [
+            { path: renamedFrom, delete: true as const },
+            ...(await this.referenceChanges(key, slug!, finalSlug, [
+              path,
+              renamedFrom,
+            ])),
+          ]
+        : []),
       ...uploadChanges(input.uploads),
     ];
     const commit = await this.source.commit(changes, {
       message: this.commitMessage(
         col,
-        isNew ? "Create" : "Update",
+        isNew ? "Create" : renamedFrom ? "Rename" : "Update",
         finalSlug,
         this.titleOf(col, data, finalSlug),
         key,
@@ -347,6 +429,98 @@ export class ContentService {
       commit: commit.sha,
       path,
     };
+  }
+
+  /**
+   * Entries and singletons whose reference fields point at entry `slug` of
+   * collection `key`. References inside MDX component props are not found.
+   */
+  async referencesTo(key: string, slug: string): Promise<EntryReference[]> {
+    this.collection(key);
+    const found: EntryReference[] = [];
+    for (const [colKey, col] of Object.entries(this.config.collections ?? {})) {
+      if (!referencesCollection(col.schema, key)) continue;
+      for (const entry of await this.listEntries(colKey)) {
+        if (colKey === key && entry.slug === slug) continue;
+        if (!rewriteReferences(col.schema, entry.data, key, slug, slug))
+          continue;
+        found.push({
+          kind: "collection",
+          key: colKey,
+          label: col.label,
+          slug: entry.slug,
+          title: entry.title,
+          path: entry.path,
+        });
+      }
+    }
+    for (const [sKey, s] of Object.entries(this.config.singletons ?? {})) {
+      if (!referencesCollection(s.schema, key)) continue;
+      const entry = await this.getSingleton(sKey);
+      if (!rewriteReferences(s.schema, entry.data, key, slug, slug)) continue;
+      found.push({
+        kind: "singleton",
+        key: sKey,
+        label: s.label,
+        slug: sKey,
+        title: s.label,
+        path: entry.path,
+      });
+    }
+    return found;
+  }
+
+  /**
+   * File changes that repoint every reference to a renamed entry. Each file
+   * is rewritten from its parsed contents, so only the references change in
+   * the data, though the frontmatter is serialized afresh.
+   */
+  private async referenceChanges(
+    key: string,
+    from: string,
+    to: string,
+    skipPaths: string[],
+  ): Promise<FileChange[]> {
+    const references = await this.referencesTo(key, from);
+    const paths = [...new Set(references.map((r) => r.path))].filter(
+      (path) => !skipPaths.includes(path),
+    );
+    const changes: FileChange[] = [];
+    for (const path of paths) {
+      const reference = references.find((r) => r.path === path)!;
+      const owner =
+        reference.kind === "collection"
+          ? this.collection(reference.key)
+          : this.singleton(reference.key);
+      const format = collectionFormat(owner);
+      const file = await this.source.read(path);
+      if (!file) continue;
+      const text = toText(file.bytes);
+      const single =
+        reference.kind === "collection" && parsePathPattern(owner.path).single;
+      if (single) {
+        const items = parseEntryList(format, text).map(
+          (item) =>
+            rewriteReferences(owner.schema, item, key, from, to) ?? item,
+        );
+        changes.push({ path, content: serializeEntryList(format, items) });
+      } else {
+        const parsed = parseEntry(format, text);
+        const data = rewriteReferences(
+          owner.schema,
+          parsed.data,
+          key,
+          from,
+          to,
+        );
+        if (!data) continue;
+        changes.push({
+          path,
+          content: serializeEntry(format, { data, body: parsed.body }),
+        });
+      }
+    }
+    return changes;
   }
 
   async deleteEntry(key: string, slug: string): Promise<{ commit: string }> {

@@ -1,11 +1,169 @@
-import { Extension, Node, mergeAttributes } from "@tiptap/core";
+import {
+  Extension,
+  Mark,
+  Node,
+  isMarkActive,
+  mergeAttributes,
+} from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import { ReactNodeViewRenderer } from "@tiptap/react";
+import type { TextStyleConfig } from "../../../config/types.js";
 import {
   ComponentNodeView,
   InlineComponentNodeView,
   RawBlockNodeView,
 } from "./NodeViews.js";
+
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    small: {
+      /** Toggle `<small>` on the selection. */
+      toggleSmall: () => ReturnType;
+    };
+    hardBreakMarks: {
+      /** Insert a hard break that carries the marks at the cursor. */
+      setMarkedHardBreak: () => ReturnType;
+    };
+    textClass: {
+      /** Toggle a `<span>` with this class on the selection, leaving other classes in place. */
+      toggleTextClass: (className: string) => ReturnType;
+    };
+  }
+}
+
+/** Small print, `<small>…</small>`. */
+export const Small = Mark.create({
+  name: "small",
+  parseHTML() {
+    return [{ tag: "small" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["small", HTMLAttributes, 0];
+  },
+  addCommands() {
+    return {
+      toggleSmall:
+        () =>
+        ({ commands }) =>
+          commands.toggleMark(this.name),
+    };
+  },
+});
+
+/**
+ * Text in a `<span class="…">`. The class is whatever the document says;
+ * `styles` (the site's `textStyles`) only decides how it looks here. Named
+ * `textClass` to stay clear of `@tiptap/extension-text-style`'s `textStyle`.
+ *
+ * Spans nest, so one piece of text can carry several of these marks, and
+ * the class is kept in a data attribute: as a real class it could pick up
+ * the control panel's own CSS.
+ */
+export const TextClass = Mark.create<{
+  styles: Record<string, TextStyleConfig>;
+}>({
+  name: "textClass",
+  excludes: "",
+  addOptions() {
+    return { styles: {} };
+  },
+  addAttributes() {
+    return {
+      class: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-text-class") ?? "",
+        renderHTML: (attrs) => ({ "data-text-class": String(attrs.class) }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-text-class]" }];
+  },
+  renderHTML({ HTMLAttributes, mark }) {
+    const className = String(mark.attrs.class);
+    const style = Object.values(this.options.styles).find(
+      (s) => s.class === className,
+    );
+    return [
+      "span",
+      mergeAttributes(
+        HTMLAttributes,
+        { title: style?.label ?? `class="${className}"` },
+        // Without a preview (or for a class the config doesn't list) an
+        // outline shows where the span is.
+        style?.css ? { style: style.css } : { class: "v-text-class" },
+      ),
+      0,
+    ];
+  },
+  addCommands() {
+    return {
+      toggleTextClass:
+        (className) =>
+        ({ state, tr, dispatch }) => {
+          const mark = this.type.create({ class: className });
+          const active = isMarkActive(state, this.type, { class: className });
+          if (!dispatch) return true;
+          const { empty, ranges } = state.selection;
+          if (empty) {
+            if (active) tr.removeStoredMark(mark);
+            else tr.addStoredMark(mark);
+          } else {
+            for (const { $from, $to } of ranges) {
+              if (active) tr.removeMark($from.pos, $to.pos, mark);
+              else tr.addMark($from.pos, $to.pos, mark);
+            }
+          }
+          return true;
+        },
+    };
+  },
+});
+
+/**
+ * A line break typed inside marked text takes the marks at the cursor, as
+ * text typed there would. StarterKit's hard break is inserted bare, which
+ * splits the mark in two: `<u>one</u><br /><u>two</u>` rather than a single
+ * `<u>` holding the break.
+ */
+export const HardBreakMarks = Extension.create({
+  name: "hardBreakMarks",
+  // Ahead of the hard break's own shortcuts.
+  priority: 200,
+  addCommands() {
+    return {
+      setMarkedHardBreak:
+        () =>
+        ({ state, chain }) => {
+          // Inline code cannot hold a break.
+          const marks = (
+            state.storedMarks ?? state.selection.$from.marks()
+          ).filter((m) => m.type.name !== "code");
+          return chain()
+            .setHardBreak()
+            .command(({ tr }) => {
+              const pos = tr.selection.from - 1;
+              const inserted = pos >= 0 ? tr.doc.nodeAt(pos) : null;
+              if (!marks.length || inserted?.type.name !== "hardBreak")
+                return true;
+              // Changing the document drops the marks kept for the text
+              // typed next.
+              const stored = tr.storedMarks;
+              tr.setNodeMarkup(pos, undefined, undefined, marks);
+              if (stored) tr.ensureMarks(stored);
+              return true;
+            })
+            .run();
+        },
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      "Mod-Enter": () => this.editor.commands.setMarkedHardBreak(),
+      "Shift-Enter": () => this.editor.commands.setMarkedHardBreak(),
+    };
+  },
+});
 
 /** A block-level MDX component, e.g. `<Highlights items={[...]} />`. */
 export const MdxComponent = Node.create({

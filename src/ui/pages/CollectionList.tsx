@@ -3,17 +3,12 @@ import { ArrowDown, ArrowUp, ExternalLink, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import type { Field } from "../../config/types.js";
+import { fillTemplate } from "../../core/paths.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
 import { Alert, Badge, EmptyState, Loading } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import {
-  cx,
-  fieldLabel,
-  fillTemplate,
-  formatDate,
-  titleCase,
-} from "../lib/utils.js";
+import { cx, fieldLabel, formatDate, titleCase } from "../lib/utils.js";
 
 export function CollectionListPage() {
   const { collection: key = "" } = useParams();

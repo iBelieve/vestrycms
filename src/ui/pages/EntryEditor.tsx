@@ -19,6 +19,7 @@ import {
   dirname,
   entryPath,
   fillTemplate as fillPathTemplate,
+  isSafeSlug,
   normalizePath,
   parsePathPattern,
   relativePath,
@@ -28,10 +29,19 @@ import {
 import {
   applyAutoFields,
   assetToRepoPath,
+  filenameDateKey,
   repoPathToAsset,
+  rewriteReferences,
+  slugWithDate,
+  slugWithoutDate,
   toStoredValues,
 } from "../../core/values.js";
-import { ApiError, type EntryDetail, type SaveEntryInput } from "../api.js";
+import {
+  ApiError,
+  type EntryDetail,
+  type EntryReference,
+  type SaveEntryInput,
+} from "../api.js";
 import type { PendingUpload } from "../components/AssetPicker.js";
 import type { EditorEnv } from "../components/editor/EditorContext.js";
 import { RichTextEditor } from "../components/editor/RichTextEditor.js";
@@ -48,12 +58,11 @@ import {
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { formatSource } from "../lib/format.js";
+import { formatEntry } from "../lib/format.js";
 import {
   defaultValues,
   deepEqual,
   fieldLabel,
-  fillTemplate,
   formatDate,
   validate,
   type ValidationError,
@@ -165,31 +174,78 @@ function EntryEditor({
   const dirty =
     state !== null && initial !== null && !deepEqual(state, initial);
 
-  useEffect(() => {
-    if (!dirty) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
-
   const format = col ? collectionFormat(col) : "mdx";
   const pattern = useMemo(
     () => (col ? parsePathPattern(col.path) : null),
     [col],
   );
 
+  // A date kept in the file name is edited with the date field, so the slug
+  // box holds only what follows it.
+  const dateKey =
+    collection && !pattern?.single ? filenameDateKey(collection.schema) : null;
+
+  // The slug the entry will be saved under: what was typed, else the
+  // current one, else (for a new entry) one derived from its fields. A date
+  // kept in the file name is always its prefix, so changing that date
+  // changes the slug.
   const effectiveSlug = useMemo(() => {
     if (!collection || !state) return slug ?? "";
-    if (!isNew) return slug ?? "";
-    if (slugInput) return slugInput;
-    const template = collection.slug?.template;
-    if (template) return fillPathTemplate(template, state.data, { slug: true });
-    const from = collection.slug?.from ?? collection.titleField ?? "title";
-    const v = state.data[from];
-    return slugify(String(v ?? ""));
-  }, [collection, state, isNew, slug, slugInput]);
+    if (pattern?.single) return slug ?? "";
+    let base: string;
+    if (slugInput) base = slugInput;
+    else if (!isNew) base = slug ?? "";
+    else {
+      const template = collection.slug?.template;
+      const from = collection.slug?.from ?? collection.titleField ?? "title";
+      base = template
+        ? fillPathTemplate(template, state.data, { slug: true })
+        : slugify(String(state.data[from] ?? ""));
+    }
+    if (!dateKey) return base;
+    return slugWithDate(slugWithoutDate(base), state.data[dateKey]);
+  }, [collection, state, isNew, slug, slugInput, pattern, dateKey]);
+
+  /** What the slug box shows: the slug, less a date held by the date field. */
+  const slugBoxValue =
+    slugInput || (dateKey ? slugWithoutDate(effectiveSlug) : effectiveSlug);
+  /** The date prefix shown, fixed, in front of the slug box. */
+  const slugPrefix =
+    dateKey && effectiveSlug !== slugBoxValue && !slugBoxValue.includes("/")
+      ? effectiveSlug.slice(0, effectiveSlug.length - slugBoxValue.length)
+      : "";
+  const slugError =
+    kind !== "collection" || !pattern || pattern.single || !effectiveSlug
+      ? null
+      : !isSafeSlug(effectiveSlug)
+        ? "Use letters, numbers, hyphens, dots and underscores."
+        : // A `*` path lists only the files directly in its directory.
+          !pattern.deep && effectiveSlug.includes("/")
+          ? "This collection has no folders, so a slug cannot contain a slash."
+          : null;
+
+  /** Saving will move an existing entry to a different file. */
+  const renaming =
+    kind === "collection" &&
+    !isNew &&
+    !!effectiveSlug &&
+    effectiveSlug !== slug;
+
+  // Ask before leaving the page with anything unsaved, a rename included.
+  const unsaved = dirty || renaming;
+  useEffect(() => {
+    if (!unsaved) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [unsaved]);
+
+  // Entries that refer to this one, shown for confirmation before a rename.
+  const [renameReferences, setRenameReferences] = useState<
+    EntryReference[] | null
+  >(null);
 
   const filePath = useMemo(() => {
     if (!pattern) return "";
@@ -217,6 +273,7 @@ function EntryEditor({
     ) as EditorEnv["components"];
     return {
       components,
+      textStyles: config.textStyles,
       imageDirectory: images?.directory,
       toRepoPath,
       toDocPath: (repoPath) =>
@@ -230,7 +287,14 @@ function EntryEditor({
         return pending ? pending.previewUrl : api.fileUrl(repo);
       },
     };
-  }, [bodyConfig, filePath, config.components, uploads, api]);
+  }, [
+    bodyConfig,
+    filePath,
+    config.components,
+    config.textStyles,
+    uploads,
+    api,
+  ]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -238,7 +302,18 @@ function EntryEditor({
       const errs = validate(col.schema, state.data);
       setErrors(errs);
       if (errs.length) throw new Error(errs[0].message);
-      const data = applyAutoFields(col.schema, state.data);
+      const fields = applyAutoFields(col.schema, state.data);
+      // An entry that refers to itself follows its own rename.
+      const data =
+        (renaming &&
+          rewriteReferences(
+            col.schema,
+            fields,
+            collectionKey,
+            slug!,
+            effectiveSlug,
+          )) ||
+        fields;
       const input: SaveEntryInput = {
         data,
         body: state.body,
@@ -255,7 +330,7 @@ function EntryEditor({
         const stored = toStoredValues(col.schema, data, filePath);
         let raw = serializeEntry(format, { data: stored, body: state.body });
         try {
-          raw = await formatSource(raw, filePath);
+          raw = await formatEntry(raw, filePath, format);
         } catch (e) {
           console.warn("[vestry] formatting failed, saving unformatted", e);
         }
@@ -271,6 +346,7 @@ function EntryEditor({
         input.slug = effectiveSlug;
         return { ...(await api.createEntry(collectionKey, input)), data };
       }
+      if (renaming) input.slug = effectiveSlug;
       return { ...(await api.updateEntry(collectionKey, slug!, input)), data };
     },
     onSuccess: (res) => {
@@ -286,13 +362,23 @@ function EntryEditor({
       qc.invalidateQueries({ queryKey: ["assets"] });
       if (kind === "collection")
         qc.setQueryData(["entry", collectionKey, res.slug], undefined);
-      if (isNew)
+      // A new or renamed entry now lives at a different address.
+      if (isNew || (kind === "collection" && res.slug !== slug)) {
+        if (!isNew)
+          qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
         navigate(`/collections/${collectionKey}/${res.slug}`, {
           replace: true,
         });
+      }
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.status === 409) {
+      if (e instanceof ApiError && e.code === "exists") {
+        // Another entry has this file name: reloading would not help.
+        toast(
+          "error",
+          `${e.message}. Change the slug${dateKey ? " or the date" : ""}.`,
+        );
+      } else if (e instanceof ApiError && e.status === 409) {
         toast(
           "error",
           `${e.message} Reload the page to pick up the latest version.`,
@@ -313,13 +399,33 @@ function EntryEditor({
     onError: (e) => toast("error", (e as Error).message),
   });
 
-  const saveRef = useRef(save);
-  saveRef.current = save;
+  // Saving goes through here: a rename that other entries refer to is
+  // confirmed first, since it changes those entries too.
+  const checkingReferences = useRef(false);
+  const requestSave = async () => {
+    // The lookup below takes a moment, during which a second request (the
+    // shortcut pressed twice) must not start a second save.
+    if (save.isPending || slugError || checkingReferences.current) return;
+    if (renaming) {
+      checkingReferences.current = true;
+      try {
+        const { references } = await api.references(collectionKey, slug!);
+        if (references.length) return setRenameReferences(references);
+      } catch (e) {
+        return toast("error", (e as Error).message);
+      } finally {
+        checkingReferences.current = false;
+      }
+    }
+    save.mutate();
+  };
+  const saveRef = useRef(requestSave);
+  saveRef.current = requestSave;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        if (!saveRef.current.isPending) saveRef.current.mutate();
+        void saveRef.current();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -371,7 +477,7 @@ function EntryEditor({
     : col.label;
   const previewHref =
     col.previewUrl && !isNew
-      ? `${config.siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...state.data, slug: effectiveSlug })}`
+      ? `${config.siteUrl ?? ""}${fillPathTemplate(col.previewUrl, { ...state.data, slug: effectiveSlug })}`
       : null;
   const entry = query.data as EntryDetail | undefined;
 
@@ -476,7 +582,7 @@ function EntryEditor({
         }
         actions={
           <>
-            {dirty && (
+            {unsaved && (
               <span className="v-unsaved">
                 <TriangleExclamationPoint size={13} /> Unsaved changes
               </span>
@@ -505,10 +611,11 @@ function EntryEditor({
               )}
             <Button
               variant="primary"
-              onClick={() => save.mutate()}
+              onClick={() => void requestSave()}
               disabled={
                 save.isPending ||
-                (!dirty && !isNew && Object.keys(uploads).length === 0)
+                !!slugError ||
+                (!unsaved && !isNew && Object.keys(uploads).length === 0)
               }
             >
               {save.isPending ? <Spinner /> : <Save />}{" "}
@@ -606,13 +713,24 @@ function EntryEditor({
                   {kind === "collection" && (
                     <div>
                       <label className="v-field__label">Slug</label>
-                      {isNew && !pattern?.single ? (
-                        <input
-                          className="v-input v-input--mono"
-                          value={slugInput || effectiveSlug}
-                          onChange={(e) => setSlugInput(e.target.value)}
-                          placeholder="auto"
-                        />
+                      {!pattern?.single ? (
+                        <div className="v-slug">
+                          {slugPrefix && (
+                            <span
+                              className="v-slug__prefix v-mono"
+                              title="Set by the date field"
+                            >
+                              {slugPrefix}
+                            </span>
+                          )}
+                          <input
+                            className="v-input v-input--mono"
+                            value={slugBoxValue}
+                            onChange={(e) => setSlugInput(e.target.value)}
+                            placeholder="auto"
+                            aria-invalid={slugError ? true : undefined}
+                          />
+                        </div>
                       ) : (
                         <input
                           className="v-input v-input--mono"
@@ -620,11 +738,15 @@ function EntryEditor({
                           value={effectiveSlug}
                         />
                       )}
-                      {isNew && pattern && !pattern.single && (
+                      {slugError && (
+                        <div className="v-field__error">{slugError}</div>
+                      )}
+                      {(isNew || renaming) && pattern && !pattern.single && (
                         <div
                           className="v-field__hint v-mono"
                           style={{ fontSize: 11.5 }}
                         >
+                          {renaming && "Renames the file to "}
                           {entryPath(pattern, effectiveSlug || "…")}
                         </div>
                       )}
@@ -680,6 +802,38 @@ function EntryEditor({
           </aside>
         </div>
       </div>
+      {renameReferences && (
+        <ConfirmDialog
+          title="Rename this entry?"
+          message={
+            <>
+              {renameReferences.length === 1
+                ? "1 other entry refers"
+                : `${renameReferences.length} other entries refer`}{" "}
+              to this one and will be updated in the same commit:
+              <ul className="v-reference-list">
+                {renameReferences.slice(0, 8).map((r) => (
+                  <li key={`${r.kind}:${r.key}:${r.slug}`}>
+                    {r.kind === "collection"
+                      ? `${r.label}: ${r.title}`
+                      : r.label}
+                  </li>
+                ))}
+                {renameReferences.length > 8 && (
+                  <li>and {renameReferences.length - 8} more</li>
+                )}
+              </ul>
+            </>
+          }
+          confirmLabel="Rename and update"
+          busy={save.isPending}
+          onCancel={() => setRenameReferences(null)}
+          onConfirm={() => {
+            setRenameReferences(null);
+            save.mutate();
+          }}
+        />
+      )}
       {confirmDelete && (
         <ConfirmDialog
           title={`Delete “${titleValue}”?`}

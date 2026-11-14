@@ -15,5 +15,7 @@ declare module "virtual:vestry/runtime" {
 
 declare module "virtual:vestry/formatter" {
   export const available: boolean;
+  /** The project's `.prettierignore`, or an empty string. */
+  export const ignore: string;
   export function formatFile(text: string, filepath: string): Promise<string>;
 }

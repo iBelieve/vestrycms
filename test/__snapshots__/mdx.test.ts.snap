@@ -1,5 +1,52 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`fixtures > bare-addresses.md parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "content": [
+          {
+            "text": "Addresses typed as plain text stay text: www.example.com, http://example.com/page and
+user@example.com.",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "An address that is a link stays one: ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "href": "http://www.example.com",
+                  "title": null,
+                },
+                "type": "link",
+              },
+            ],
+            "text": "www.example.com",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
+
 exports[`fixtures > basics.md parses to the expected document 1`] = `
 {
   "doc": {
@@ -744,6 +791,1525 @@ exports[`fixtures > imports.mdx parses to the expected document 1`] = `
       "name": "ui",
     },
   },
+}
+`;
+
+exports[`fixtures > inline-marks.mdx parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "attrs": {
+          "level": 1,
+        },
+        "content": [
+          {
+            "text": "Inline marks",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "text": "Plain ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "underline",
+            "type": "text",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "small",
+              },
+            ],
+            "text": "small print",
+            "type": "text",
+          },
+          {
+            "text": " and a ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "text-red",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": "styled span",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "A ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "text": "bold phrase with an ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "underlined",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "text": " word",
+            "type": "text",
+          },
+          {
+            "text": " and ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "an underlined phrase with a ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+              {
+                "type": "bold",
+              },
+            ],
+            "text": "bold",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+            ],
+            "text": " word",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "All at once: ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "href": "https://example.org",
+                  "title": null,
+                },
+                "type": "link",
+              },
+              {
+                "type": "bold",
+              },
+              {
+                "type": "italic",
+              },
+              {
+                "attrs": {
+                  "class": "text-red",
+                },
+                "type": "textClass",
+              },
+              {
+                "type": "underline",
+              },
+              {
+                "type": "small",
+              },
+            ],
+            "text": "linked, bold, emphasised, styled, underlined and small",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": "A styled span holding ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+              {
+                "type": "italic",
+              },
+            ],
+            "text": "emphasis",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": ", a ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+              {
+                "attrs": {
+                  "href": "https://example.org",
+                  "title": null,
+                },
+                "type": "link",
+              },
+            ],
+            "text": "link",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": ", an ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "value": "expression",
+            },
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+            ],
+            "type": "mdxInlineExpression",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": " and ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+              {
+                "type": "small",
+              },
+            ],
+            "text": "small ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+              {
+                "type": "small",
+              },
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "underlined",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+              {
+                "type": "small",
+              },
+            ],
+            "text": " print",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "lead",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "outer",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": "Nested ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "outer",
+                },
+                "type": "textClass",
+              },
+              {
+                "attrs": {
+                  "class": "inner",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": "spans",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "outer",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": " keep both classes",
+            "type": "text",
+          },
+          {
+            "text": ", as do ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "outer",
+                },
+                "type": "textClass",
+              },
+              {
+                "attrs": {
+                  "class": "inner",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": "spans on the same text",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "Bold",
+            "type": "text",
+          },
+          {
+            "text": " and underlined, H",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "subscript",
+              },
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "2",
+            "type": "text",
+          },
+          {
+            "text": "O, x",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "superscript",
+              },
+              {
+                "type": "bold",
+              },
+              {
+                "type": "small",
+              },
+            ],
+            "text": "2",
+            "type": "text",
+          },
+          {
+            "text": " and ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "strike",
+              },
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "struck",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "strike",
+              },
+            ],
+            "text": " out",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "Elements that are more than a mark stay components: ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "hasChildren": true,
+              "name": "span",
+              "props": {
+                "class": "a",
+                "id": "b",
+              },
+              "spreads": [],
+            },
+            "content": [
+              {
+                "text": "two attributes",
+                "type": "text",
+              },
+            ],
+            "type": "mdxInlineComponent",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "hasChildren": true,
+              "name": "span",
+              "props": {
+                "className": "a",
+              },
+              "spreads": [],
+            },
+            "content": [
+              {
+                "text": "another attribute",
+                "type": "text",
+              },
+            ],
+            "type": "mdxInlineComponent",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "hasChildren": true,
+              "name": "u",
+              "props": {},
+              "spreads": [
+                "...props",
+              ],
+            },
+            "content": [
+              {
+                "text": "a spread",
+                "type": "text",
+              },
+            ],
+            "type": "mdxInlineComponent",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "hasChildren": true,
+              "name": "small",
+              "props": {
+                "title": "t",
+              },
+              "spreads": [],
+            },
+            "content": [
+              {
+                "text": "a title",
+                "type": "text",
+              },
+            ],
+            "type": "mdxInlineComponent",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "hasChildren": true,
+              "name": "span",
+              "props": {},
+              "spreads": [],
+            },
+            "content": [
+              {
+                "text": "no class",
+                "type": "text",
+              },
+            ],
+            "type": "mdxInlineComponent",
+          },
+          {
+            "text": " and an empty ",
+            "type": "text",
+          },
+          {
+            "attrs": {
+              "hasChildren": false,
+              "name": "u",
+              "props": {},
+              "spreads": [],
+            },
+            "content": [],
+            "type": "mdxInlineComponent",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "spread": false,
+        },
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "marks": [
+                      {
+                        "type": "underline",
+                      },
+                    ],
+                    "text": "Underlined",
+                    "type": "text",
+                  },
+                  {
+                    "text": " list item",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "marks": [
+                      {
+                        "type": "bold",
+                      },
+                      {
+                        "attrs": {
+                          "class": "text-red",
+                        },
+                        "type": "textClass",
+                      },
+                    ],
+                    "text": "Bold and styled",
+                    "type": "text",
+                  },
+                  {
+                    "text": " list item",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Mark",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Example",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Underline",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "marks": [
+                          {
+                            "type": "underline",
+                          },
+                        ],
+                        "text": "cell",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Style",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "marks": [
+                          {
+                            "attrs": {
+                              "class": "text-red",
+                            },
+                            "type": "textClass",
+                          },
+                          {
+                            "type": "bold",
+                          },
+                        ],
+                        "text": "bold",
+                        "type": "text",
+                      },
+                      {
+                        "marks": [
+                          {
+                            "attrs": {
+                              "class": "text-red",
+                            },
+                            "type": "textClass",
+                          },
+                        ],
+                        "text": " cell",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
+
+exports[`fixtures > line-breaks.md parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "attrs": {
+          "level": 1,
+        },
+        "content": [
+          {
+            "text": "Line",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "text": "breaks",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "text": "A Markdown hard break",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "text": "inside a paragraph.",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Cell",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Content",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "One",
+                        "type": "text",
+                      },
+                      {
+                        "type": "hardBreak",
+                      },
+                      {
+                        "text": "two",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "marks": [
+                          {
+                            "type": "bold",
+                          },
+                        ],
+                        "text": "three",
+                        "type": "text",
+                      },
+                      {
+                        "marks": [
+                          {
+                            "type": "bold",
+                          },
+                        ],
+                        "type": "hardBreak",
+                      },
+                      {
+                        "marks": [
+                          {
+                            "type": "bold",
+                          },
+                        ],
+                        "text": "four",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
+}
+`;
+
+exports[`fixtures > line-breaks.mdx parses to the expected document 1`] = `
+{
+  "doc": {
+    "content": [
+      {
+        "attrs": {
+          "level": 1,
+        },
+        "content": [
+          {
+            "text": "Line",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "text": "breaks",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "text": "A Markdown hard break",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "text": "inside a paragraph, ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "inside",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+            ],
+            "type": "hardBreak",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "a mark",
+            "type": "text",
+          },
+          {
+            "text": ", ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "text": "inside",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "type": "hardBreak",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "text": "bold",
+            "type": "text",
+          },
+          {
+            "text": " and ",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "href": "https://example.org",
+                  "title": null,
+                },
+                "type": "link",
+              },
+            ],
+            "text": "inside",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "href": "https://example.org",
+                  "title": null,
+                },
+                "type": "link",
+              },
+            ],
+            "type": "hardBreak",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "href": "https://example.org",
+                  "title": null,
+                },
+                "type": "link",
+              },
+            ],
+            "text": "a link",
+            "type": "text",
+          },
+          {
+            "text": ".",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "Two breaks",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "text": "in a row.",
+            "type": "text",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "A break that ends a paragraph is an element.",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "text-red",
+                },
+                "type": "textClass",
+              },
+            ],
+            "text": "So is one that ends a mark.",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "attrs": {
+                  "class": "text-red",
+                },
+                "type": "textClass",
+              },
+            ],
+            "type": "hardBreak",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "content": [
+          {
+            "text": "A break before an element is one too:",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "marks": [
+              {
+                "type": "underline",
+              },
+            ],
+            "text": "underlined",
+            "type": "text",
+          },
+          {
+            "text": " text,",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "attrs": {
+              "hasChildren": false,
+              "name": "Icon",
+              "props": {
+                "name": "star",
+              },
+              "spreads": [],
+            },
+            "content": [],
+            "type": "mdxInlineComponent",
+          },
+        ],
+        "type": "paragraph",
+      },
+      {
+        "attrs": {
+          "spread": false,
+        },
+        "content": [
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "A list item",
+                    "type": "text",
+                  },
+                  {
+                    "type": "hardBreak",
+                  },
+                  {
+                    "text": "over two lines",
+                    "type": "text",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+          {
+            "attrs": {},
+            "content": [
+              {
+                "content": [
+                  {
+                    "text": "A list item that ends in a break",
+                    "type": "text",
+                  },
+                  {
+                    "type": "hardBreak",
+                  },
+                ],
+                "type": "paragraph",
+              },
+            ],
+            "type": "listItem",
+          },
+        ],
+        "type": "bulletList",
+      },
+      {
+        "attrs": {
+          "level": 3,
+        },
+        "content": [
+          {
+            "text": "A smaller",
+            "type": "text",
+          },
+          {
+            "type": "hardBreak",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "text": "heading",
+            "type": "text",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "type": "hardBreak",
+          },
+          {
+            "marks": [
+              {
+                "type": "bold",
+              },
+            ],
+            "text": "in bold",
+            "type": "text",
+          },
+        ],
+        "type": "heading",
+      },
+      {
+        "content": [
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Cell",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "Content",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableHeader",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "One",
+                        "type": "text",
+                      },
+                      {
+                        "type": "hardBreak",
+                      },
+                      {
+                        "text": "two",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "marks": [
+                          {
+                            "type": "underline",
+                          },
+                        ],
+                        "text": "three",
+                        "type": "text",
+                      },
+                      {
+                        "marks": [
+                          {
+                            "type": "underline",
+                          },
+                        ],
+                        "type": "hardBreak",
+                      },
+                      {
+                        "marks": [
+                          {
+                            "type": "underline",
+                          },
+                        ],
+                        "text": "four",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+          {
+            "content": [
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "marks": [
+                          {
+                            "type": "bold",
+                          },
+                        ],
+                        "text": "five",
+                        "type": "text",
+                      },
+                      {
+                        "marks": [
+                          {
+                            "type": "bold",
+                          },
+                        ],
+                        "type": "hardBreak",
+                      },
+                      {
+                        "marks": [
+                          {
+                            "type": "bold",
+                          },
+                        ],
+                        "text": "six",
+                        "type": "text",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+              {
+                "attrs": {
+                  "align": null,
+                },
+                "content": [
+                  {
+                    "content": [
+                      {
+                        "text": "seven",
+                        "type": "text",
+                      },
+                      {
+                        "type": "hardBreak",
+                      },
+                    ],
+                    "type": "paragraph",
+                  },
+                ],
+                "type": "tableCell",
+              },
+            ],
+            "type": "tableRow",
+          },
+        ],
+        "type": "table",
+      },
+    ],
+    "type": "doc",
+  },
+  "imports": {},
 }
 `;
 

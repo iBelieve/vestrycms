@@ -19,7 +19,9 @@ React app served from your site at `/admin`, and every save is a commit.
   panel stays snappy; the only database is the small one sign-in needs. `astro dev` edits your working
   copy directly.
 - **Prettier-clean commits.** When the project has Prettier installed, files
-  are formatted with the project's own config before they are committed.
+  are formatted with the project's own config before they are committed
+  (`format: false` turns this off, and files in `.prettierignore` are left
+  as written).
 
 ## Setup
 
@@ -64,6 +66,9 @@ export default defineConfig({
         tone: fields.select({ options: [{ label: "Info", value: "info" }] }),
       },
     }),
+  },
+  textStyles: {
+    red: { label: "Red", class: "text-red", css: "color: #dc2626" },
   },
   assets: {
     covers: { label: "Covers", directory: "src/assets/covers" },
@@ -177,13 +182,21 @@ Routes injected into the site:
 - `/admin/[...path]` – the control panel shell (on-demand, no auth needed to
   load the shell; data comes from the API).
 - `/admin/api/[...path]` – JSON API. `config`, `status`, `collections/:key`,
-  `collections/:key/entries/:slug`, `singletons/:key`, `assets/:container`,
+  `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
+  `singletons/:key`, `assets/:container`,
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
 
 Virtual modules provided by the Vite plugin: `virtual:vestry/config`,
 `virtual:vestry/runtime`, `virtual:vestry/index` (build-time frontmatter
 index keyed by git blob SHA) and `virtual:vestry/formatter` (Prettier, when
 installed).
+
+The index is bundled into the server, so it holds only what entry lists
+show: nested and long-form fields (`array`, `object`, `tree`, `markdown`,
+`code`, `json`) are left out unless the collection's title, status, sort,
+columns, search fields or preview URL name them, or they hold references
+(which a rename looks up). A collection of large data
+files therefore costs little.
 
 ### Dev vs production
 
@@ -204,11 +217,103 @@ from the injected Astro endpoint in production. Both call the same
   they are literals (anything else is kept verbatim as an expression).
   Imports for known components are regenerated on save; other ESM is kept as
   a raw block.
+- Inline formatting that Markdown has no syntax for is written as plain
+  HTML elements and edited as marks: `<sup>`, `<sub>`, `<u>`, `<small>` and
+  `<span class="…">` (see [Text styles](#text-styles)).
+- A line break is a Markdown hard break (a backslash before the line ending)
+  wherever that works, and a `<br />` element where it doesn't: in table
+  cells and headings, at the end of a paragraph, and before a line that
+  would begin with a tag. `<br />` in the source is read as a line break.
 - Saving composes the full file (YAML frontmatter + body) in the browser,
   formats it with Prettier when available, and sends it with the blob SHA
-  the editor loaded. A changed SHA is reported as a conflict.
+  the editor loaded. A changed SHA is reported as a conflict. If Prettier
+  would change what the body says (see [Prettier and MDX](#prettier-and-mdx)),
+  the body is saved as Vestry wrote it.
 - Uploads chosen from an image/file field are committed together with the
   entry in one commit.
+
+## Templates
+
+`slug.template`, `previewUrl` and `commitMessage` are templates with
+`{field}` placeholders (`{meta.kind}` reaches into an object). A filter
+after a `|` takes part of a value:
+
+| Placeholder      | Result                                             |
+| ---------------- | -------------------------------------------------- |
+| `{date}`         | The value, `2026-11-13`                            |
+| `{date\|year}`   | Four-digit year, `2026`                            |
+| `{date\|month}`  | Zero-padded month, `11`                            |
+| `{date\|day}`    | Zero-padded day of month, `13`                     |
+| `{slug\|nodate}` | The value without its file name's date, `my-title` |
+
+The date filters read the parts as written at the start of the value
+(`2026-11-13`, `2026-11-13T23:30:00-06:00`, or a slug such as
+`2026-11-13-my-title`), without converting between time zones, and give
+nothing for a value that isn't a date. An unknown filter is a config error.
+
+A collection whose files are named `2012-07-31-title.mdx` but whose pages
+live at `/articles/2012/07/title` uses:
+
+```ts
+slug: { template: "{date}-{title}" },
+previewUrl: "/articles/{slug|year}/{slug|month}/{slug|nodate}",
+```
+
+and one that keeps its entries in dated folders:
+
+```ts
+articles: collection({
+  path: "src/content/articles/**.mdx",
+  slug: { template: "{date|year}/{date|month}/{title}" },
+  previewUrl: "/articles/{slug}",
+  // …
+}),
+```
+
+In `slug.template` each inserted value is slugified and the rest is kept as
+written, so with the second example a new entry titled "My Title" and dated
+13 November 2026 is created at `src/content/articles/2026/11/my-title.mdx`.
+A slug with a `/` needs a `**` wildcard in `path`; `*` matches one file
+name.
+
+`previewUrl` also has `{slug}`; `commitMessage` has `{action}`,
+`{collection}`, `{slug}`, `{title}`, `{label}` and `{singular}`.
+
+## Renaming entries and dates in file names
+
+In a collection with one file per entry, the **Slug** box in the editor's
+sidebar can be changed on an existing entry. Saving then moves the file: the
+new file and the removal of the old one go in a single commit. Vestry refuses
+a slug that another entry already has, and checks the slug as it is typed.
+
+`reference` fields store the slug of the entry they point at, so a rename
+also updates every entry and singleton that refers to the renamed one, in
+the same commit. The editor lists them and asks before saving. Those files
+are rewritten from their parsed contents without passing through Prettier,
+and references inside MDX component props are not found.
+
+A date field can live in the file name instead of the frontmatter:
+
+```ts
+posts: collection({
+  path: "src/content/posts/*.mdx",
+  slug: { template: "{date}-{title}" },
+  sort: { field: "date", direction: "desc" },
+  schema: {
+    title: fields.text({ required: true }),
+    date: fields.date({ storeIn: "filename", default: "now" }),
+  },
+}),
+```
+
+The entry is saved as `2026-03-01-title.mdx` and its file holds no `date`
+key. The editor still shows a date picker, and lists sort and display by it.
+Changing the date renames the file, so a URL built from the slug changes
+with it; add a redirect if the old address matters. The Slug box then holds
+only the part after the date, with the date shown in front of it. A slug
+template that leaves the date out still gets it as a prefix. On the site, read the
+date from the entry id (`entry.id.slice(0, 10)`). One such field per
+collection, at the top level of the schema, without `time`.
 
 ## Editor sections
 
@@ -236,6 +341,71 @@ sections: [
 Sections render in order; `sidebar: true` puts a card in the rail. Fields
 not named by any section still fall into "Details" or the rail, and the
 content editor renders after the sections unless `"body"` places it.
+
+## Text styles
+
+Besides Markdown's own formatting, the rich text editor (the body editor and
+`fields.markdown`) has underline, small text, superscript and subscript, and
+a **Styles** menu for the inline styles a site defines:
+
+```ts
+textStyles: {
+  red: { label: "Red", class: "text-red", css: "color: #dc2626" },
+  caps: { label: "Small caps", class: "small-caps", css: "font-variant: small-caps" },
+},
+```
+
+| Option  | Purpose                                                               |
+| ------- | --------------------------------------------------------------------- |
+| `label` | Name shown in the Styles menu                                         |
+| `class` | Class written to the span                                             |
+| `css`   | Declarations that preview the style in the editor (the menu and text) |
+
+Choosing a style toggles it on the selection; text can carry several. The
+site's own stylesheet gives the class its look on the published page: `css`
+is only the editor's preview, and without it the styled text is outlined.
+
+These are written to MDX as plain inline HTML, which needs no component or
+import:
+
+| Format      | MDX                                  |
+| ----------- | ------------------------------------ |
+| Underline   | `<u>text</u>`                        |
+| Small       | `<small>text</small>`                |
+| Superscript | `<sup>text</sup>`                    |
+| Subscript   | `<sub>text</sub>`                    |
+| Text style  | `<span class="text-red">text</span>` |
+
+Reading does not depend on the config: any `<span>` whose only attribute is
+a `class` becomes a styled span, whether or not `textStyles` lists the class
+(unlisted ones are outlined in the editor and saved unchanged). An element
+with other attributes (`<span class="a" id="b">`, `<u title="…">`), a spread
+or no children stays an inline component, so nothing is lost on save.
+
+Where marks cover the same text they nest in one order, outermost first:
+link, superscript, subscript, bold, italic, strikethrough, text style,
+underline, small, code. So bold underlined text is `**<u>text</u>**`.
+
+In `.md` files the same tags are raw HTML: they are kept as written, but
+edited as HTML snippets rather than marks, so the toolbar offers these
+formats for MDX only.
+
+### Prettier and MDX
+
+Prettier's MDX parser predates MDX 2. A paragraph or list item that _begins_
+with a tag (`<u>Note:</u> …`, `<span class="lead">…</span>`) is a JSX block
+to it: an element longer than the print width is spread over several lines,
+which MDX then reads as a block element wrapped around a paragraph, and a
+Markdown hard break inside becomes a stray backslash. Vestry therefore
+checks Prettier's output before saving, and if the body no longer parses to
+the same document it keeps Prettier's frontmatter and its own body. Such a
+file fails `prettier --check`, and `prettier --write` would damage it, so
+list those content files in `.prettierignore`.
+
+Vestry honours `.prettierignore` when it saves: a file the project tells
+Prettier to ignore is written exactly as the editor serializes it. Ignoring
+the content directory is the simplest setup for content with a lot of inline
+tags, and keeps `prettier --check` and the control panel in agreement.
 
 ## Trees (menus)
 
@@ -308,6 +478,18 @@ freshly uploaded images before they are committed.
 Fields accept `label`, `description`, `required`, `sidebar`, `hidden`,
 `readOnly` and `width` (`full` | `half` | `third`).
 
+`fields.array` takes the item field and then its options,
+`fields.array(fields.text(), { addLabel: "Add tag" })`, or a single options
+object like the other builders: `fields.array({ of: fields.text(), addLabel:
+"Add tag" })`.
+
+## MDX conversion
+
+`vestrycms/mdx` exports the converter the editor uses: `parseMdx(source)`
+turns MDX into a ProseMirror document and `serializeMdx(doc)` writes one back
+out. Use it to produce files in exactly the form the control panel saves,
+for example when migrating content from another CMS.
+
 ## Development
 
 ```sh
@@ -351,6 +533,13 @@ pnpm test -u                 # update snapshots after an intended change
   database (`node:sqlite`, real migrations).
 - `test/github-source.test.ts`: commit sequencing against a fake Git Data API.
 - `test/github-app.test.ts`: GitHub App JWT and installation token cache.
+- `test/templates.test.ts`: `{field|filter}` placeholders in URL and slug
+  templates.
+- `test/config-validate.test.ts`: the mistakes the config check reports at
+  startup.
+- `test/filename-date.test.ts`: dates kept in the file name, renaming on
+  save and the references a rename updates (local source, temporary
+  directory).
 - `test/mdx.test.ts`: MDX round trips. Each file in `test/fixtures/mdx` must
   survive parse → serialize byte for byte, so write fixtures in the
   serializer's canonical style (`_emphasis_`, `-` bullets, blank lines around
@@ -359,6 +548,15 @@ pnpm test -u                 # update snapshots after an intended change
 - `test/editor-schema.test.ts`: the same fixtures pass through the editor's
   Tiptap schema (`src/ui/components/editor/schema.ts`) without losing node
   types or attributes, so a page saved from the editor matches its source.
+- `test/editor-commands.test.ts`: the editor's own commands (text styles,
+  line breaks) on a headless Tiptap editor, checked through the MDX they
+  save as.
+- `test/format.test.ts`: saving keeps the body as written where Prettier
+  would change the document.
+- `test/paths.test.ts`: template placeholders and filters, and the config
+  errors for them.
+- `test/service.test.ts`: `ContentService` on the local source in a
+  temporary directory (entries with nested slugs).
 
 The auth and GitHub source tests are ordered scenarios that build on shared
 state, so filter them by file, not by test name (`-t`).
@@ -373,7 +571,8 @@ GH_TOKEN=… node --import tsx/esm test/manual/github-write.ts  # live commits o
 
 ### Releasing
 
-1. Bump `version` in `package.json` and commit.
+1. Bump `version` in `package.json`, add the release to `CHANGELOG.md` and
+   commit.
 2. Publish a GitHub release tagged `v<version>`. The **Publish** workflow
    checks the tag against `package.json`, runs the checks and publishes to
    npm with provenance through npm trusted publishing (configure it on
