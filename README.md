@@ -574,9 +574,18 @@ GH_TOKEN=… node --import tsx/esm test/manual/github-write.ts  # live commits o
 1. Bump `version` in `package.json`, add the release to `CHANGELOG.md` and
    commit.
 2. Publish a GitHub release tagged `v<version>`. The **Publish** workflow
-   checks the tag against `package.json`, runs the checks and publishes to
-   npm with provenance through npm trusted publishing (configure it on
-   npmjs.com for this repository and `publish.yml`).
+   checks the tag against `package.json`, runs the checks and stages the
+   version on npm, with provenance, through npm trusted publishing.
+3. Approve the staged version, which takes 2FA: on npmjs.com under
+   **Staged Packages**, or with `npm stage list vestrycms` and
+   `npm stage approve <stage-id>`. Until then it cannot be installed.
+   `npm stage download <stage-id>` fetches the tarball to look at first.
+
+The trusted publisher is set up on npmjs.com, in the package's settings: this
+repository, workflow `publish.yml`, no environment, and direct `npm publish`
+left off, so nothing reaches the registry without that approval. npm expires
+a new trusted publisher that has not published within two days, and an
+expired one has to be deleted and added again.
 
 The first release has to be published by hand, since npm only offers trusted
 publishing for a package that exists: `pnpm publish` (which builds first via
