@@ -375,6 +375,14 @@ export class ContentService {
       );
     }
     const existing = renamedFrom ? await this.source.read(renamedFrom) : target;
+    // The file to rename is gone: someone renamed or deleted the entry.
+    if (renamedFrom && !existing) {
+      throw new SourceError(
+        "This entry changed since you opened it.",
+        409,
+        "conflict",
+      );
+    }
     if (!isNew && existing && input.sha && input.sha !== existing.sha) {
       throw new SourceError(
         "This entry changed since you opened it.",
@@ -382,6 +390,10 @@ export class ContentService {
         "conflict",
       );
     }
+    // An entry that refers to itself follows its own rename. (A file composed
+    // by the client, `raw`, has had the same done to it there.)
+    if (renamedFrom)
+      data = rewriteReferences(col.schema, data, key, slug!, finalSlug) ?? data;
     const stored = toStoredValues(col.schema, data, path);
     const text =
       input.raw ??

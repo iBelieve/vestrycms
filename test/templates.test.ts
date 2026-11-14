@@ -28,6 +28,15 @@ describe("fillTemplate", () => {
     ).toBe("2020");
   });
 
+  it("takes the date off the file name of a slug in a folder", () => {
+    expect(
+      fillTemplate("/{slug|nodate}", { slug: "notes/2012-07-31-criticism" }),
+    ).toBe("/notes/criticism");
+    expect(fillTemplate("/{slug | nodate }", values)).toBe(
+      "/textual-criticism",
+    );
+  });
+
   it("gives nothing for a date part of a value without a date", () => {
     expect(fillTemplate("{title|year}", values)).toBe("");
     expect(fillTemplate("{title|nodate}", values)).toBe("Textual Criticism");

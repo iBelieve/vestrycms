@@ -45,6 +45,16 @@ describe("validateConfig", () => {
     expect(() =>
       validateConfig(posts({ slug: { template: "{date|}-{title}" } })),
     ).toThrow(/unknown filter ""/);
+    // Spaces around the bar, and names every object has, are no way round.
+    expect(() =>
+      validateConfig(posts({ previewUrl: "/posts/{slug | yaer}" })),
+    ).toThrow(/unknown filter "yaer"/);
+    expect(() =>
+      validateConfig(posts({ previewUrl: "/posts/{slug|constructor}" })),
+    ).toThrow(/unknown filter "constructor"/);
+    expect(() =>
+      validateConfig(posts({ previewUrl: "/posts/{slug | nodate }" })),
+    ).not.toThrow();
   });
 
   it.each([

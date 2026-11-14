@@ -11,7 +11,10 @@ describe("ignoreMatcher", () => {
       "*.lock",
       "/notes.md",
       "docs/**/*.mdx",
+      "!docs/keep.mdx",
       "!src/content/keep.md",
+      "*.[jt]sx",
+      "\\#notes.md",
     ].join("\n"),
   );
 
@@ -36,7 +39,18 @@ describe("ignoreMatcher", () => {
     expect(ignored("docs/guide/intro.mdx")).toBe(true);
     expect(ignored("docs/intro.mdx")).toBe(true);
     expect(ignored("docs/intro.md")).toBe(false);
-    expect(ignored("src/content/keep.md")).toBe(false);
+    expect(ignored("docs/keep.mdx")).toBe(false);
+  });
+
+  it("keeps everything in an ignored directory ignored, as git does", () => {
+    expect(ignored("src/content/keep.md")).toBe(true);
+  });
+
+  it("supports character classes and escapes", () => {
+    expect(ignored("src/App.tsx")).toBe(true);
+    expect(ignored("src/App.jsx")).toBe(true);
+    expect(ignored("src/App.csx")).toBe(false);
+    expect(ignored("#notes.md")).toBe(true);
   });
 
   it("normalizes leading ./ and backslashes", () => {

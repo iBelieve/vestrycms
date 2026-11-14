@@ -2,7 +2,7 @@
  * Checks a Vestry config when the integration loads, so a mistake is an
  * error at startup rather than something the control panel quietly ignores.
  */
-import { TEMPLATE_FILTERS, parsePathPattern } from "../core/paths.js";
+import { parsePathPattern, templateError } from "../core/paths.js";
 import type { Field, Schema, VestryConfig } from "./types.js";
 
 const fail = (message: string): never => {
@@ -71,13 +71,8 @@ function checkFilenameDates(
 
 /** A `{field|filter}` placeholder must name a filter that exists. */
 function checkTemplate(what: string, template: string | undefined) {
-  for (const [, filter] of template?.matchAll(/\{[\w.]+\|(\w*)\}/g) ?? []) {
-    if (!(filter! in TEMPLATE_FILTERS)) {
-      fail(
-        `${what}: unknown filter "${filter}" in "${template}" (available: ${Object.keys(TEMPLATE_FILTERS).join(", ")})`,
-      );
-    }
-  }
+  const error = template ? templateError(template) : undefined;
+  if (error) fail(`${what}: ${error}`);
 }
 
 export function validateConfig(config: VestryConfig) {

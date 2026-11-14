@@ -13,9 +13,13 @@ export async function formatSource(
   filepath: string,
 ): Promise<string> {
   const mod = await import("virtual:vestry/formatter");
-  if (!mod.available || ignoreMatcher(mod.ignore)(filepath)) return text;
-  return mod.formatFile(text, filepath);
+  if (!mod.available) return text;
+  // The ignore file cannot change while the page is open.
+  ignored ??= ignoreMatcher(mod.ignore);
+  return ignored(filepath) ? text : mod.formatFile(text, filepath);
 }
+
+let ignored: ((path: string) => boolean) | undefined;
 
 /** Formats an entry's file, keeping the body as written where Prettier would change what it says. */
 export async function formatEntry(

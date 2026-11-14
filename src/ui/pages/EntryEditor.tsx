@@ -31,6 +31,7 @@ import {
   assetToRepoPath,
   filenameDateKey,
   repoPathToAsset,
+  rewriteReferences,
   slugWithDate,
   slugWithoutDate,
   toStoredValues,
@@ -214,12 +215,14 @@ function EntryEditor({
       ? effectiveSlug.slice(0, effectiveSlug.length - slugBoxValue.length)
       : "";
   const slugError =
-    kind === "collection" &&
-    !pattern?.single &&
-    effectiveSlug &&
-    !isSafeSlug(effectiveSlug)
-      ? "Use letters, numbers, hyphens, dots and underscores."
-      : null;
+    kind !== "collection" || !pattern || pattern.single || !effectiveSlug
+      ? null
+      : !isSafeSlug(effectiveSlug)
+        ? "Use letters, numbers, hyphens, dots and underscores."
+        : // A `*` path lists only the files directly in its directory.
+          !pattern.deep && effectiveSlug.includes("/")
+          ? "This collection has no folders, so a slug cannot contain a slash."
+          : null;
 
   /** Saving will move an existing entry to a different file. */
   const renaming =
@@ -299,7 +302,18 @@ function EntryEditor({
       const errs = validate(col.schema, state.data);
       setErrors(errs);
       if (errs.length) throw new Error(errs[0].message);
-      const data = applyAutoFields(col.schema, state.data);
+      const fields = applyAutoFields(col.schema, state.data);
+      // An entry that refers to itself follows its own rename.
+      const data =
+        (renaming &&
+          rewriteReferences(
+            col.schema,
+            fields,
+            collectionKey,
+            slug!,
+            effectiveSlug,
+          )) ||
+        fields;
       const input: SaveEntryInput = {
         data,
         body: state.body,
@@ -387,14 +401,20 @@ function EntryEditor({
 
   // Saving goes through here: a rename that other entries refer to is
   // confirmed first, since it changes those entries too.
+  const checkingReferences = useRef(false);
   const requestSave = async () => {
-    if (save.isPending || slugError) return;
+    // The lookup below takes a moment, during which a second request (the
+    // shortcut pressed twice) must not start a second save.
+    if (save.isPending || slugError || checkingReferences.current) return;
     if (renaming) {
+      checkingReferences.current = true;
       try {
         const { references } = await api.references(collectionKey, slug!);
         if (references.length) return setRenameReferences(references);
       } catch (e) {
         return toast("error", (e as Error).message);
+      } finally {
+        checkingReferences.current = false;
       }
     }
     save.mutate();

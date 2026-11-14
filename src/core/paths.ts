@@ -145,6 +145,41 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+const SLUG_DATE = /^(\d{4}-\d{2}-\d{2})-(?=.)/;
+
+/** Split a slug into its directory part (with trailing slash) and file name. */
+function splitSlug(slug: string): [string, string] {
+  const i = slug.lastIndexOf("/");
+  return [slug.slice(0, i + 1), slug.slice(i + 1)];
+}
+
+/** The `YYYY-MM-DD` a slug's file name starts with, or null. */
+export function dateFromSlug(slug: string): string | null {
+  return SLUG_DATE.exec(splitSlug(slug)[1])?.[1] ?? null;
+}
+
+/** The slug without its file name's date prefix, if it has one. */
+export function slugWithoutDate(slug: string): string {
+  const [dir, name] = splitSlug(slug);
+  return `${dir}${name.replace(SLUG_DATE, "")}`;
+}
+
+/**
+ * The slug with `date` as its file name's date prefix, replacing the one it
+ * has or adding one. Anything that is not a `YYYY-MM-DD` date leaves the
+ * slug as it is.
+ */
+export function slugWithDate(slug: string, date: unknown): string {
+  if (!isPlainDate(date)) return slug;
+  const [dir, name] = splitSlug(slug);
+  return `${dir}${date}-${name.replace(SLUG_DATE, "")}`;
+}
+
+/** Whether a value is a date as a file name holds it, `YYYY-MM-DD`. */
+export function isPlainDate(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 /**
  * A date as its `[year, month, day]`, zero-padded, or null if `value` isn't
  * one. A slug with a date prefix (`2026-11-13-title`) counts.
@@ -176,17 +211,17 @@ export const TEMPLATE_FILTERS: Record<string, (value: unknown) => string> = {
   /** Zero-padded day of the month of a date, `01`–`31`. */
   day: (value) => dateParts(value)?.[2] ?? "",
   /**
-   * The value without a leading `YYYY-MM-DD-`, for collections whose file
-   * names carry the date but whose URLs do not.
+   * The value without the `YYYY-MM-DD-` its file name starts with, for
+   * collections whose file names carry the date but whose URLs do not:
+   * `2026-03-01-title` and `notes/2026-03-01-title` lose the date.
    */
   nodate: (value) =>
-    (value instanceof Date ? "" : String(value)).replace(
-      /^\d{4}-\d{2}-\d{2}-/,
-      "",
-    ),
+    value instanceof Date ? "" : slugWithoutDate(String(value)),
 };
 
-const PLACEHOLDER = /\{([\w.]+)(?:\s*\|\s*(\w+))?\}/g;
+const PLACEHOLDER = /\{([\w.]+)(?:\s*\|\s*(\w+)\s*)?\}/g;
+/** Anything written as a filter, to report the ones PLACEHOLDER would not fill. */
+const FILTERED = /\{[\w.]+\s*\|([^{}]*)\}/g;
 
 /**
  * Fill `{field}` and `{field|filter}` placeholders from a record. With
@@ -223,9 +258,10 @@ export function fillTemplate(
 
 /** Why a template is unusable (it names an unknown filter), or undefined when it is fine. */
 export function templateError(template: string): string | undefined {
-  for (const [placeholder, , filter] of template.matchAll(PLACEHOLDER)) {
-    if (filter && !Object.hasOwn(TEMPLATE_FILTERS, filter))
-      return `unknown filter "${filter}" in "${placeholder}" (filters: ${Object.keys(TEMPLATE_FILTERS).join(", ")})`;
+  for (const [placeholder, filter] of template.matchAll(FILTERED)) {
+    const name = filter.trim();
+    if (!Object.hasOwn(TEMPLATE_FILTERS, name))
+      return `unknown filter "${name}" in "${placeholder}" (filters: ${Object.keys(TEMPLATE_FILTERS).join(", ")})`;
   }
   return undefined;
 }

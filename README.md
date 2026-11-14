@@ -238,13 +238,13 @@ from the injected Astro endpoint in production. Both call the same
 `{field}` placeholders (`{meta.kind}` reaches into an object). A filter
 after a `|` takes part of a value:
 
-| Placeholder      | Result                                                |
-| ---------------- | ----------------------------------------------------- |
-| `{date}`         | The value, `2026-11-13`                               |
-| `{date\|year}`   | Four-digit year, `2026`                               |
-| `{date\|month}`  | Zero-padded month, `11`                               |
-| `{date\|day}`    | Zero-padded day of month, `13`                        |
-| `{slug\|nodate}` | The value without a leading `YYYY-MM-DD-`, `my-title` |
+| Placeholder      | Result                                             |
+| ---------------- | -------------------------------------------------- |
+| `{date}`         | The value, `2026-11-13`                            |
+| `{date\|year}`   | Four-digit year, `2026`                            |
+| `{date\|month}`  | Zero-padded month, `11`                            |
+| `{date\|day}`    | Zero-padded day of month, `13`                     |
+| `{slug\|nodate}` | The value without its file name's date, `my-title` |
 
 The date filters read the parts as written at the start of the value
 (`2026-11-13`, `2026-11-13T23:30:00-06:00`, or a slug such as

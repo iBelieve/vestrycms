@@ -45,6 +45,15 @@ const config = defineConfig({
       path: "content/notes/*.md",
       schema: { title: fields.text() },
     }),
+    // A collection whose entries refer to each other.
+    topics: collection({
+      label: "Topics",
+      path: "content/topics/*.md",
+      schema: {
+        title: fields.text(),
+        parent: fields.reference({ collection: "topics" }),
+      },
+    }),
     // Collections and a singleton that refer to notes, in each storage shape.
     essays: collection({
       label: "Essays",
@@ -128,6 +137,13 @@ describe("slug dates", () => {
     expect(
       toStoredValues(schema, { title: "T", date: "2020-01-05" }, "x.md"),
     ).toEqual({ title: "T" });
+  });
+
+  it("stays in the file when it is not a date the name can hold", () => {
+    const schema = config.collections!.posts!.schema;
+    const data = { title: "T", date: "2020-01-05T09:00:00Z" };
+    expect(slugWithDate("first", data.date)).toBe("first");
+    expect(toStoredValues(schema, data, "x.md")).toEqual(data);
   });
 });
 
@@ -229,6 +245,37 @@ describe("renaming an entry", () => {
     await expect(
       service.saveEntry("notes", "b", { ...input, slug: "c" }),
     ).rejects.toMatchObject({ code: "exists" });
+  });
+});
+
+describe("renaming an entry that is gone or refers to itself", () => {
+  it("reports a conflict when the file to rename no longer exists", async () => {
+    await expect(
+      service.saveEntry("notes", "gone", {
+        data: { title: "Gone" },
+        body: "",
+        slug: "elsewhere",
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(readdirSync(join(root, "content/notes"))).not.toContain(
+      "elsewhere.md",
+    );
+  });
+
+  it("repoints an entry's reference to itself", async () => {
+    mkdirSync(join(root, "content/topics"), { recursive: true });
+    writeFileSync(
+      join(root, "content/topics/self.md"),
+      "---\ntitle: Self\nparent: self\n---\n",
+    );
+    const entry = (await service.getEntry("topics", "self"))!;
+    await service.saveEntry("topics", "self", {
+      data: entry.data,
+      body: entry.body,
+      sha: entry.sha,
+      slug: "me",
+    });
+    expect(read("content/topics/me.md")).toContain("parent: me");
   });
 });
 
