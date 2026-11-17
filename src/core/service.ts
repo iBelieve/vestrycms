@@ -342,7 +342,9 @@ export class ContentService {
     const existingIdx = items.findIndex(
       (i) => String(i[idField]) === (slug ?? id),
     );
-    if (isNew && existingIdx !== -1) {
+    // A new entry, or one whose id changes, must not take another's id.
+    const clash = items.findIndex((i) => String(i[idField]) === id);
+    if (clash !== -1 && (isNew || clash !== existingIdx)) {
       throw new SourceError(
         `An entry with id "${id}" already exists`,
         409,
@@ -434,6 +436,9 @@ export class ContentService {
    * changing that date renames the file too.
    */
   private slugToSave({ col, pattern, slug, input, data }: EntrySave): string {
+    // The current slug names the file a rename deletes.
+    if (slug !== null && !isSafeSlug(slug))
+      throw new SourceError(`Invalid slug "${slug}"`, 400, "bad_slug");
     const requested = input.slug?.trim();
     let finalSlug =
       slug === null ? requested || this.newSlug(col, data) : requested || slug;
@@ -471,8 +476,10 @@ export class ContentService {
       );
     }
     const existing = renamedFrom ? await this.source.read(renamedFrom) : target;
-    // The file to rename is gone: someone renamed or deleted the entry.
-    const gone = renamedFrom !== null && !existing;
+    // The file is gone: someone renamed or deleted the entry. Saving it as
+    // opened would bring it back.
+    const gone =
+      !isNew && !existing && (renamedFrom !== null || Boolean(input.sha));
     const changed =
       !isNew && existing && input.sha && input.sha !== existing.sha;
     if (gone || changed) {

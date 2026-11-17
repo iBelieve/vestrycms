@@ -4,7 +4,7 @@
  * inner `/`), directory patterns (a trailing `/`), `*`, `?`, `**`, character
  * classes (`[a-z]`) and backslash escapes. As in git, the last pattern that
  * matches a path decides, and nothing inside an ignored directory can be
- * included again.
+ * included again. The paths it is given are files.
  */
 export function ignoreMatcher(source: string): (path: string) => boolean {
   const rules = source
@@ -13,12 +13,16 @@ export function ignoreMatcher(source: string): (path: string) => boolean {
     .filter((line) => line && !line.startsWith("#"))
     .map((line) => {
       const negated = line.startsWith("!");
-      return { negated, pattern: toRegExp(negated ? line.slice(1) : line) };
+      const pattern = negated ? line.slice(1) : line;
+      // A trailing `/` matches directories only.
+      const directory = pattern.endsWith("/");
+      return { negated, directory, pattern: toRegExp(pattern) };
     });
-  const decide = (path: string) => {
+  const decide = (path: string, isDirectory: boolean) => {
     let ignored = false;
     for (const rule of rules)
-      if (rule.pattern.test(path)) ignored = !rule.negated;
+      if ((isDirectory || !rule.directory) && rule.pattern.test(path))
+        ignored = !rule.negated;
     return ignored;
   };
   return (path) => {
@@ -28,7 +32,8 @@ export function ignoreMatcher(source: string): (path: string) => boolean {
       .split("/");
     // From the top down: once a directory is ignored, so is all it holds.
     for (let depth = 1; depth <= segments.length; depth++)
-      if (decide(segments.slice(0, depth).join("/"))) return true;
+      if (decide(segments.slice(0, depth).join("/"), depth < segments.length))
+        return true;
     return false;
   };
 }

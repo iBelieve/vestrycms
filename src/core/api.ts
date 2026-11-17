@@ -112,6 +112,26 @@ function error(message: string, status = 400, code = "error"): Response {
   return json({ error: { message, code } }, { status });
 }
 
+const notFound = () => error("Not found", 404, "not_found");
+
+/**
+ * The request's JSON body. Malformed JSON is the client's mistake, unlike a
+ * `SyntaxError` from parsing a file in the repository, which is ours.
+ */
+async function readJson<T>(request: Request): Promise<T> {
+  try {
+    return (await request.json()) as T;
+  } catch (e) {
+    if (e instanceof SyntaxError)
+      throw new SourceError(
+        `Invalid request: ${e.message}`,
+        400,
+        "bad_request",
+      );
+    throw e;
+  }
+}
+
 const LOCAL_USER: PublicUser = {
   id: "local",
   email: "",
@@ -352,7 +372,7 @@ export function createApi(options: ApiOptions) {
       return error("Sign-in is not used in local mode", 400, "local_mode");
     if (!vestryAuth) return error(setupError!, 500, "setup");
     const authPath = `/${segments.slice(1).join("/")}`;
-    if (!AUTH_ROUTES.has(authPath)) return error("Not found", 404, "not_found");
+    if (!AUTH_ROUTES.has(authPath)) return notFound();
     return vestryAuth.auth.handler(request);
   }
 
@@ -430,7 +450,7 @@ export function createApi(options: ApiOptions) {
       return removeUser(admin, id);
     if (id && segments[2] === "invite" && method === "POST")
       return resendInvite(admin, id);
-    return error("Not found", 404, "not_found");
+    return notFound();
   }
 
   return { handle, apiPrefix };
@@ -452,8 +472,7 @@ interface SignIn {
 /** The route of a request, or the response that refuses it. */
 function parseRoute(request: Request, apiPrefix: string): Route | Response {
   const url = new URL(request.url);
-  if (!url.pathname.startsWith(apiPrefix))
-    return error("Not found", 404, "not_found");
+  if (!url.pathname.startsWith(apiPrefix)) return notFound();
   const rel = url.pathname.slice(apiPrefix.length);
   let segments: string[];
   try {
@@ -488,8 +507,6 @@ function errorResponse(e: unknown): Response {
   }
   if (e instanceof SourceError) return error(e.message, e.status, e.code);
   if (e instanceof MailError) return error(e.message, 502, "mail");
-  if (e instanceof SyntaxError)
-    return error(`Invalid request: ${e.message}`, 400, "bad_request");
   console.error("[vestry] API error", e);
   return error(
     e instanceof Error ? e.message : "Unexpected error",
@@ -552,11 +569,11 @@ async function inviteUser(
   request: Request,
 ): Promise<Response> {
   const { auth, toPublicUser, isConfigAdmin, sendInvite } = vestryAuth;
-  const body = (await request.json()) as {
+  const body = await readJson<{
     email?: string;
-    name?: string;
+    name?: unknown;
     role?: Role;
-  };
+  }>(request);
   const email = normalizeEmail(String(body.email ?? ""));
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return error("Enter a valid email address.", 400, "invalid_email");
@@ -564,7 +581,7 @@ async function inviteUser(
   const created = await auth.api.createUser({
     body: {
       email,
-      name: body.name?.trim() || nameFromEmail(email),
+      name: trimmedName(body.name) || nameFromEmail(email),
       role: isConfigAdmin(email) ? "admin" : role,
     },
     headers,
@@ -588,7 +605,7 @@ async function updateUser(
 ): Promise<Response> {
   const { auth } = admin.vestryAuth;
   const { headers } = admin;
-  const body = (await request.json()) as { name?: string; role?: Role };
+  const body = await readJson<{ name?: unknown; role?: Role }>(request);
   const target = await admin.getUser(id);
   if (!target) return error("User not found.", 404, "not_found");
   if (body.role !== undefined && body.role !== target.role) {
@@ -596,13 +613,19 @@ async function updateUser(
     if (refusal) return refusal;
     await auth.api.setRole({ body: { userId: id, role: body.role }, headers });
   }
-  if (body.name !== undefined && body.name.trim()) {
+  const name = trimmedName(body.name);
+  if (name) {
     await auth.api.adminUpdateUser({
-      body: { userId: id, data: { name: body.name.trim() } },
+      body: { userId: id, data: { name } },
       headers,
     });
   }
   return json({ user: await admin.getUser(id) });
+}
+
+/** A name from a request body, trimmed; empty unless it is a string. */
+function trimmedName(name: unknown): string {
+  return typeof name === "string" ? name.trim() : "";
 }
 
 /** Why a user's role cannot change to `role`, if it cannot. */
@@ -667,24 +690,23 @@ async function resendInvite(admin: UserAdmin, id: string): Promise<Response> {
 
 // ---------------------------------------------------------------- content
 
-const notFound = () => error("Not found", 404, "not_found");
-
 async function contentRoute(
   request: Request,
-  { url, segments, method }: Route,
+  route: Route,
   source: ContentSource,
   service: ContentService,
 ): Promise<Response> {
+  const { url, segments, method } = route;
   const [section, key] = segments;
   if (section === "status" && method === "GET") {
     return json({ head: await source.head(), source: source.info() });
   }
   if (section === "collections" && key)
-    return collectionRoute(request, url, segments, source, service);
+    return collectionRoute(request, route, key, source, service);
   if (section === "singletons" && key)
-    return singletonRoute(request, method, key, service);
+    return singletonRoute(request, route, key, service);
   if (section === "assets" && key)
-    return assetsRoute(request, url, key, service);
+    return assetsRoute(request, route, key, service);
   if (section === "file" && method === "GET") {
     const path = url.searchParams.get("path");
     if (!path) return error("Missing path", 400);
@@ -695,13 +717,12 @@ async function contentRoute(
 
 async function collectionRoute(
   request: Request,
-  url: URL,
-  segments: string[],
+  route: Route,
+  key: string,
   source: ContentSource,
   service: ContentService,
 ): Promise<Response> {
-  const method = request.method.toUpperCase();
-  const key = segments[1]!;
+  const { url, segments, method } = route;
   if (segments.length === 2 && method === "GET") {
     return json({
       entries: await service.listEntries(key),
@@ -714,19 +735,19 @@ async function collectionRoute(
     return json({ references: await service.referencesTo(key, slug) });
   }
   if (segments[2] === "entries")
-    return entryRoute(request, key, segments.slice(3).join("/"), service);
+    return entryRoute(request, route, key, service);
   return notFound();
 }
 
 async function entryRoute(
   request: Request,
+  { segments, method }: Route,
   key: string,
-  slug: string,
   service: ContentService,
 ): Promise<Response> {
-  const method = request.method.toUpperCase();
+  const slug = segments.slice(3).join("/");
   if (!slug && method === "POST") {
-    const input = (await request.json()) as SaveEntryInput;
+    const input = await readJson<SaveEntryInput>(request);
     return json(await service.saveEntry(key, null, input), { status: 201 });
   }
   if (!slug) return notFound();
@@ -735,7 +756,7 @@ async function entryRoute(
     return entry ? json(entry) : error("Entry not found", 404, "not_found");
   }
   if (method === "PUT") {
-    const input = (await request.json()) as SaveEntryInput;
+    const input = await readJson<SaveEntryInput>(request);
     return json(await service.saveEntry(key, slug, input));
   }
   if (method === "DELETE") return json(await service.deleteEntry(key, slug));
@@ -744,13 +765,13 @@ async function entryRoute(
 
 async function singletonRoute(
   request: Request,
-  method: string,
+  { method }: Route,
   key: string,
   service: ContentService,
 ): Promise<Response> {
   if (method === "GET") return json(await service.getSingleton(key));
   if (method === "PUT") {
-    const input = (await request.json()) as SaveEntryInput;
+    const input = await readJson<SaveEntryInput>(request);
     return json(await service.saveSingleton(key, input));
   }
   return notFound();
@@ -758,25 +779,24 @@ async function singletonRoute(
 
 async function assetsRoute(
   request: Request,
-  url: URL,
+  { url, method }: Route,
   container: string,
   service: ContentService,
 ): Promise<Response> {
-  const method = request.method.toUpperCase();
   const dir = url.searchParams.get("dir") ?? "";
   if (method === "GET") return json(await service.listAssets(container, dir));
   if (method === "POST") {
-    const body = (await request.json()) as {
+    const body = await readJson<{
       dir?: string;
       files: { name: string; base64: string }[];
-    };
+    }>(request);
     return json(
       await service.uploadAssets(container, body.dir ?? dir, body.files ?? []),
       { status: 201 },
     );
   }
   if (method === "DELETE") {
-    const body = (await request.json()) as { path: string };
+    const body = await readJson<{ path: string }>(request);
     return json(await service.deleteAsset(container, body.path));
   }
   return notFound();

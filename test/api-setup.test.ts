@@ -163,6 +163,14 @@ describe("sign-in setup", () => {
     expect(await setupError(options, { VESTRY_DB: d1 })).toMatch(
       /^Missing environment variable: VESTRY_SECRET/,
     );
+    // In development sign-in is complete; what is missing next is the GitHub App.
+    const dev = {
+      ...options,
+      auth: { ...signIn, secret: undefined, dev: true },
+    };
+    expect(await setupError(dev)).toMatch(
+      /^Missing environment variables: VESTRY_GITHUB_APP_ID/,
+    );
   });
 
   it("checks the table prefix", async () => {

@@ -12,7 +12,16 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import vestry, { collection, defineConfig, fields } from "../src/index.js";
 import { buildIndex } from "../src/integration/build-index.js";
 import { nodeToFetchHandler } from "../src/integration/dev-middleware.js";
@@ -127,6 +136,36 @@ describe("nodeToFetchHandler", () => {
     expect(response.status).toBe(304);
   });
 
+  it("takes the origin from TLS or HTTP/2, and skips pseudo-headers", async () => {
+    const seen: Request[] = [];
+    const handler = nodeToFetchHandler(async (request) => {
+      seen.push(request);
+      return new Response(null, { status: 204 });
+    });
+    const res = { statusCode: 0, setHeader: vi.fn(), end: vi.fn() };
+    const next = vi.fn();
+    await handler(
+      {
+        url: "/admin/api/config",
+        method: "GET",
+        headers: {
+          ":method": "GET",
+          ":scheme": "https",
+          ":authority": "localhost:4321",
+          ":path": "/admin/api/config",
+          origin: "https://localhost:4321",
+        },
+        socket: { encrypted: true },
+      } as unknown as IncomingMessage,
+      res as unknown as ServerResponse,
+      next,
+    );
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(204);
+    expect(seen[0]!.url).toBe("https://localhost:4321/admin/api/config");
+    expect(seen[0]!.headers.get("origin")).toBe("https://localhost:4321");
+  });
+
   it("hands errors to the next middleware", async () => {
     const failure = new Error("Boom");
     const handler = nodeToFetchHandler(async () => {
@@ -189,6 +228,10 @@ describe("formatterModule", () => {
 });
 
 describe("the integration", () => {
+  // The mode comes from the environment unless a test sets it.
+  beforeEach(() => vi.stubEnv("VESTRY_MODE", undefined));
+  afterEach(() => vi.unstubAllEnvs());
+
   type Hook = (context: unknown) => void;
   type Plugin = {
     resolveId(id: string): string | null;
@@ -311,19 +354,15 @@ describe("the integration", () => {
 
   it("keeps dev users in SQLite with sign-in required", async () => {
     vi.stubEnv("VESTRY_MODE", "auth");
-    try {
-      const { plugin, logs } = setUp("dev");
-      const handler = middleware(plugin)!;
-      expect(logs).toEqual([
-        "Control panel at /admin (editing local files, sign-in required)",
-      ]);
-      const { response } = await serve(handler, (base) =>
-        fetch(`${base}/admin/api/config`),
-      );
-      expect(await response.json()).toMatchObject({ auth: true, user: null });
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    const { plugin, logs } = setUp("dev");
+    const handler = middleware(plugin)!;
+    expect(logs).toEqual([
+      "Control panel at /admin (editing local files, sign-in required)",
+    ]);
+    const { response } = await serve(handler, (base) =>
+      fetch(`${base}/admin/api/config`),
+    );
+    expect(await response.json()).toMatchObject({ auth: true, user: null });
   });
 
   it("checks the config", () => {

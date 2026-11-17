@@ -475,6 +475,10 @@ describe("errors", () => {
     expect((await listPosts("a string")).body.error.message).toBe(
       "Unexpected error",
     );
+    // Only a request body that is not JSON is the client's mistake.
+    expect(
+      await listPosts(new SyntaxError("Unexpected token in links.json")),
+    ).toMatchObject({ status: 500, body: { error: { code: "internal" } } });
     log.mockRestore();
   });
 });

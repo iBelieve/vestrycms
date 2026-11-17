@@ -170,6 +170,25 @@ describe("renaming an entry", () => {
       }),
     ).rejects.toMatchObject({ status: 409, code: "conflict" });
   });
+
+  it("refuses a save over an entry deleted since it was opened", async () => {
+    await service.saveEntry("notes", null, { data: { title: "Brief" } });
+    const { sha } = (await service.getEntry("notes", "brief"))!;
+    await service.deleteEntry("notes", "brief");
+    await expect(
+      service.saveEntry("notes", "brief", { data: { title: "Brief" }, sha }),
+    ).rejects.toMatchObject({ status: 409, code: "conflict" });
+    expect(await service.getEntry("notes", "brief")).toBe(null);
+  });
+
+  it("refuses an unsafe current slug", async () => {
+    await expect(
+      service.saveEntry("notes", "../final", {
+        data: { title: "Final" },
+        slug: "moved",
+      }),
+    ).rejects.toMatchObject({ status: 400, code: "bad_slug" });
+  });
 });
 
 describe("entries kept as a list in one file", () => {
@@ -206,6 +225,14 @@ describe("entries kept as a list in one file", () => {
   it("refuses a second entry with the same id", async () => {
     await expect(
       service.saveEntry("links", null, { data: { id: "about" } }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+  });
+
+  it("refuses to change an entry's id to another's", async () => {
+    await expect(
+      service.saveEntry("links", "about", {
+        data: { id: "home-page", title: "About" },
+      }),
     ).rejects.toMatchObject({ status: 409, code: "exists" });
   });
 

@@ -106,7 +106,9 @@ export class GitHubSource implements ContentSource {
       "invalidate" in token
     ) {
       // A cached installation token GitHub no longer accepts (app reinstalled,
-      // key rotated): mint a fresh one and retry once.
+      // key rotated): mint a fresh one and retry once. The refusal's body is
+      // released first, so the Worker does not hold its connection open.
+      await res.body?.cancel();
       token.invalidate();
       headers.set("Authorization", `Bearer ${await this.#token()}`);
       res = await fetch(url, { ...init, headers });
