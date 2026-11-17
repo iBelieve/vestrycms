@@ -95,6 +95,7 @@ export function serializeMdx(
     rule: "-",
     listItemIndent: "one",
     resourceLink: true,
+    join: [tightJoin],
     handlers: {
       rawHtml: (node: { value: string }) => node.value,
       rawInlineHtml: (node: { value: string }) => node.value,
@@ -171,13 +172,80 @@ function listHandler(lib: Handler): Handler {
     const list = node as Md.List;
     if (
       !list.spread &&
-      [list, ...list.children].some((p) => needsBlankLine(p, state))
+      ([list, ...list.children].some((p) => needsBlankLine(p, state)) ||
+        list.children.some(holdsBlankLine))
     ) {
       list.spread = true;
       for (const item of list.children) item.spread = true;
     }
     return lib(node, parent, state, info);
   };
+}
+
+/**
+ * A block component with children is written with blank lines around them
+ * (see flowElementHandler), and CommonMark reads an item holding one as
+ * loose.
+ */
+function holdsBlankLine(item: Md.ListItem): boolean {
+  return (item.children as AnyNode[]).some(
+    (n) => n.type === "mdxJsxFlowElement" && n.children.length > 0,
+  );
+}
+
+/** Blocks whose first line ends a table rather than becoming one of its rows. */
+const ENDS_TABLE = new Set([
+  "blockquote",
+  "code",
+  "footnoteDefinition",
+  "heading",
+  "list",
+  "mdxFlowExpression",
+  "mdxJsxFlowElement",
+  "thematicBreak",
+]);
+
+/**
+ * Blocks that would continue a paragraph or table ending a quote or list
+ * just before them, on lines read as lazy: a table's rows join the
+ * paragraph, and a JSX tag or expression that spans lines fails to parse.
+ */
+const LAZY_HAZARDS = new Set([
+  "table",
+  "mdxJsxFlowElement",
+  "mdxFlowExpression",
+]);
+
+/**
+ * Joins in a tight list where the library's own rules would write no blank
+ * line:
+ *
+ * - after a table, whose rows run on until a blank line, so the next line
+ *   would become a row (`| a |` + newline + `  text`) unless it starts a
+ *   block that ends the table;
+ * - before a table, JSX element or expression that follows a quote or list
+ *   ending in a paragraph or table (`- > a` + newline + `  | b |`). One
+ *   right after a plain paragraph interrupts it.
+ */
+function tightJoin(
+  left: Md.Nodes,
+  right: Md.Nodes,
+  parent: Md.Parent,
+): 1 | undefined {
+  if (!("spread" in parent)) return undefined;
+  if (left.type === "table" && !ENDS_TABLE.has(right.type)) return 1;
+  if (!LAZY_HAZARDS.has(right.type)) return undefined;
+  let tail = left;
+  while (
+    (tail.type === "blockquote" ||
+      tail.type === "list" ||
+      tail.type === "listItem") &&
+    tail.children.length
+  )
+    tail = tail.children[tail.children.length - 1];
+  return tail !== left && (tail.type === "paragraph" || tail.type === "table")
+    ? 1
+    : undefined;
 }
 
 /** Mirrors mdast-util-to-markdown's `between`: tight only if a join says 0. */
