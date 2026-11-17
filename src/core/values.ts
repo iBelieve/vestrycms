@@ -273,21 +273,73 @@ function storedFieldValues(
   });
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** The editor's calendar date at `now`, `YYYY-MM-DD`, in its own time zone. */
+export function localDate(now: Date): string {
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** The editor's wall-clock time at `now`, `YYYY-MM-DDTHH:mm`, without a zone. */
+export function localDateTime(now: Date): string {
+  return `${localDate(now)}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+}
+
+/**
+ * How a datetime field's value is stored. An `autoUpdate` field has always
+ * defaulted to a full ISO instant; every other one to wall-clock time,
+ * which is what its input writes.
+ */
+export function datetimeStorage(field: {
+  storage?: "local" | "iso";
+  autoUpdate?: boolean;
+}): "local" | "iso" {
+  return field.storage ?? (field.autoUpdate ? "iso" : "local");
+}
+
+/** The time `now` as a datetime field stores it. */
+export function datetimeValue(
+  field: { storage?: "local" | "iso"; autoUpdate?: boolean },
+  now: Date,
+): string {
+  return datetimeStorage(field) === "local"
+    ? localDateTime(now)
+    : now.toISOString();
+}
+
+/**
+ * Sets each `autoUpdate` datetime field to `now`. A wall-clock value is the
+ * editor's own time, which the server cannot know (a Worker runs in UTC), so
+ * with `keepWallClock` one the control panel just stamped is kept: one
+ * within a time zone of `now`. An older one (a caller sending back what it
+ * loaded) is restamped.
+ */
 export function applyAutoFields(
   schema: Schema,
   data: Record<string, unknown>,
   now = new Date(),
+  { keepWallClock = false }: { keepWallClock?: boolean } = {},
 ): Record<string, unknown> {
   const out = { ...data };
   for (const [key, field] of Object.entries(schema)) {
-    if (field.type === "datetime" && field.autoUpdate) {
-      out[key] =
-        field.storage === "local"
-          ? now.toISOString().slice(0, 16)
-          : now.toISOString();
-    }
+    if (field.type !== "datetime" || !field.autoUpdate) continue;
+    const wallClock = datetimeStorage(field) === "local";
+    if (keepWallClock && wallClock && isCurrentWallClock(out[key], now))
+      continue;
+    out[key] = datetimeValue(field, now);
   }
   return out;
+}
+
+/** Time zones are within 14 hours of UTC; a little more for a slow save. */
+const WALL_CLOCK_SPREAD = 15 * 60 * 60 * 1000;
+
+/** A wall-clock time that is `now` somewhere in the world. */
+function isCurrentWallClock(value: unknown, now: Date): boolean {
+  if (typeof value !== "string") return false;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return false;
+  const asUtc = Date.parse(`${value}Z`);
+  return Math.abs(asUtc - now.getTime()) <= WALL_CLOCK_SPREAD;
 }
 
 /** Whether a schema has a reference field (at any depth) to `collection`. */
@@ -310,6 +362,16 @@ export function referencesCollection(
  * Point every reference to entry `from` of `collection` at `to` instead.
  * Returns the new data, or null when nothing referred to it.
  */
+/**
+ * Whether a reference names entry `slug`. A list's ids may be numbers in
+ * its file (`id: 1`), and references to them too.
+ */
+const sameId = (value: unknown, slug: string) =>
+  value === slug || (typeof value === "number" && String(value) === slug);
+
+/** An id that reads back as the same number (not `007` or `1e3`). */
+const isNumberId = (id: string) => id !== "" && String(Number(id)) === id;
+
 export function rewriteReferences(
   schema: Schema,
   data: Record<string, unknown>,
@@ -322,10 +384,11 @@ export function rewriteReferences(
     if (
       field.type === "reference" &&
       field.collection === collection &&
-      value === from
+      sameId(value, from)
     ) {
       changed = true;
-      return to;
+      // A reference to a number id stays a number when the new id is one.
+      return typeof value === "number" && isNumberId(to) ? Number(to) : to;
     }
     return value;
   });

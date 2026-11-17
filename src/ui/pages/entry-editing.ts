@@ -44,7 +44,7 @@ export type Kind = "collection" | "singleton";
  * The slug the entry will be saved under: what was typed, else the current
  * one, else (for a new entry) one derived from its fields. A date kept in
  * the file name is always its prefix, so changing that date changes the
- * slug.
+ * slug. An entry of a list kept in one file goes by its id field instead.
  */
 export function effectiveSlug({
   collection,
@@ -65,10 +65,22 @@ export function effectiveSlug({
   /** The field whose date the file name starts with, if any. */
   dateKey: string | null;
 }): string {
-  if (!collection || pattern.single) return slug ?? "";
+  if (!collection) return slug ?? "";
+  // A list entry's slug is its id field, so changing that renames it.
+  if (pattern.single)
+    return isNew ? "" : listId(collection, data) || (slug ?? "");
   const base = typed || (isNew ? derivedSlug(collection, data) : (slug ?? ""));
   if (!dateKey) return base;
   return slugWithDate(slugWithoutDate(base), data[dateKey]);
+}
+
+/** The id a list entry's form holds. */
+function listId(
+  collection: CollectionConfig,
+  data: Record<string, unknown>,
+): string {
+  const id = data[collection.idField ?? "id"];
+  return id === undefined || id === null ? "" : String(id);
 }
 
 /** A new entry's slug, from its collection's template or title field. */

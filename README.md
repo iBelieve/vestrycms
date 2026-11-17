@@ -292,6 +292,11 @@ the same commit. The editor lists them and asks before saving. Those files
 are rewritten from their parsed contents without passing through Prettier,
 and references inside MDX component props are not found.
 
+In a collection kept as a list in one file, an entry's slug is its id field
+(`idField`, `id` by default), so changing that field renames the entry in
+the same way: the editor asks first, and references to it, in the list and
+in other files, are updated in the same commit.
+
 A date field can live in the file name instead of the frontmatter:
 
 ```ts

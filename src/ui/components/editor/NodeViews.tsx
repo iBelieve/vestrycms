@@ -20,7 +20,7 @@ import { CodeInput } from "../fields/CodeInput.js";
 // A component node edits its props with FieldRenderer, whose markdown
 // fields contain this editor: recursion at render time only.
 // fallow-ignore-next-line circular-dependency
-import { FieldRenderer } from "../fields/FieldRenderer.js";
+import { changedValue, FieldRenderer } from "../fields/FieldRenderer.js";
 import { useEditorEnv } from "./EditorContext.js";
 import { assetToRepoPath } from "../../../core/values.js";
 
@@ -42,7 +42,7 @@ function assetPath(field: { directory: string }, value: string): string {
 function useDocumentValue<T>(
   value: T,
   commit: (next: T) => void,
-): [T, (next: T) => void] {
+): [T, (next: T | ((current: T) => T)) => void] {
   const [local, setLocal] = useState(value);
   const sent = useRef(value);
   useEffect(() => {
@@ -51,8 +51,14 @@ function useDocumentValue<T>(
       setLocal(value);
     }
   }, [value]);
+  // A function is an update of the value as last sent, so that two changes
+  // at once both count.
   const update = useCallback(
-    (next: T) => {
+    (change: T | ((current: T) => T)) => {
+      const next =
+        typeof change === "function"
+          ? (change as (current: T) => T)(sent.current)
+          : change;
       sent.current = next;
       setLocal(next);
       commit(next);
@@ -102,7 +108,9 @@ function PropsForm({
                 value={raw ? value.$raw : JSON.stringify(value, null, 2)}
                 language="javascript"
                 rows={3}
-                onChange={(v) => setProps({ ...props, [key]: { $raw: v } })}
+                onChange={(v) =>
+                  setProps((current) => ({ ...current, [key]: { $raw: v } }))
+                }
               />
             </div>
           );
@@ -122,7 +130,14 @@ function PropsForm({
               path={key}
               field={field}
               value={value}
-              onChange={(v) => setProps({ ...props, [key]: v })}
+              // An object or list setting changes with an update of its
+              // value as it stands (see FieldProps.onChange).
+              onChange={(v) =>
+                setProps((current) => ({
+                  ...current,
+                  [key]: changedValue(v, current[key]),
+                }))
+              }
             />
           </div>
         );

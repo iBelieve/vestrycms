@@ -3,6 +3,32 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Fixed
+
+- **Two crops seeding at once both keep their crop.** When an entry with two
+  crop fields opened on an image neither had cropped yet, only the second
+  default survived. Fields now change the form's values as they stand, so
+  changes made at the same moment no longer overwrite each other.
+- **Edits made while a new or renamed entry saves are kept.** The editor at
+  the entry's new address opens with them (slug box included), marked
+  unsaved, as an existing entry's editor already did.
+- **Renaming a list entry updates the entries that refer to it.** Changing
+  the id of an entry in a collection kept as one file now asks first, like a
+  file rename, and repoints references in the same list and in other files
+  in the same commit. References to a number id (`id: 1`) are found too,
+  and a number id and its references stay numbers.
+- **A list entry whose id has a space, `?` or `#` opens.** Links to it now
+  encode the id, which used to end the address early.
+- **"Now" is the editor's own date and time.** A date field defaulting to
+  `"now"` gave UTC's date, which in the Americas is already tomorrow by the
+  evening, and a wall-clock datetime gave UTC's time. Auto-updated
+  wall-clock times keep the time the editor stamped rather than the
+  server's UTC one, if it is within a time zone of the server's clock. A
+  datetime field without `storage` now defaults to wall-clock time, which is
+  what its input always wrote.
+
 ## 0.3.1
 
 ### Changed

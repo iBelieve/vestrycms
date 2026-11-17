@@ -81,7 +81,7 @@ export interface BooleanField extends FieldBase<"boolean"> {
 }
 
 export interface DateField extends FieldBase<"date"> {
-  /** Use "now" to default new entries to today. */
+  /** Use "now" to default new entries to today, in the editor's time zone. */
   default?: string | "now";
   /**
    * Allow an optional wall-clock time. The value stays `YYYY-MM-DD` when no
@@ -106,6 +106,9 @@ export interface DatetimeField extends FieldBase<"datetime"> {
    * How the value is stored:
    * - "local": wall-clock ISO without zone, e.g. `2026-06-14T09:00`
    * - "iso": full ISO instant in UTC (`toISOString()`)
+   *
+   * Defaults to "local", or "iso" for an `autoUpdate` field. A wall-clock
+   * time is the editor's own, from the browser's time zone.
    */
   storage?: "local" | "iso";
   /** Use "now" to default new entries to the current time. */

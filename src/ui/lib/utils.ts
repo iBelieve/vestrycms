@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { Field, Schema } from "../../config/types.js";
+import { datetimeValue, localDate } from "../../core/values.js";
 import { isRawExpression } from "../../mdx/types.js";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -8,6 +9,13 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 
 export const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
+
+/**
+ * The control panel's address for an entry. A list entry's id can hold any
+ * character, so each part of the slug is encoded; `/` stays a separator.
+ */
+export const entryHref = (collection: string, slug: string) =>
+  `/collections/${collection}/${slug.split("/").map(encodeURIComponent).join("/")}`;
 
 /** The entry for a field's type in a table of them; none for an unknown type. */
 const forType = (table: object, field: Field): unknown =>
@@ -114,16 +122,13 @@ const DEFAULTS: {
   code: textDefault,
   number: (field) => field.default ?? null,
   boolean: (field) => field.default ?? false,
+  // "now" is the editor's own date and time, not UTC's.
   date: (field) =>
+    field.default === "now" ? localDate(new Date()) : (field.default ?? ""),
+  datetime: (field) =>
     field.default === "now"
-      ? new Date().toISOString().slice(0, 10)
+      ? datetimeValue(field, new Date())
       : (field.default ?? ""),
-  datetime: (field) => {
-    if (field.default !== "now") return field.default ?? "";
-    return field.storage === "local"
-      ? new Date().toISOString().slice(0, 16)
-      : new Date().toISOString();
-  },
   select: (field) =>
     field.default ?? (field.clearable ? "" : (field.options[0]?.value ?? "")),
   multiselect: (field) => field.default ?? [],

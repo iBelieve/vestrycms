@@ -39,15 +39,28 @@ describe("defaultValue", () => {
       expect([field.type, defaultValue(field)]).toEqual([field.type, value]);
   });
 
-  it("gives today for a date or time that defaults to now", () => {
-    vi.useFakeTimers({ now: new Date("2026-11-17T06:30:15.000Z") });
-    expect(defaultValue(fields.date({ default: "now" }))).toBe("2026-11-17");
-    expect(defaultValue(fields.datetime({ default: "now" }))).toBe(
-      "2026-11-17T06:30:15.000Z",
-    );
-    expect(
-      defaultValue(fields.datetime({ default: "now", storage: "local" })),
-    ).toBe("2026-11-17T06:30");
+  it("gives the editor's own date and time for a field that defaults to now", () => {
+    // 7:30 PM in Chicago is already the next day in UTC.
+    const tz = process.env.TZ;
+    process.env.TZ = "America/Chicago";
+    try {
+      vi.useFakeTimers({ now: new Date("2026-11-18T01:30:15.000Z") });
+      expect(defaultValue(fields.date({ default: "now" }))).toBe("2026-11-17");
+      // A datetime is stored as wall-clock time unless it says otherwise,
+      // which is what its input writes.
+      expect(defaultValue(fields.datetime({ default: "now" }))).toBe(
+        "2026-11-17T19:30",
+      );
+      expect(
+        defaultValue(fields.datetime({ default: "now", storage: "local" })),
+      ).toBe("2026-11-17T19:30");
+      expect(
+        defaultValue(fields.datetime({ default: "now", storage: "iso" })),
+      ).toBe("2026-11-18T01:30:15.000Z");
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
   });
 
   it("picks a select's first option unless it can be cleared", () => {

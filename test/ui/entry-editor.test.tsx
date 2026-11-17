@@ -65,7 +65,20 @@ const config = defineConfig({
     links: collection({
       label: "Links",
       path: "src/data/links.yaml",
-      schema: { id: fields.text(), title: fields.text() },
+      schema: {
+        id: fields.text(),
+        title: fields.text(),
+        next: fields.reference({ collection: "links" }),
+      },
+    }),
+    menus: collection({
+      label: "Menus",
+      path: "src/content/menus/*.md",
+      body: false,
+      schema: {
+        title: fields.text(),
+        first: fields.reference({ collection: "links" }),
+      },
     }),
   },
   singletons: {
@@ -82,8 +95,22 @@ const files = {
     "---\ntitle: Hello\ndraft: true\nauthor: ann\n---\n",
   "src/content/authors/ann.md": "---\ntitle: Ann\n---\n",
   "src/content/authors/bob.md": "---\ntitle: Bob\nmentor: ann\n---\n",
-  "src/data/links.yaml": "- id: home\n  title: Home\n",
+  "src/data/links.yaml":
+    "- id: home\n  title: Home\n- id: about\n  title: About\n  next: home\n",
+  "src/content/menus/main.md": "---\ntitle: Main\nfirst: home\n---\n",
 };
+
+/** Holds every request with `method` until the returned function is called. */
+function holdRequests(method: string): () => void {
+  const api = globalThis.fetch;
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
+    if (init?.method === method) await held;
+    return api(input, init);
+  });
+  return release;
+}
 
 const read = (root: string, file: string) =>
   readFile(path.join(root, file), "utf8");
@@ -113,6 +140,52 @@ describe("a new entry", () => {
         "/admin/collections/posts/my-first-post",
       ),
     );
+  });
+
+  it("keeps what is typed while it is created", async () => {
+    const { root } = await openPanel(config, {
+      url: "/collections/posts/new",
+      files,
+    });
+    await screen.findByText("New post");
+    fireEvent.change(titleInput(), { target: { value: "First" } });
+    const release = holdRequests("POST");
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(true),
+    );
+    fireEvent.change(titleInput(), { target: { value: "Second" } });
+    fireEvent.change(document.querySelector("textarea")!, {
+      target: { value: "Typed while saving." },
+    });
+    release();
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/admin/collections/posts/first"),
+    );
+    // The editor at the new address (an existing entry's, so it can delete)
+    // opens with both changes, unsaved.
+    await screen.findByTitle("Delete");
+    expect(titleInput().value).toBe("Second");
+    expect(screen.getByDisplayValue("Typed while saving.")).toBeTruthy();
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(await read(root, "src/content/posts/first.md")).toContain(
+      "title: First",
+    );
+  });
+
+  it("opens as saved when nothing changed while it was created", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/posts/new", files });
+    await screen.findByText("New post");
+    await user.type(titleInput(), "Quiet");
+    await user.click(saveButton());
+    await screen.findByText("Saved to disk");
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/admin/collections/posts/quiet"),
+    );
+    await screen.findByTitle("Delete");
+    expect(titleInput().value).toBe("Quiet");
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
   });
 
   it("is checked before it is saved", async () => {
@@ -232,13 +305,7 @@ describe("an existing entry", () => {
     await screen.findByDisplayValue("Hello");
     fireEvent.change(titleInput(), { target: { value: "First" } });
     // Hold the save until the title has changed again.
-    const api = globalThis.fetch;
-    let release = () => {};
-    const held = new Promise<void>((resolve) => (release = resolve));
-    vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
-      if (init?.method === "PUT") await held;
-      return api(input, init);
-    });
+    const release = holdRequests("PUT");
     fireEvent.click(saveButton());
     await waitFor(() =>
       expect((saveButton() as HTMLButtonElement).disabled).toBe(true),
@@ -293,6 +360,83 @@ describe("an existing entry", () => {
     await waitFor(() =>
       expect(window.location.pathname).toBe("/admin/collections/authors/anna"),
     );
+  });
+
+  it("keeps what is typed while it is renamed", async () => {
+    const { root } = await openPanel(config, {
+      url: "/collections/authors/bob",
+      files,
+    });
+    await screen.findByDisplayValue("Bob");
+    fireEvent.change(slugInput(), { target: { value: "robert" } });
+    const release = holdRequests("PUT");
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(true),
+    );
+    fireEvent.change(titleInput(), { target: { value: "Robert" } });
+    release();
+    await waitFor(() =>
+      expect(window.location.pathname).toBe(
+        "/admin/collections/authors/robert",
+      ),
+    );
+    // The file it now lives in, which the editor there shows.
+    await screen.findByText("src/content/authors/robert.md");
+    expect(titleInput().value).toBe("Robert");
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    expect(await read(root, "src/content/authors/robert.md")).toContain(
+      "title: Bob",
+    );
+  });
+
+  it("keeps its reference to itself while it is renamed", async () => {
+    const { root } = await openPanel(config, {
+      url: "/collections/authors/cat",
+      files: {
+        ...files,
+        "src/content/authors/cat.md": "---\ntitle: Cat\nmentor: cat\n---\n",
+      },
+    });
+    await screen.findByDisplayValue("Cat");
+    fireEvent.change(slugInput(), { target: { value: "kat" } });
+    const release = holdRequests("PUT");
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(true),
+    );
+    fireEvent.change(titleInput(), { target: { value: "Kat" } });
+    release();
+    await screen.findByText("src/content/authors/kat.md");
+    expect(titleInput().value).toBe("Kat");
+    // Saving what was typed keeps the reference on the entry's new slug.
+    fireEvent.click(saveButton());
+    await waitFor(async () =>
+      expect(await read(root, "src/content/authors/kat.md")).toContain(
+        "title: Kat",
+      ),
+    );
+    expect(await read(root, "src/content/authors/kat.md")).toContain(
+      "mentor: kat",
+    );
+  });
+
+  it("keeps a slug typed while it is renamed", async () => {
+    await openPanel(config, { url: "/collections/authors/bob", files });
+    await screen.findByDisplayValue("Bob");
+    fireEvent.change(slugInput(), { target: { value: "robert" } });
+    const release = holdRequests("PUT");
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(true),
+    );
+    fireEvent.change(slugInput(), { target: { value: "roberto" } });
+    release();
+    await screen.findByText("src/content/authors/robert.md");
+    expect(slugInput().value).toBe("roberto");
+    expect(
+      screen.getByText("Renames the file to src/content/authors/roberto.md"),
+    ).toBeTruthy();
   });
 
   it("can drop a rename at the confirmation", async () => {
@@ -415,6 +559,72 @@ describe("a list kept in one file", () => {
     expect(await read(root, "src/data/links.yaml")).toContain(
       "title: Home page",
     );
+  });
+});
+
+describe("a list entry's id", () => {
+  it("is renamed, with the entries that refer to it", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/links/home",
+      files,
+    });
+    await screen.findByDisplayValue("Home");
+    fireEvent.change(screen.getByLabelText("Id"), {
+      target: { value: "start" },
+    });
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+    await user.click(saveButton());
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("2 other entries refer to this one");
+    expect(dialog.textContent).toContain("Links: About");
+    expect(dialog.textContent).toContain("Menus: Main");
+    await user.click(within(dialog).getByText("Rename and update"));
+    await screen.findByText("Saved to disk");
+    expect(await read(root, "src/data/links.yaml")).toBe(
+      "- id: start\n  title: Home\n- id: about\n  title: About\n  next: start\n",
+    );
+    expect(await read(root, "src/content/menus/main.md")).toContain(
+      "first: start",
+    );
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/admin/collections/links/start"),
+    );
+    // Until the rename is saved, the editor says so.
+    await waitFor(() =>
+      expect(screen.queryByText("Unsaved changes")).toBeNull(),
+    );
+    // The id field and the slug both show it.
+    expect(await screen.findAllByDisplayValue("start")).toHaveLength(2);
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
+  });
+});
+
+describe("a list entry with an id a URL would change", () => {
+  it("opens and saves at its own address", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/links",
+      files: { "src/data/links.yaml": '- id: "a b?c#d"\n  title: Odd\n' },
+    });
+    await user.click(await screen.findByRole("link", { name: /Odd/ }));
+    await screen.findByDisplayValue("Odd");
+    expect(screen.getAllByDisplayValue("a b?c#d")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Id"), {
+      target: { value: "e f?g" },
+    });
+    await user.click(saveButton());
+    await screen.findByText("Saved to disk");
+    await waitFor(() =>
+      expect(window.location.pathname).toBe(
+        "/admin/collections/links/e%20f%3Fg",
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Unsaved changes")).toBeNull(),
+    );
+    expect(await screen.findAllByDisplayValue("e f?g")).toHaveLength(2);
+    expect(await read(root, "src/data/links.yaml")).toContain("id: e f?g");
   });
 });
 

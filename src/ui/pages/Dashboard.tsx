@@ -6,7 +6,7 @@ import { TopBar } from "../components/Layout.js";
 import { Icon } from "../components/Icon.js";
 import { Badge } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { formatDate } from "../lib/utils.js";
+import { entryHref, formatDate } from "../lib/utils.js";
 
 const DEFAULT_RECENT = 5;
 
@@ -95,7 +95,7 @@ export function DashboardPage() {
                         <td className="v-table__main">
                           <Link
                             className="v-table__title"
-                            to={`/collections/${key}/${e.slug}`}
+                            to={entryHref(key, e.slug)}
                           >
                             {e.title}
                           </Link>

@@ -82,6 +82,9 @@ export function TreeInput({
     );
 
   const [tree, setTree] = useState<TreeNode[]>(() => annotate(value, key));
+  // The tree as last changed, so that two changes at once both count.
+  const latest = useRef(tree);
+  latest.current = tree;
   const lastEmitted = useRef<string>(JSON.stringify(strip(tree, key)));
   useEffect(() => {
     const incoming = JSON.stringify(Array.isArray(value) ? value : []);
@@ -91,6 +94,7 @@ export function TreeInput({
     }
   }, [value, key]);
   const commit = (next: TreeNode[]) => {
+    latest.current = next;
     setTree(next);
     const plain = strip(next, key);
     lastEmitted.current = JSON.stringify(plain);
@@ -129,8 +133,12 @@ export function TreeInput({
     expand(projection!.parentId);
   };
 
-  const update = (id: string, data: NodeData) =>
-    commit(mapTree(tree, (n) => (n.id === id ? { ...n, data } : n)));
+  const update = (id: string, change: (data: NodeData) => NodeData) =>
+    commit(
+      mapTree(latest.current, (n) =>
+        n.id === id ? { ...n, data: change(n.data) } : n,
+      ),
+    );
   const remove = (id: string) => {
     commit(removeNode(tree, id));
     if (editing === id) setEditing(null);
@@ -231,7 +239,7 @@ export function TreeInput({
                   <FieldSet
                     schema={field.fields}
                     values={item.data}
-                    onChange={(v) => update(item.id, v)}
+                    onChange={(change) => update(item.id, change)}
                     errors={errors}
                     ctx={ctx}
                     pathPrefix={`${path}.${item.id}`}

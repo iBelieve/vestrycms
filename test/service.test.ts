@@ -1,5 +1,5 @@
 /** ContentService against the local source, in a temporary project directory. */
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -249,5 +249,136 @@ describe("entries kept as a list in one file", () => {
         sha: "0".repeat(40),
       }),
     ).rejects.toMatchObject({ status: 409, code: "conflict" });
+  });
+});
+
+describe("renaming a list entry", () => {
+  const listConfig = defineConfig({
+    repo: { owner: "o", name: "r" },
+    collections: {
+      places: collection({
+        label: "Places",
+        path: "src/data/places.yaml",
+        schema: {
+          id: fields.text(),
+          title: fields.text(),
+          near: fields.array(fields.reference({ collection: "places" })),
+          checked: fields.datetime({ autoUpdate: true, storage: "local" }),
+        },
+      }),
+      trips: collection({
+        label: "Trips",
+        path: "src/content/trips/*.md",
+        schema: {
+          title: fields.text(),
+          to: fields.reference({ collection: "places" }),
+        },
+      }),
+      steps: collection({
+        label: "Steps",
+        path: "src/data/steps.json",
+        schema: {
+          id: fields.number(),
+          next: fields.reference({ collection: "steps" }),
+        },
+      }),
+      routes: collection({
+        label: "Routes",
+        path: "src/data/routes.json",
+        schema: {
+          id: fields.text(),
+          stops: fields.array(fields.reference({ collection: "places" })),
+        },
+      }),
+    },
+  });
+  // The control panel's stamp in a time zone six hours behind UTC.
+  const evening = new Date(Date.now() - 6 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 16);
+  let listRoot: string;
+  let places: ContentService;
+  const read = (file: string) => readFile(path.join(listRoot, file), "utf8");
+
+  beforeAll(async () => {
+    listRoot = await mkdtemp(path.join(tmpdir(), "vestry-list-"));
+    places = new ContentService(listConfig, new LocalSource(listRoot), {
+      builtAt: "",
+      files: {},
+    });
+    await places.saveEntry("places", null, {
+      data: { id: "rome", title: "Rome", checked: evening },
+    });
+    await places.saveEntry("places", null, {
+      data: { id: "ostia", title: "Ostia", near: ["rome"] },
+    });
+    await places.saveEntry("trips", null, {
+      data: { title: "Spring", to: "rome" },
+    });
+    await places.saveEntry("routes", null, {
+      data: { id: "coast", stops: ["ostia", "rome"] },
+    });
+  });
+  afterAll(() => rm(listRoot, { recursive: true, force: true }));
+
+  it("keeps the wall-clock time the editor stamped", async () => {
+    // The editor's own time, which the server in UTC cannot know, is kept.
+    expect(await read("src/data/places.yaml")).toContain(
+      `checked: ${evening}\n`,
+    );
+  });
+
+  it("finds the entries that refer to it", async () => {
+    const refs = await places.referencesTo("places", "rome");
+    expect(refs.map((r) => `${r.key}:${r.slug}`).sort()).toEqual([
+      "places:ostia",
+      "routes:coast",
+      "trips:spring",
+    ]);
+  });
+
+  it("repoints them when its id changes", async () => {
+    const saved = await places.saveEntry("places", "rome", {
+      data: { id: "roma", title: "Roma", checked: evening },
+    });
+    expect(saved.slug).toBe("roma");
+    const list = await read("src/data/places.yaml");
+    expect(list).toContain("id: roma");
+    expect(list).not.toContain("rome");
+    expect(list).toMatch(/near:\n\s+- roma/);
+    expect(await read("src/content/trips/spring.md")).toContain("to: roma");
+    expect(JSON.parse(await read("src/data/routes.json"))).toEqual([
+      { id: "coast", stops: ["ostia", "roma"] },
+    ]);
+    expect(await places.referencesTo("places", "rome")).toEqual([]);
+  });
+
+  it("repoints references to a number id", async () => {
+    await mkdir(path.join(listRoot, "src/data"), { recursive: true });
+    await writeFile(
+      path.join(listRoot, "src/data/steps.json"),
+      JSON.stringify([{ id: 1 }, { id: 2, next: 1 }]),
+    );
+    expect(
+      (await places.referencesTo("steps", "1")).map((r) => r.slug),
+    ).toEqual(["2"]);
+    await places.saveEntry("steps", "1", { data: { id: 3 } });
+    // Numbers they were, and numbers they stay.
+    expect(JSON.parse(await read("src/data/steps.json"))).toEqual([
+      { id: 3 },
+      { id: 2, next: 3 },
+    ]);
+    await places.saveEntry("steps", "3", { data: { id: "first" } });
+    expect(JSON.parse(await read("src/data/steps.json"))).toEqual([
+      { id: "first" },
+      { id: 2, next: "first" },
+    ]);
+  });
+
+  it("leaves references alone when its id stays", async () => {
+    await places.saveEntry("places", "ostia", {
+      data: { id: "ostia", title: "Ostia Antica", near: ["roma"] },
+    });
+    expect(await read("src/content/trips/spring.md")).toContain("to: roma");
   });
 });

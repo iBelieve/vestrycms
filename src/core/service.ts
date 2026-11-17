@@ -313,7 +313,9 @@ export class ContentService {
       format: collectionFormat(col),
       slug,
       input,
-      data: applyAutoFields(col.schema, { ...input.data }),
+      data: applyAutoFields(col.schema, { ...input.data }, new Date(), {
+        keepWallClock: true,
+      }),
     };
     return save.pattern.single
       ? this.saveListEntry(save)
@@ -324,44 +326,30 @@ export class ContentService {
   private async saveListEntry(save: EntrySave): Promise<SavedEntry> {
     const { key, col, pattern, format, slug, input, data } = save;
     const isNew = slug === null;
-    const idField = col.idField ?? "id";
-    const file = await this.source.read(pattern.prefix);
-    const items = file ? parseEntryList(format, toText(file.bytes)) : [];
-    if (file && input.sha && input.sha !== file.sha) {
-      throw new SourceError(
-        "This file changed since you opened it.",
-        409,
-        "conflict",
-      );
-    }
-    const id = String(data[idField] ?? slug ?? this.newSlug(col, data));
-    if (!id)
-      throw new SourceError(`Entries need an "${idField}"`, 400, "validation");
-    data[idField] = id;
-    const stored = toStoredValues(col.schema, data, pattern.prefix);
-    const existingIdx = items.findIndex(
-      (i) => String(i[idField]) === (slug ?? id),
+    const items = await this.readList(save);
+    const id = this.listEntryId(save);
+    const index = this.putInList(save, items, id);
+    // A changed id renames the entry: every reference to the old one, in
+    // this list and in other files, follows it in the same commit.
+    const renamedFrom = !isNew && index !== -1 && id !== slug ? slug : null;
+    const text = serializeEntryList(
+      format,
+      renamedFrom
+        ? renameInList(col.schema, items, key, renamedFrom, id)
+        : items,
     );
-    // A new entry, or one whose id changes, must not take another's id.
-    const clash = items.findIndex((i) => String(i[idField]) === id);
-    if (clash !== -1 && (isNew || clash !== existingIdx)) {
-      throw new SourceError(
-        `An entry with id "${id}" already exists`,
-        409,
-        "exists",
-      );
-    }
-    if (existingIdx === -1) items.push(stored);
-    else items[existingIdx] = stored;
-    const text = serializeEntryList(format, items);
     const changes: FileChange[] = [
       { path: pattern.prefix, content: text },
+      ...(renamedFrom
+        ? await this.referenceChanges(key, renamedFrom, id, [pattern.prefix])
+        : []),
       ...uploadChanges(input.uploads),
     ];
+    const action = isNew ? "Create" : renamedFrom ? "Rename" : "Update";
     const commit = await this.source.commit(changes, {
       message: this.commitMessage(
         col,
-        isNew ? "Create" : "Update",
+        action,
         id,
         this.titleOf(col, data, id),
         key,
@@ -374,6 +362,62 @@ export class ContentService {
       commit: commit.sha,
       path: pattern.prefix,
     };
+  }
+
+  /** A list's entries, refusing a save over a newer version of its file. */
+  private async readList({
+    pattern,
+    format,
+    input,
+  }: EntrySave): Promise<Record<string, unknown>[]> {
+    const file = await this.source.read(pattern.prefix);
+    if (!file) return [];
+    if (input.sha && input.sha !== file.sha) {
+      throw new SourceError(
+        "This file changed since you opened it.",
+        409,
+        "conflict",
+      );
+    }
+    return parseEntryList(format, toText(file.bytes));
+  }
+
+  /** The id a list entry is saved under, which its data then holds. */
+  private listEntryId({ col, slug, data }: EntrySave): string {
+    const idField = col.idField ?? "id";
+    const given = data[idField];
+    const id = String(given ?? slug ?? this.newSlug(col, data));
+    if (!id)
+      throw new SourceError(`Entries need an "${idField}"`, 400, "validation");
+    // An id given keeps its type: a number stays a number in the file.
+    if (given === undefined || given === null) data[idField] = id;
+    return id;
+  }
+
+  /**
+   * Puts the entry in its place in the list, or at its end if new, and
+   * returns the index it had (-1 if none).
+   */
+  private putInList(
+    { col, pattern, slug, data }: EntrySave,
+    items: Record<string, unknown>[],
+    id: string,
+  ): number {
+    const idField = col.idField ?? "id";
+    const index = items.findIndex((i) => String(i[idField]) === (slug ?? id));
+    // A new entry, or one whose id changes, must not take another's id.
+    const clash = items.findIndex((i) => String(i[idField]) === id);
+    if (clash !== -1 && (slug === null || clash !== index)) {
+      throw new SourceError(
+        `An entry with id "${id}" already exists`,
+        409,
+        "exists",
+      );
+    }
+    const stored = toStoredValues(col.schema, data, pattern.prefix);
+    if (index === -1) items.push(stored);
+    else items[index] = stored;
+    return index;
   }
 
   /** Save an entry kept in a file of its own, renaming it if its slug changes. */
@@ -570,9 +614,12 @@ export class ContentService {
       const single =
         reference.kind === "collection" && parsePathPattern(owner.path).single;
       if (single) {
-        const items = parseEntryList(format, text).map(
-          (item) =>
-            rewriteReferences(owner.schema, item, key, from, to) ?? item,
+        const items = renameInList(
+          owner.schema,
+          parseEntryList(format, text),
+          key,
+          from,
+          to,
         );
         changes.push({ path, content: serializeEntryList(format, items) });
       } else {
@@ -664,7 +711,9 @@ export class ContentService {
         "conflict",
       );
     }
-    const data = applyAutoFields(s.schema, { ...input.data });
+    const data = applyAutoFields(s.schema, { ...input.data }, new Date(), {
+      keepWallClock: true,
+    });
     const stored = toStoredValues(s.schema, data, path);
     const text =
       input.raw ??
@@ -878,6 +927,19 @@ export class ContentService {
       singular: col.singular ?? col.label,
     });
   }
+}
+
+/** A list's entries with every reference to entry `from` of `key` moved to `to`. */
+function renameInList(
+  schema: Schema,
+  items: Record<string, unknown>[],
+  key: string,
+  from: string,
+  to: string,
+): Record<string, unknown>[] {
+  return items.map(
+    (item) => rewriteReferences(schema, item, key, from, to) ?? item,
+  );
 }
 
 function statusOf(
