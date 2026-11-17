@@ -272,7 +272,6 @@ export function ErrorState({
       // Clipboard access can be refused; the text is still selectable.
     }
   };
-  const Heading = page ? "h1" : "h2";
   return (
     <div className={page ? "v-error-page" : "v-error-state"}>
       <div
@@ -282,7 +281,8 @@ export function ErrorState({
         <div className="v-error-card__icon">
           {icon ?? <TriangleExclamationPoint />}
         </div>
-        <Heading className="v-error-card__title">{title}</Heading>
+        {/* In the panel the card stands in for the page's TopBar and its h1. */}
+        <h1 className="v-error-card__title">{title}</h1>
         {children && <div className="v-error-card__text">{children}</div>}
         {detail && (
           <div className="v-error-card__detail">
@@ -353,7 +353,7 @@ export function Alert({
 /** For a route naming a collection, global or container the config lacks. */
 export function NotFoundState({
   title,
-  children,
+  children = "This site's Vestry configuration has nothing by that name. It may have been renamed or removed.",
 }: {
   title: string;
   children?: ReactNode;

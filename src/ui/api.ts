@@ -48,7 +48,7 @@ export function describeError(error: unknown): {
   if (error instanceof ApiError) {
     meta.push(`HTTP ${error.status}`);
     // "internal" and "error" are the API's catch-alls; they say nothing.
-    if (error.code !== "internal" && error.code !== "error")
+    if (error.code && error.code !== "internal" && error.code !== "error")
       meta.push(error.code);
   }
   // Platform errors often lead with a code ("D1_ERROR: …"); show it apart

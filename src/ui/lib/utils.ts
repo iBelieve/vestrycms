@@ -17,8 +17,12 @@ export function splitLinks(text: string): { text: string; url?: string }[] {
     let url = match[0];
     for (let prev = ""; prev !== url;) {
       prev = url;
-      url = url.replace(/[.,;:!?'"]+$/, "");
-      if (url.endsWith(")") && !url.includes("(")) url = url.slice(0, -1);
+      url = url.replace(/[.,;:!?…”’]+$/, "");
+      // A closing bracket is the URL's own only if the URL opened it.
+      const close = url.slice(-1);
+      const open = close === ")" ? "(" : close === "]" ? "[" : "";
+      if (open && url.split(open).length < url.split(close).length)
+        url = url.slice(0, -1);
     }
     if (match.index > last) parts.push({ text: text.slice(last, match.index) });
     parts.push({ text: url, url });

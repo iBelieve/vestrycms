@@ -77,13 +77,7 @@ export function CollectionListPage() {
     return list;
   }, [q.data, status, search, sort, col]);
 
-  if (!col)
-    return (
-      <NotFoundState title={`No collection called “${key}”`}>
-        This site's Vestry configuration has nothing by that name. It may have
-        been renamed or removed.
-      </NotFoundState>
-    );
+  if (!col) return <NotFoundState title={`No collection called “${key}”`} />;
 
   const toggleSort = (field: string) =>
     setSort((s) =>

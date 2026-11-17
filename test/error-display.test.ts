@@ -32,6 +32,32 @@ describe("splitLinks", () => {
     ]);
   });
 
+  it("keeps a URL's own brackets but not one more around it", () => {
+    expect(splitLinks("(see https://en.wikipedia.org/wiki/Foo_(bar))")).toEqual(
+      [
+        { text: "(see " },
+        {
+          text: "https://en.wikipedia.org/wiki/Foo_(bar)",
+          url: "https://en.wikipedia.org/wiki/Foo_(bar)",
+        },
+        { text: ")" },
+      ],
+    );
+    expect(splitLinks("[https://x.io/a]")).toEqual([
+      { text: "[" },
+      { text: "https://x.io/a", url: "https://x.io/a" },
+      { text: "]" },
+    ]);
+  });
+
+  it("keeps closing curly quotes and ellipses out of a URL", () => {
+    expect(splitLinks("Open “https://x.io/a”…")).toEqual([
+      { text: "Open “" },
+      { text: "https://x.io/a", url: "https://x.io/a" },
+      { text: "”…" },
+    ]);
+  });
+
   it("does not link other schemes", () => {
     expect(splitLinks("javascript:alert(1) ftp://x")).toEqual([
       { text: "javascript:alert(1) ftp://x" },
@@ -58,6 +84,12 @@ describe("describeError", () => {
       message: "Bad gateway",
       meta: ["HTTP 502", "github"],
     });
+  });
+
+  it("leaves out an empty API code", () => {
+    expect(describeError(new ApiError("Nope", 400, "")).meta).toEqual([
+      "HTTP 400",
+    ]);
   });
 
   it("handles plain errors and strings", () => {

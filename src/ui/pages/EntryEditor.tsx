@@ -452,13 +452,20 @@ function EntryEditor({
     return (
       <NotFoundState
         title={`No ${kind === "singleton" ? "global" : "collection"} called “${collectionKey}”`}
-      >
-        This site's Vestry configuration has nothing by that name. It may have
-        been renamed or removed.
-      </NotFoundState>
+      />
     );
   if (!isNew && query.isLoading) return <Loading />;
-  if (!isNew && query.error) {
+  // A failed background refetch keeps the entry already open on screen.
+  if (!isNew && query.error && !query.data) {
+    if (query.error instanceof ApiError && query.error.status === 404) {
+      return kind === "singleton" ? (
+        <NotFoundState title={`No global called “${collectionKey}”`} />
+      ) : (
+        <NotFoundState title={`No entry called “${slug}”`}>
+          It may have been renamed or deleted.
+        </NotFoundState>
+      );
+    }
     return (
       <ErrorState
         title={`Couldn't open this ${kind === "singleton" ? "global" : "entry"}`}
