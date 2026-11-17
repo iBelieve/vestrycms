@@ -5,3 +5,4 @@ dist/
 .vestry/
 .astro/
 .fallow/
+coverage/

@@ -60,10 +60,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:roundtrip": "node --import tsx/esm test/manual/roundtrip.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fallow": "fallow dead-code",
+    "health": "fallow health --complexity --baseline fallow-health-baseline.json --baseline-mode identity",
+    "health:baseline": "fallow health --complexity --report-only --save-baseline fallow-health-baseline.json --baseline-mode identity",
     "prepack": "node scripts/build.mjs"
   },
   "peerDependencies": {
@@ -116,6 +119,7 @@
     "@types/node": "^26.6.6",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@vitest/coverage-v8": "^5.1.0",
     "astro": "^7.4.3",
     "fallow": "^3.41.0",
     "prettier": "^3.9.10",
