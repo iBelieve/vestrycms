@@ -245,6 +245,73 @@ describe("lists", () => {
       ),
     ).toEqual(["blockquote", "table", "paragraph"]);
   });
+
+  it("keeps a list tight where a table needs no blank line", () => {
+    for (const source of [
+      // The next item, or a block that ends the table.
+      "- | A |\n  | - |\n  | B |\n- b\n",
+      "- | A |\n  | - |\n  | B |\n  ### Heading\n",
+      // A paragraph after a quote or list ending in a table is not lazy.
+      "- > | A |\n  > | - |\n  > | B |\n  After\n",
+      "- - | A |\n    | - |\n    | B |\n  After\n",
+    ])
+      expect(roundTrip(source)).toBe(source);
+  });
+
+  it("writes a list loose when an item holds a component with children", () => {
+    // The blank lines around the children make the item, and so the list,
+    // loose when read back; written tight, it changed on the next save.
+    const loose = "- <Callout>\n\n  Text\n\n  </Callout>\n\n- b\n";
+    const doc = parseMdx(loose).doc;
+    doc.content![0].attrs = { spread: false };
+    expect(serializeMdx(doc)).toBe(loose);
+    expect(roundTrip(loose)).toBe(loose);
+  });
+
+  it("keeps a component that spans lines out of a nested list's paragraph", () => {
+    // On a lazy line, the rest of the tag would fail to parse.
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { spread: false },
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "bulletList",
+                  attrs: { spread: false },
+                  content: [
+                    {
+                      type: "listItem",
+                      content: [
+                        {
+                          type: "paragraph",
+                          content: [{ type: "text", text: "a" }],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  type: "mdxComponent",
+                  attrs: { name: "Callout", props: { items: [[1]] } },
+                  content: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const source = serializeMdx(doc);
+    expect(source).toBe(
+      "- - a\n\n  <Callout\n    items={[\n      [1],\n    ]}\n  />\n",
+    );
+    expect(roundTrip(source)).toBe(source);
+  });
 });
 
 describe("inline marks", () => {

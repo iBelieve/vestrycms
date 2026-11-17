@@ -56,9 +56,8 @@ describe("paths", () => {
         (pattern, parts) => {
           const parsed = parsePathPattern(pattern);
           const slug = parsed.deep ? parts.join("/") : parts[0];
-          fc.pre(
-            isSafeSlug(slug) && !slug.split("/").some((s) => s.startsWith("_")),
-          );
+          // Segments never start with `_`, which Astro ignores.
+          fc.pre(isSafeSlug(slug));
           expect(slugFromPath(parsed, entryPath(parsed, slug))).toBe(slug);
         },
       ),
@@ -79,18 +78,13 @@ describe("slugs", () => {
 
   it("puts a date in a slug's file name and reads it back", () => {
     fc.assert(
-      fc.property(
-        fc.option(dirArb, { nil: "" }),
-        segment,
-        dateArb,
-        (dir, name, date) => {
-          const slug = dir ? `${dir}/${name}` : name;
-          const dated = slugWithDate(slug, date);
-          expect(dateFromSlug(dated)).toBe(date);
-          expect(slugWithoutDate(dated)).toBe(slugWithoutDate(slug));
-          expect(slugWithDate(dated, date)).toBe(dated);
-        },
-      ),
+      fc.property(dirArb, segment, dateArb, (dir, name, date) => {
+        const slug = dir ? `${dir}/${name}` : name;
+        const dated = slugWithDate(slug, date);
+        expect(dateFromSlug(dated)).toBe(date);
+        expect(slugWithoutDate(dated)).toBe(slugWithoutDate(slug));
+        expect(slugWithDate(dated, date)).toBe(dated);
+      }),
     );
   });
 });

@@ -4,12 +4,15 @@
  * reads; these cover what the serializer writes for arbitrary editor content.
  */
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
-
-// More runs locally with FC_RUNS=10000 pnpm test.
-fc.configureGlobal({ numRuns: Number(process.env.FC_RUNS) || 200 });
+import { describe, expect, it, vi } from "vitest";
 import { parseMdx, serializeMdx } from "../src/mdx/index.js";
 import type { PMMark, PMNode } from "../src/mdx/types.js";
+
+// More runs locally with FC_RUNS=10000 pnpm test. A case takes a few
+// milliseconds, so allow for that past the default 5 s timeout.
+const runs = Number(process.env.FC_RUNS) || 200;
+fc.configureGlobal({ numRuns: runs });
+vi.setConfig({ testTimeout: Math.max(5_000, runs * 20) });
 
 type Format = "md" | "mdx";
 
@@ -191,61 +194,59 @@ const tableArb = fc
     })),
   }));
 
-const { block: blockArb } = fc.letrec<{ block: PMNode }>((tie) => ({
-  block: fc.oneof(
-    { depthSize: "small", withCrossShrink: true },
-    { weight: 6, arbitrary: paragraphArb },
-    { weight: 2, arbitrary: headingArb },
-    { weight: 1, arbitrary: codeBlockArb },
-    { weight: 1, arbitrary: fc.constant({ type: "horizontalRule" }) },
-    { weight: 1, arbitrary: tableArb },
-    {
-      weight: 1,
-      arbitrary: fc
-        .array(tie("block"), { minLength: 1, maxLength: 3 })
-        .map((content) => ({ type: "blockquote", content })),
-    },
-    {
-      weight: 2,
-      arbitrary: fc
-        .record({
-          ordered: fc.boolean(),
-          spread: fc.boolean(),
-          items: fc.array(
-            fc
-              .array(tie("block"), { minLength: 1, maxLength: 2 })
-              // KNOWN: mdast-util-to-markdown writes an item that starts
-              // with a rule with the other bullet (`* ---`), so a list
-              // after it, which also switches bullets, joins it.
-              .filter((blocks) => blocks[0].type !== "horizontalRule"),
-            { minLength: 1, maxLength: 3 },
-          ),
-        })
-        .map(({ ordered, spread, items }) => ({
-          type: ordered ? "orderedList" : "bulletList",
-          attrs: ordered ? { start: 1, spread } : { spread },
-          content: items.map((content) => ({
-            type: "listItem",
-            attrs: {},
-            content,
+/** Blocks at any depth; an MDX document also holds components. */
+const blockArb = (format: Format) =>
+  fc.letrec<{ block: PMNode }>((tie) => ({
+    block: fc.oneof(
+      { depthSize: "small", withCrossShrink: true },
+      { weight: 6, arbitrary: paragraphArb },
+      { weight: 2, arbitrary: headingArb },
+      { weight: 1, arbitrary: codeBlockArb },
+      { weight: 1, arbitrary: fc.constant({ type: "horizontalRule" }) },
+      { weight: 1, arbitrary: tableArb },
+      { weight: format === "mdx" ? 1 : 0, arbitrary: componentArb },
+      {
+        weight: 1,
+        arbitrary: fc
+          .array(tie("block"), { minLength: 1, maxLength: 3 })
+          .map((content) => ({ type: "blockquote", content })),
+      },
+      {
+        weight: 2,
+        arbitrary: fc
+          .record({
+            ordered: fc.boolean(),
+            spread: fc.boolean(),
+            items: fc.array(
+              fc
+                .array(tie("block"), { minLength: 1, maxLength: 2 })
+                // KNOWN: mdast-util-to-markdown writes an item that starts
+                // with a rule with the other bullet (`* ---`), so a list
+                // after it, which also switches bullets, joins it.
+                .filter((blocks) => blocks[0].type !== "horizontalRule"),
+              { minLength: 1, maxLength: 3 },
+            ),
+          })
+          .map(({ ordered, spread, items }) => ({
+            type: ordered ? "orderedList" : "bulletList",
+            attrs: ordered ? { start: 1, spread } : { spread },
+            content: items.map((content) => ({
+              type: "listItem",
+              attrs: {},
+              content,
+            })),
           })),
-        })),
-    },
-  ),
-}));
+      },
+    ),
+  })).block;
 
-const docArb = fc
-  .array(blockArb, { minLength: 1, maxLength: 4 })
-  .map((content): PMNode => ({ type: "doc", content }))
-  .filter((doc) => !listInQuote(doc));
+const docArb = (format: Format) =>
+  fc
+    .array(blockArb(format), { minLength: 1, maxLength: 4 })
+    .map((content): PMNode => ({ type: "doc", content }))
+    .filter((doc) => !listInQuote(doc));
 
-/** MDX documents also hold components. */
-const mdxDocArb = fc
-  .array(fc.oneof(blockArb, componentArb), { minLength: 1, maxLength: 4 })
-  .map((content): PMNode => ({ type: "doc", content }))
-  .filter((doc) => !listInQuote(doc));
-
-const docArbs = { md: docArb, mdx: mdxDocArb };
+const docArbs = { md: docArb("md"), mdx: docArb("mdx") };
 
 /**
  * KNOWN: micromark misjudges a list's looseness inside a blockquote: a
@@ -352,12 +353,26 @@ function autolinkHazard(source: string, format: Format) {
   return format === "md" && /<[^\s<>]*@/.test(source);
 }
 
+/**
+ * KNOWN: mdast-util-to-markdown writes a letter next to a delimiter as a
+ * character reference (`~~a~~&#x61;`), then judges the `_` or `*` after it
+ * as if a letter preceded it. In the source a `;` does, so it can open
+ * emphasis (`&#x61;_a … _`); across an element, MDX cannot parse the file.
+ */
+function entityHazard(source: string) {
+  return /&#x[0-9a-f]+;[_*]/i.test(source);
+}
+
+function knownHazard(source: string, format: Format) {
+  return autolinkHazard(source, format) || entityHazard(source);
+}
+
 describe.each<Format>(["mdx", "md"])("%s save and reload", (format) => {
   it("writes a file that saves back unchanged", () => {
     fc.assert(
       fc.property(docArbs[format], (doc) => {
         const once = save(doc, format);
-        fc.pre(!autolinkHazard(once, format));
+        fc.pre(!knownHazard(once, format));
         expect(save(load(once, format), format)).toBe(once);
       }),
     );
@@ -367,7 +382,7 @@ describe.each<Format>(["mdx", "md"])("%s save and reload", (format) => {
     fc.assert(
       fc.property(docArbs[format], (doc) => {
         const once = save(doc, format);
-        fc.pre(!autolinkHazard(once, format));
+        fc.pre(!knownHazard(once, format));
         expect(essence(load(once, format), format)).toEqual(
           essence(doc, format),
         );
