@@ -3,6 +3,21 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## 0.3.1
+
+### Changed
+
+- **Error screens are a designed card.** When the control panel can't load its
+  configuration, it shows a centered card with an explanation, the error's
+  details (codes split out, links clickable, a copy button) and a Try again
+  button, instead of a bare alert in the corner. Entries and globals that fail
+  to load use the same card with a retry, and unknown collections, globals,
+  asset folders and deleted entries get a "not found" card with a way back to
+  the dashboard.
+- **A failed background reload keeps the open entry.** Before, it replaced the
+  editor, and any unsaved edits, with an error.
+- **Links in error messages are clickable** in alerts across the panel.
+
 ## 0.3.0
 
 ### Changed
