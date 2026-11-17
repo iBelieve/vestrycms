@@ -52,7 +52,9 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  ErrorState,
   Loading,
+  NotFoundState,
   Spinner,
   Toggle,
   useToast,
@@ -448,16 +450,32 @@ function EntryEditor({
 
   if (!col)
     return (
-      <Alert kind="error">
-        Unknown {kind} “{collectionKey}”.
-      </Alert>
+      <NotFoundState
+        title={`No ${kind === "singleton" ? "global" : "collection"} called “${collectionKey}”`}
+      />
     );
   if (!isNew && query.isLoading) return <Loading />;
-  if (!isNew && query.error) {
+  // A failed background refetch keeps the entry already open on screen.
+  if (!isNew && query.error && !query.data) {
+    if (query.error instanceof ApiError && query.error.status === 404) {
+      return kind === "singleton" ? (
+        <NotFoundState title={`No global called “${collectionKey}”`} />
+      ) : (
+        <NotFoundState title={`No entry called “${slug}”`}>
+          It may have been renamed or deleted.
+        </NotFoundState>
+      );
+    }
     return (
-      <div className="v-page">
-        <Alert kind="error">{(query.error as Error).message}</Alert>
-      </div>
+      <ErrorState
+        title={`Couldn't open this ${kind === "singleton" ? "global" : "entry"}`}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        retrying={query.isFetching}
+      >
+        Vestry couldn't load it from the repository. This is often temporary, so
+        try again in a moment.
+      </ErrorState>
     );
   }
   if (!state) return <Loading />;

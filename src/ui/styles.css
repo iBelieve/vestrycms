@@ -904,6 +904,125 @@ a.v-chrome__chip:hover {
   color: var(--v-text-muted);
 }
 
+.v-loading--page {
+  min-height: 100vh;
+  color: var(--v-chrome-muted);
+}
+.v-loading--page .v-spinner {
+  border-color: rgba(148, 163, 184, 0.3);
+  border-top-color: var(--v-chrome-text);
+}
+
+/* Screen-sized errors: a centered card, in the window (.v-error-page,
+   sharing the sign-in backdrop) or in the content panel (.v-error-state). */
+.v-error-state {
+  display: grid;
+  place-items: center;
+  padding: 56px 24px;
+  flex: 1;
+}
+.v-error-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 32px;
+  text-align: center;
+  box-shadow: var(--v-shadow);
+}
+.v-error-page .v-error-card {
+  box-shadow: var(--v-shadow-lg);
+}
+.v-error-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  background: var(--v-danger-soft);
+  color: var(--v-danger);
+  box-shadow: inset 0 0 0 1px #fecaca;
+}
+.v-error-card--neutral .v-error-card__icon {
+  background: var(--v-surface-muted);
+  color: var(--v-text-muted);
+  box-shadow: inset 0 0 0 1px var(--v-border);
+}
+.v-error-card__icon svg {
+  width: 24px;
+  height: 24px;
+}
+#vestry-root .v-error-card__title {
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.3;
+  margin: 0 0 8px;
+}
+.v-error-card__text {
+  color: var(--v-text-muted);
+  margin: 0 auto;
+  max-width: 400px;
+  text-wrap: pretty;
+}
+.v-error-card__detail {
+  margin-top: 20px;
+  text-align: left;
+  background: var(--v-surface-muted);
+  border: 1px solid var(--v-border);
+  border-radius: var(--v-radius-sm);
+  padding: 10px 12px 12px;
+  font-size: 13px;
+}
+.v-error-card__detail-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--v-text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.v-error-card__detail-head code {
+  font-family: var(--v-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #991b1b;
+  background: var(--v-danger-soft);
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  padding: 0 5px;
+}
+#vestry-root .v-error-card__copy {
+  width: 24px;
+  height: 24px;
+  margin: -4px -6px -4px auto;
+  color: var(--v-text-faint);
+}
+.v-error-card__copy svg {
+  width: 14px;
+  height: 14px;
+}
+#vestry-root .v-error-card__copy:hover {
+  color: var(--v-text);
+}
+.v-error-card__detail p {
+  margin: 0;
+  color: var(--v-text);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.v-error-card__actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
 .v-alert {
   padding: 12px 14px;
   border-radius: var(--v-radius-sm);
@@ -2042,7 +2161,8 @@ a.v-chrome__chip:hover {
 }
 
 /* ---------------------------------------------------------------- login */
-.v-login {
+.v-login,
+.v-error-page {
   min-height: 100vh;
   display: grid;
   place-items: center;
