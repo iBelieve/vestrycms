@@ -91,7 +91,9 @@ function collectDefinitions(tree: Md.Root, ctx: Ctx) {
   const visit = (node: Md.Node) => {
     if (node.type === "definition") {
       const d = node as Md.Definition;
-      ctx.definitions.set(d.identifier.toLowerCase(), d);
+      // CommonMark uses the first definition of a label.
+      const id = d.identifier.toLowerCase();
+      if (!ctx.definitions.has(id)) ctx.definitions.set(id, d);
     }
     const children = (node as Md.Parent).children;
     if (children) children.forEach(visit);
@@ -141,26 +143,26 @@ const BLOCKS: ByType<[ctx: Ctx], PMNode | PMNode[] | null> = {
     type: "blockquote",
     content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
   }),
-  list: (node, ctx) => list(node, ctx),
+  list,
   code: (node) => ({
     type: "codeBlock",
     attrs: { language: node.lang ?? null, meta: node.meta ?? null },
     content: node.value ? [{ type: "text", text: node.value }] : [],
   }),
   html: (node) => ({ type: "rawHtml", attrs: { value: node.value } }),
-  table: (node, ctx) => table(node, ctx),
+  table,
   definition: () => null,
   footnoteDefinition: (node, ctx) => ({
     type: "footnoteDefinition",
     attrs: footnoteAttrs(node),
     content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
   }),
-  mdxJsxFlowElement: (node, ctx) => jsxBlock(node, ctx),
+  mdxJsxFlowElement: jsxBlock,
   mdxFlowExpression: (node) => ({
     type: "mdxExpression",
     attrs: { value: node.value },
   }),
-  mdxjsEsm: (node, ctx) => esm(node, ctx),
+  mdxjsEsm: esm,
   yaml: () => null,
 };
 
@@ -422,32 +424,45 @@ function inlineNode(node: AnyNode, ctx: Ctx, marks: PMMark[]): PMNode[] {
 }
 
 /** The children of a node, with one more mark. */
+function markedChildren(
+  node: { children: unknown[] },
+  ctx: Ctx,
+  marks: PMMark[],
+  mark: PMMark,
+): PMNode[] {
+  return inlines(node.children as AnyNode[], ctx, [...marks, mark]);
+}
+
+/**
+ * A node whose children all take a mark of this type. Each node gets a mark
+ * object of its own, so a caller that changes one changes no other document.
+ */
 const marked =
-  (mark: PMMark) =>
+  (type: string) =>
   (node: { children: unknown[] }, ctx: Ctx, marks: PMMark[]) =>
-    inlines(node.children as AnyNode[], ctx, [...marks, mark]);
+    markedChildren(node, ctx, marks, { type });
 
 const INLINES: ByType<[ctx: Ctx, marks: PMMark[]], PMNode[]> = {
   text: (node, _ctx, marks) =>
     node.value ? [withMarks({ type: "text", text: node.value }, marks)] : [],
-  emphasis: marked({ type: "italic" }),
-  strong: marked({ type: "bold" }),
-  delete: marked({ type: "strike" }),
+  emphasis: marked("italic"),
+  strong: marked("bold"),
+  delete: marked("strike"),
   inlineCode: (node, _ctx, marks) => [
     withMarks({ type: "text", text: node.value }, [...marks, { type: "code" }]),
   ],
   link: (node, ctx, marks) =>
-    marked({
+    markedChildren(node, ctx, marks, {
       type: "link",
       attrs: { href: node.url, title: node.title ?? null },
-    })(node, ctx, marks),
+    }),
   linkReference: (node, ctx, marks) => {
     const def = ctx.definitions.get(node.identifier.toLowerCase());
     if (!def) return inlines(node.children as AnyNode[], ctx, marks);
-    return marked({
+    return markedChildren(node, ctx, marks, {
       type: "link",
       attrs: { href: def.url, title: def.title ?? null },
-    })(node, ctx, marks);
+    });
   },
   image: (node, _ctx, marks) => [
     withMarks(
@@ -491,8 +506,8 @@ const INLINES: ByType<[ctx: Ctx, marks: PMMark[]], PMNode[]> = {
   footnoteReference: (node, _ctx, marks) => [
     withMarks({ type: "footnoteReference", attrs: footnoteAttrs(node) }, marks),
   ],
-  mdxJsxTextElement: (node, ctx, marks) => jsxInline(node, ctx, marks),
-  mdxJsxFlowElement: (node, ctx, marks) => jsxInline(node, ctx, marks),
+  mdxJsxTextElement: jsxInline,
+  mdxJsxFlowElement: jsxInline,
   mdxTextExpression: (node, _ctx, marks) => [
     withMarks(
       { type: "mdxInlineExpression", attrs: { value: node.value } },

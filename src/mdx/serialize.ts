@@ -258,13 +258,17 @@ function needsBlankLine(parent: Md.List | Md.ListItem, state: State): boolean {
   return false;
 }
 
-/** The blank lines the first join with an opinion puts between two nodes. */
+/**
+ * The blank lines the first join with an opinion puts between two nodes. A
+ * join that says `true`, or none at all, means one; `false` means one with a
+ * comment in it.
+ */
 function linesBetween(
   left: Md.Nodes,
   right: Md.Nodes,
   parent: Md.List | Md.ListItem,
   state: State,
-): number | undefined {
+): number {
   for (let index = state.join.length - 1; index >= 0; index--) {
     const result = state.join[index](
       left as never,
@@ -272,11 +276,10 @@ function linesBetween(
       parent as never,
       state,
     );
-    if (result === true || result === 1) return undefined;
-    if (result === false) return 1;
     if (typeof result === "number") return result;
+    if (typeof result === "boolean") return 1;
   }
-  return undefined;
+  return 1;
 }
 
 function importStatements(used: Uses, options: SerializeOptions): string[] {
@@ -354,8 +357,8 @@ const BLOCKS: Record<string, (node: PMNode, used: Uses) => AnyNode | null> = {
     type: "blockquote",
     children: blocks(node.content ?? [], used) as Md.BlockContent[],
   }),
-  bulletList: (node, used) => list(node, used),
-  orderedList: (node, used) => list(node, used),
+  bulletList: list,
+  orderedList: list,
   codeBlock: (node) => ({
     type: "code",
     lang: (node.attrs?.language as string | null) ?? null,
@@ -363,7 +366,7 @@ const BLOCKS: Record<string, (node: PMNode, used: Uses) => AnyNode | null> = {
     value: (node.content ?? []).map((t) => t.text ?? "").join(""),
   }),
   rawHtml: (node) => ({ type: "html", value: String(node.attrs?.value ?? "") }),
-  table: (node, used) => table(node, used),
+  table,
   mdxComponent: (node, used) =>
     jsxElement(node, used, false) as MdxJsxFlowElement,
   footnoteDefinition: (node, used) => ({

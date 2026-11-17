@@ -34,12 +34,14 @@ const LITERALS: {
   Program: ({ body }) => {
     if (body.length !== 1 || body[0].type !== "ExpressionStatement")
       throw new NotLiteral();
-    return literal(body[0].expression);
+    return literal(body[0]);
   },
   ExpressionStatement: ({ expression }) => literal(expression),
-  Literal: ({ value }) => {
-    if (value instanceof RegExp) throw new NotLiteral();
-    return value ?? null;
+  // A regular expression or a BigInt has no JSON value (`value` may even be
+  // null where the runtime cannot build one), so it stays source.
+  Literal: (node) => {
+    if ("regex" in node || "bigint" in node) throw new NotLiteral();
+    return node.value ?? null;
   },
   TemplateLiteral: ({ expressions, quasis }) => {
     if (expressions.length) throw new NotLiteral();
@@ -61,14 +63,10 @@ const LITERALS: {
       if (!el || el.type === "SpreadElement") throw new NotLiteral();
       return literal(el);
     }),
-  ObjectExpression: ({ properties }) => {
-    const out: Record<string, unknown> = {};
-    for (const p of properties) {
-      const [key, value] = propertyEntry(p);
-      out[key] = value;
-    }
-    return out;
-  },
+  // `fromEntries` defines a `__proto__` key as a property rather than
+  // setting the object's prototype, as assigning it would.
+  ObjectExpression: ({ properties }) =>
+    Object.fromEntries(properties.map(propertyEntry)),
 };
 
 /** A plain `key: value` property of an object literal. */
