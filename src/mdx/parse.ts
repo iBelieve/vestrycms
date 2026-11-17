@@ -131,7 +131,10 @@ function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
       };
     case "list": {
       const items = node.children.map((item) => listItem(item, ctx));
-      const spread = Boolean(node.spread);
+      // CommonMark makes a list loose when its items are apart or when any
+      // item holds blocks apart; mdast keeps the second on the item.
+      const spread =
+        Boolean(node.spread) || node.children.some((item) => item.spread);
       return node.ordered
         ? {
             type: "orderedList",

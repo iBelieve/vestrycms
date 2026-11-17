@@ -95,6 +95,7 @@ export function serializeMdx(
     rule: "-",
     listItemIndent: "one",
     resourceLink: true,
+    join: [tableJoin as never],
     handlers: {
       rawHtml: (node: { value: string }) => node.value,
       rawInlineHtml: (node: { value: string }) => node.value,
@@ -178,6 +179,36 @@ function listHandler(lib: Handler): Handler {
     }
     return lib(node, parent, state, info);
   };
+}
+
+/**
+ * Joins around a table in a tight list, where the library's own rules
+ * would write no blank line:
+ *
+ * - after a table, whose rows run on until a blank line, so the next line
+ *   would become a row (`| a |` + newline + `  text`);
+ * - before a table that follows a quote or list ending in a paragraph,
+ *   whose rows would continue that paragraph lazily (`- > a` + newline +
+ *   `  | b |`). A table right after a plain paragraph interrupts it.
+ */
+function tableJoin(
+  left: Md.Nodes,
+  right: Md.Nodes,
+  parent: Md.Parent,
+): 1 | undefined {
+  if (!("spread" in parent)) return undefined;
+  let tail = left;
+  while (
+    (tail.type === "blockquote" ||
+      tail.type === "list" ||
+      tail.type === "listItem") &&
+    tail.children.length
+  )
+    tail = tail.children[tail.children.length - 1];
+  if (tail.type === "table") return 1;
+  if (right.type === "table" && tail !== left && tail.type === "paragraph")
+    return 1;
+  return undefined;
 }
 
 /** Mirrors mdast-util-to-markdown's `between`: tight only if a join says 0. */

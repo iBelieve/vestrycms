@@ -193,6 +193,58 @@ describe("lists", () => {
       "- One\n\n  More\n\n- Two\n",
     );
   });
+
+  it("reads a list as loose when an item's blocks are apart", () => {
+    // CommonMark makes this list loose though its items are not apart;
+    // read as tight, it was saved without the blank line.
+    const source = "- Install it:\n\n  ```sh\n  pnpm add vestrycms\n  ```\n";
+    expect(roundTrip(source)).toBe(source);
+  });
+
+  it("keeps a table in a tight list apart from the blocks around it", () => {
+    // Its rows would continue the quote's paragraph, and the paragraph after
+    // it would become a row.
+    const paragraph = (text: string) => ({
+      type: "paragraph",
+      content: [{ type: "text", text }],
+    });
+    const cell = (type: string, text: string) => ({
+      type,
+      content: [paragraph(text)],
+    });
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { spread: false },
+          content: [
+            {
+              type: "listItem",
+              content: [
+                { type: "blockquote", content: [paragraph("Quote")] },
+                {
+                  type: "table",
+                  content: [
+                    { type: "tableRow", content: [cell("tableHeader", "A")] },
+                    { type: "tableRow", content: [cell("tableCell", "B")] },
+                  ],
+                },
+                paragraph("After"),
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const source = serializeMdx(doc);
+    expect(source).toBe("- > Quote\n\n  | A |\n  | - |\n  | B |\n\n  After\n");
+    expect(
+      parseMdx(source).doc.content?.[0].content?.[0].content?.map(
+        (n) => n.type,
+      ),
+    ).toEqual(["blockquote", "table", "paragraph"]);
+  });
 });
 
 describe("inline marks", () => {
