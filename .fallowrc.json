@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "supportEntry": ["test/manual/*.ts"],
+  "ignorePatterns": ["test/fixtures/**"],
+  "ignoreDependencies": ["zod"]
+}

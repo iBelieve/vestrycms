@@ -209,7 +209,7 @@ export function Loading({
 }
 
 /** Plain text with any http(s) URLs in it rendered as links. */
-export function Linkify({ text }: { text: string }) {
+function Linkify({ text }: { text: string }) {
   return (
     <>
       {splitLinks(text).map((part, i) =>

@@ -21,8 +21,14 @@ main consumer; keep it free of site-specific code.
   `src/integration/client-deps.ts` against the compiled UI's bare imports.
 - `pnpm dev` – build, then `tsc --watch` (for a site linked with
   `pnpm link`).
-- `pnpm typecheck`, `pnpm test`, `pnpm format:check` – what CI
-  (`.github/workflows/ci.yml`) runs, plus `pnpm build` and `npm pack --dry-run`.
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `pnpm fallow` – what
+  CI (`.github/workflows/ci.yml`) runs, plus `pnpm build` and
+  `npm pack --dry-run`.
+- `pnpm fallow` (Fallow's `dead-code`) fails on unused files, exports and
+  dependencies, and on import cycles. Remove what is really unused, or record a
+  deliberate exception in `.fallowrc.json` or with a
+  `// fallow-ignore-next-line <rule>` comment that says why (see the
+  recursive field rendering in `TreeInput.tsx`).
 - `pnpm test` runs Vitest over `test/**/*.test.ts`; `pnpm test:watch`
   re-runs on change, `pnpm test -u` updates snapshots. `pnpm typecheck`
   covers everything under `test/`.

@@ -37,13 +37,12 @@ import {
 } from "@dnd-kit/modifiers";
 import type { Field, Schema } from "../../../config/types.js";
 import { useVestry } from "../../context.js";
+import { basename, slugify } from "../../../core/paths.js";
 import {
-  basename,
   cx,
   defaultValue,
   fieldLabel,
   isImagePath,
-  slugify,
   summarize,
   type ValidationError,
 } from "../../lib/utils.js";
@@ -1039,22 +1038,5 @@ function isDisabled(item: unknown): boolean {
     typeof item === "object" &&
     item !== null &&
     (item as Record<string, unknown>).enabled === false
-  );
-}
-
-export function FieldGroup({
-  title,
-  children,
-}: {
-  title: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="v-card">
-      <div className="v-card__header">
-        <h3 className="v-card__title">{title}</h3>
-      </div>
-      <div className="v-card__body">{children}</div>
-    </div>
   );
 }

@@ -73,17 +73,6 @@ export function formatDate(value: unknown): string {
   });
 }
 
-export function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.round(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
-  return `${d}d ago`;
-}
-
 /** Default value for a field (used when creating entries / array items). */
 export function defaultValue(field: Field): unknown {
   switch (field.type) {
@@ -272,20 +261,6 @@ export function summarize(value: unknown, field?: Field): string {
 
 export function isImagePath(p: string): boolean {
   return /\.(jpe?g|png|gif|webp|avif|svg)$/i.test(p);
-}
-
-export function basename(p: string): string {
-  return p.slice(p.lastIndexOf("/") + 1);
-}
-
-export function slugify(input: string): string {
-  return input
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/['’"]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 /** CSS declarations (`color: red; font-weight: 600`) as a React style object. */

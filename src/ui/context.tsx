@@ -22,10 +22,3 @@ export function useVestry(): VestryContextValue {
     throw new Error("useVestry must be used inside <VestryContext.Provider>");
   return ctx;
 }
-
-/** Build a control-panel URL. */
-export function useHref() {
-  const { basePath } = useVestry();
-  return (path: string) =>
-    `${basePath.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-}

@@ -10,10 +10,8 @@ import type {
 
 export type {
   ClientConfig,
-  AssetItem,
   EntryDetail,
   EntryReference,
-  EntrySummary,
   SaveEntryInput,
   PublicUser,
   Role,

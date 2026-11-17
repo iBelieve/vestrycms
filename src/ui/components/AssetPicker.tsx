@@ -258,7 +258,7 @@ export function AssetPicker({
   );
 }
 
-export function safeName(name: string): string {
+function safeName(name: string): string {
   const i = name.lastIndexOf(".");
   const ext = i === -1 ? "" : name.slice(i + 1).toLowerCase();
   const stem = (i === -1 ? name : name.slice(0, i))
@@ -275,4 +275,3 @@ export type PendingUpload = {
   base64: string;
   previewUrl: string;
 };
-export type AssetOptions = AssetFieldOptions;

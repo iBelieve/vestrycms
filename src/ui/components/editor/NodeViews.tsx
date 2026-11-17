@@ -17,6 +17,9 @@ import { cx, fieldLabel, summarize } from "../../lib/utils.js";
 import { Icon } from "../Icon.js";
 import { Button, Modal } from "../ui.js";
 import { CodeInput } from "../fields/CodeInput.js";
+// A component node edits its props with FieldRenderer, whose markdown
+// fields contain this editor: recursion at render time only.
+// fallow-ignore-next-line circular-dependency
 import { FieldRenderer } from "../fields/FieldRenderer.js";
 import { useEditorEnv } from "./EditorContext.js";
 import { assetToRepoPath } from "../../../core/values.js";
