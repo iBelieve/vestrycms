@@ -9,14 +9,20 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Check,
   CircleCheck,
   CircleExclamationPoint,
+  Copy,
   Info,
+  RotateCw,
+  SearchX,
   TriangleExclamationPoint,
   X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
-import { cx } from "../lib/utils.js";
+import { Link } from "react-router";
+import { describeError } from "../api.js";
+import { cx, splitLinks } from "../lib/utils.js";
 
 // ---------------------------------------------------------------- Button
 export function Button({
@@ -187,10 +193,133 @@ export function Spinner() {
   return <span className="v-spinner" aria-hidden="true" />;
 }
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
+export function Loading({
+  label = "Loading…",
+  page,
+}: {
+  label?: string;
+  /** Fill the window, for the screen shown before the control panel loads. */
+  page?: boolean;
+}) {
   return (
-    <div className="v-loading">
+    <div className={cx("v-loading", page && "v-loading--page")}>
       <Spinner /> {label}
+    </div>
+  );
+}
+
+/** Plain text with any http(s) URLs in it rendered as links. */
+export function Linkify({ text }: { text: string }) {
+  return (
+    <>
+      {splitLinks(text).map((part, i) =>
+        part.url ? (
+          <a key={i} href={part.url} target="_blank" rel="noreferrer">
+            {part.text}
+          </a>
+        ) : (
+          part.text
+        ),
+      )}
+    </>
+  );
+}
+
+/**
+ * A screen-sized error: a centered card with a headline, a short
+ * explanation, the error's own message and a way out (retry, or `actions`).
+ * `page` fills the window for errors before the control panel has loaded;
+ * otherwise it centers in the content panel.
+ */
+export function ErrorState({
+  title,
+  children,
+  error,
+  onRetry,
+  retrying,
+  actions,
+  icon,
+  tone = "danger",
+  page,
+}: {
+  title: string;
+  /** A plain-language explanation under the title. */
+  children?: ReactNode;
+  /** The underlying error, shown as details. */
+  error?: unknown;
+  onRetry?: () => void;
+  retrying?: boolean;
+  actions?: ReactNode;
+  icon?: ReactNode;
+  /** "neutral" for a missing page rather than a failure. */
+  tone?: "danger" | "neutral";
+  page?: boolean;
+}) {
+  const detail = error === undefined ? null : describeError(error);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const copy = async () => {
+    if (!detail) return;
+    const text = [...detail.meta, detail.message].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      // Clipboard access can be refused; the text is still selectable.
+    }
+  };
+  const Heading = page ? "h1" : "h2";
+  return (
+    <div className={page ? "v-error-page" : "v-error-state"}>
+      <div
+        className={cx("v-card v-error-card", `v-error-card--${tone}`)}
+        role={tone === "danger" ? "alert" : undefined}
+      >
+        <div className="v-error-card__icon">
+          {icon ?? <TriangleExclamationPoint />}
+        </div>
+        <Heading className="v-error-card__title">{title}</Heading>
+        {children && <div className="v-error-card__text">{children}</div>}
+        {detail && (
+          <div className="v-error-card__detail">
+            <div className="v-error-card__detail-head">
+              <span>Details</span>
+              {detail.meta.map((m) => (
+                <code key={m}>{m}</code>
+              ))}
+              <Button
+                variant="ghost"
+                size="xs"
+                icon
+                className="v-error-card__copy"
+                onClick={copy}
+                aria-label={copied ? "Copied" : "Copy error details"}
+                title={copied ? "Copied" : "Copy error details"}
+              >
+                {copied ? <Check /> : <Copy />}
+              </Button>
+            </div>
+            <p>
+              <Linkify text={detail.message} />
+            </p>
+          </div>
+        )}
+        {(onRetry || actions) && (
+          <div className="v-error-card__actions">
+            {actions}
+            {onRetry && (
+              <Button variant="primary" onClick={onRetry} disabled={retrying}>
+                {retrying ? <Spinner /> : <RotateCw />}
+                {retrying ? "Retrying…" : "Try again"}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -214,8 +343,34 @@ export function Alert({
       ) : (
         <Info />
       )}
-      <div>{children}</div>
+      <div>
+        {typeof children === "string" ? <Linkify text={children} /> : children}
+      </div>
     </div>
+  );
+}
+
+/** For a route naming a collection, global or container the config lacks. */
+export function NotFoundState({
+  title,
+  children,
+}: {
+  title: string;
+  children?: ReactNode;
+}) {
+  return (
+    <ErrorState
+      title={title}
+      tone="neutral"
+      icon={<SearchX />}
+      actions={
+        <Link className="v-btn" to="/">
+          Back to dashboard
+        </Link>
+      }
+    >
+      {children}
+    </ErrorState>
   );
 }
 

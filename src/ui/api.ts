@@ -33,6 +33,34 @@ export class ApiError extends Error {
   }
 }
 
+/** The parts of a thrown error worth showing: its message and any code or status. */
+export function describeError(error: unknown): {
+  message: string;
+  meta: string[];
+} {
+  let message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Unknown error";
+  const meta: string[] = [];
+  if (error instanceof ApiError) {
+    meta.push(`HTTP ${error.status}`);
+    // "internal" and "error" are the API's catch-alls; they say nothing.
+    if (error.code !== "internal" && error.code !== "error")
+      meta.push(error.code);
+  }
+  // Platform errors often lead with a code ("D1_ERROR: …"); show it apart
+  // from the sentence that follows.
+  const prefix = /^([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+):\s+(?=\S)/.exec(message);
+  if (prefix) {
+    if (!meta.includes(prefix[1])) meta.push(prefix[1]);
+    message = message.slice(prefix[0].length);
+  }
+  return { message: message || "Unknown error", meta };
+}
+
 export function createClient(basePath: string) {
   const prefix = `${basePath.replace(/\/$/, "")}/api`;
 

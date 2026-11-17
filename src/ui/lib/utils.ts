@@ -5,6 +5,29 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
+
+/** Splits text around the http(s) URLs in it, for rendering them as links. */
+export function splitLinks(text: string): { text: string; url?: string }[] {
+  const parts: { text: string; url?: string }[] = [];
+  let last = 0;
+  for (const match of text.matchAll(URL_PATTERN)) {
+    // Sentence punctuation after a URL ("…/limits/." or "(…/limits/)") is
+    // not part of it.
+    let url = match[0];
+    for (let prev = ""; prev !== url;) {
+      prev = url;
+      url = url.replace(/[.,;:!?'"]+$/, "");
+      if (url.endsWith(")") && !url.includes("(")) url = url.slice(0, -1);
+    }
+    if (match.index > last) parts.push({ text: text.slice(last, match.index) });
+    parts.push({ text: url, url });
+    last = match.index + url.length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  return parts;
+}
+
 export function titleCase(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")

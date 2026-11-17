@@ -19,6 +19,7 @@ import {
   EmptyState,
   Loading,
   Modal,
+  NotFoundState,
   Spinner,
   useToast,
 } from "../components/ui.js";
@@ -76,7 +77,12 @@ export function AssetsPage() {
   });
 
   if (!container)
-    return <Alert kind="error">Unknown asset container “{key}”.</Alert>;
+    return (
+      <NotFoundState title={`No asset folder called “${key}”`}>
+        This site's Vestry configuration has nothing by that name. It may have
+        been renamed or removed.
+      </NotFoundState>
+    );
   const crumbs = dir ? dir.split("/") : [];
   const selectedItem = q.data?.items.find((i) => i.path === selected);
 

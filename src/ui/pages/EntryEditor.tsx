@@ -52,7 +52,9 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  ErrorState,
   Loading,
+  NotFoundState,
   Spinner,
   Toggle,
   useToast,
@@ -448,16 +450,25 @@ function EntryEditor({
 
   if (!col)
     return (
-      <Alert kind="error">
-        Unknown {kind} “{collectionKey}”.
-      </Alert>
+      <NotFoundState
+        title={`No ${kind === "singleton" ? "global" : "collection"} called “${collectionKey}”`}
+      >
+        This site's Vestry configuration has nothing by that name. It may have
+        been renamed or removed.
+      </NotFoundState>
     );
   if (!isNew && query.isLoading) return <Loading />;
   if (!isNew && query.error) {
     return (
-      <div className="v-page">
-        <Alert kind="error">{(query.error as Error).message}</Alert>
-      </div>
+      <ErrorState
+        title={`Couldn't open this ${kind === "singleton" ? "global" : "entry"}`}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        retrying={query.isFetching}
+      >
+        Vestry couldn't load it from the repository. This is often temporary, so
+        try again in a moment.
+      </ErrorState>
     );
   }
   if (!state) return <Loading />;

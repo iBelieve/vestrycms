@@ -6,7 +6,13 @@ import type { Field } from "../../config/types.js";
 import { fillTemplate } from "../../core/paths.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
-import { Alert, Badge, EmptyState, Loading } from "../components/ui.js";
+import {
+  Alert,
+  Badge,
+  EmptyState,
+  Loading,
+  NotFoundState,
+} from "../components/ui.js";
 import { useVestry } from "../context.js";
 import { cx, fieldLabel, formatDate, titleCase } from "../lib/utils.js";
 
@@ -71,7 +77,13 @@ export function CollectionListPage() {
     return list;
   }, [q.data, status, search, sort, col]);
 
-  if (!col) return <Alert kind="error">Unknown collection “{key}”.</Alert>;
+  if (!col)
+    return (
+      <NotFoundState title={`No collection called “${key}”`}>
+        This site's Vestry configuration has nothing by that name. It may have
+        been renamed or removed.
+      </NotFoundState>
+    );
 
   const toggleSort = (field: string) =>
     setSort((s) =>

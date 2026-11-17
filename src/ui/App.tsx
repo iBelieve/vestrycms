@@ -14,7 +14,7 @@ import {
 import { createClient, UNAUTHORIZED_EVENT } from "./api.js";
 import { createVestryAuthClient } from "./auth-client.js";
 import { Shell } from "./components/Layout.js";
-import { Alert, Loading, ToastProvider } from "./components/ui.js";
+import { ErrorState, Loading, ToastProvider } from "./components/ui.js";
 import { VestryContext } from "./context.js";
 import { AssetsPage } from "./pages/Assets.js";
 import { CollectionListPage } from "./pages/CollectionList.js";
@@ -67,15 +67,19 @@ function Root({ basePath, name }: { basePath: string; name: string }) {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, [refetch]);
 
-  if (configQuery.isLoading) return <Loading label="Loading Vestry…" />;
+  if (configQuery.isLoading) return <Loading page label="Loading Vestry…" />;
   if (configQuery.error || !configQuery.data) {
     return (
-      <div className="v-page">
-        <Alert kind="error">
-          Could not load the Vestry configuration:{" "}
-          {(configQuery.error as Error)?.message}
-        </Alert>
-      </div>
+      <ErrorState
+        page
+        title="Vestry couldn't load"
+        error={configQuery.error ?? "The server sent no configuration."}
+        onRetry={() => void refetch()}
+        retrying={configQuery.isFetching}
+      >
+        The control panel couldn't get its configuration from the server. This
+        is often temporary, so try again in a minute.
+      </ErrorState>
     );
   }
   const client = configQuery.data;
