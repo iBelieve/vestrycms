@@ -20,64 +20,66 @@ export function estreeToValue(
 class NotLiteral extends Error {}
 
 function literal(node: ES.Node): unknown {
-  switch (node.type) {
-    case "Program": {
-      const body = (node as ES.Program).body;
-      if (body.length !== 1 || body[0].type !== "ExpressionStatement")
-        throw new NotLiteral();
-      return literal(body[0].expression);
-    }
-    case "ExpressionStatement":
-      return literal((node as ES.ExpressionStatement).expression);
-    case "Literal": {
-      const v = (node as ES.Literal).value;
-      if (v instanceof RegExp) throw new NotLiteral();
-      return v ?? null;
-    }
-    case "TemplateLiteral": {
-      const t = node as ES.TemplateLiteral;
-      if (t.expressions.length) throw new NotLiteral();
-      return t.quasis.map((q) => q.value.cooked ?? q.value.raw).join("");
-    }
-    case "UnaryExpression": {
-      const u = node as ES.UnaryExpression;
-      const arg = literal(u.argument);
-      if (u.operator === "-" && typeof arg === "number") return -arg;
-      if (u.operator === "+" && typeof arg === "number") return arg;
-      if (u.operator === "!") return !arg;
+  const read = LITERALS[node.type] as ((node: ES.Node) => unknown) | undefined;
+  if (!read) throw new NotLiteral();
+  return read(node);
+}
+
+/** How to read each kind of node that can be a literal value. */
+const LITERALS: {
+  [Type in ES.Node["type"]]?: (
+    node: Extract<ES.Node, { type: Type }>,
+  ) => unknown;
+} = {
+  Program: ({ body }) => {
+    if (body.length !== 1 || body[0].type !== "ExpressionStatement")
       throw new NotLiteral();
-    }
-    case "Identifier": {
-      const name = (node as ES.Identifier).name;
-      if (name === "undefined") return undefined;
-      throw new NotLiteral();
-    }
-    case "ArrayExpression":
-      return (node as ES.ArrayExpression).elements.map((el) => {
-        if (!el || el.type === "SpreadElement") throw new NotLiteral();
-        return literal(el);
-      });
-    case "ObjectExpression": {
-      const out: Record<string, unknown> = {};
-      for (const p of (node as ES.ObjectExpression).properties) {
-        if (
-          p.type !== "Property" ||
-          p.kind !== "init" ||
-          p.method ||
-          p.computed
-        )
-          throw new NotLiteral();
-        let key: string;
-        if (p.key.type === "Identifier") key = p.key.name;
-        else if (p.key.type === "Literal") key = String(p.key.value);
-        else throw new NotLiteral();
-        out[key] = literal(p.value as ES.Node);
-      }
-      return out;
-    }
-    default:
-      throw new NotLiteral();
-  }
+    return literal(body[0]);
+  },
+  ExpressionStatement: ({ expression }) => literal(expression),
+  // A regular expression or a BigInt has no JSON value (`value` may even be
+  // null where the runtime cannot build one), so it stays source.
+  Literal: (node) => {
+    if ("regex" in node || "bigint" in node) throw new NotLiteral();
+    return node.value ?? null;
+  },
+  TemplateLiteral: ({ expressions, quasis }) => {
+    if (expressions.length) throw new NotLiteral();
+    return quasis.map((q) => q.value.cooked ?? q.value.raw).join("");
+  },
+  UnaryExpression: ({ operator, argument }) => {
+    const arg = literal(argument);
+    if (operator === "-" && typeof arg === "number") return -arg;
+    if (operator === "+" && typeof arg === "number") return arg;
+    if (operator === "!") return !arg;
+    throw new NotLiteral();
+  },
+  Identifier: ({ name }) => {
+    if (name === "undefined") return undefined;
+    throw new NotLiteral();
+  },
+  ArrayExpression: ({ elements }) =>
+    elements.map((el) => {
+      if (!el || el.type === "SpreadElement") throw new NotLiteral();
+      return literal(el);
+    }),
+  // `fromEntries` defines a `__proto__` key as a property rather than
+  // setting the object's prototype, as assigning it would.
+  ObjectExpression: ({ properties }) =>
+    Object.fromEntries(properties.map(propertyEntry)),
+};
+
+/** A plain `key: value` property of an object literal. */
+function propertyEntry(p: ES.Property | ES.SpreadElement): [string, unknown] {
+  if (p.type !== "Property" || p.kind !== "init" || p.method || p.computed)
+    throw new NotLiteral();
+  return [propertyKey(p.key), literal(p.value as ES.Node)];
+}
+
+function propertyKey(key: ES.Property["key"]): string {
+  if (key.type === "Identifier") return key.name;
+  if (key.type === "Literal") return String(key.value);
+  throw new NotLiteral();
 }
 
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
@@ -89,7 +91,6 @@ const PRINT_WIDTH = 80;
  * commas, bare identifier keys, double-quoted strings.
  */
 export function valueToSource(value: unknown, indent = ""): string {
-  const inner = `${indent}  `;
   if (isRawExpression(value)) return value.$raw.trim();
   if (value === undefined) return "undefined";
   if (value === null) return "null";
@@ -97,33 +98,37 @@ export function valueToSource(value: unknown, indent = ""): string {
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
   if (value instanceof Date) return JSON.stringify(value.toISOString());
-  if (Array.isArray(value)) {
-    if (!value.length) return "[]";
-    const simple = value.every((v) => isScalar(v));
-    const items = value.map((v) => valueToSource(v, inner));
-    if (simple) {
-      const oneLine = `[${items.join(", ")}]`;
-      if (oneLine.length + indent.length <= PRINT_WIDTH - 8) return oneLine;
-    }
-    return `[\n${items.map((i) => `${inner}${i},`).join("\n")}\n${indent}]`;
-  }
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).filter(
-      ([, v]) => v !== undefined,
-    );
-    if (!entries.length) return "{}";
-    const keyOf = (k: string) => (IDENT.test(k) ? k : JSON.stringify(k));
-    // Like Prettier: a flat object that fits on one line stays on one line.
-    if (entries.every(([, v]) => isScalar(v))) {
-      const oneLine = `{ ${entries.map(([k, v]) => `${keyOf(k)}: ${valueToSource(v)}`).join(", ")} }`;
-      if (oneLine.length + indent.length <= PRINT_WIDTH - 2) return oneLine;
-    }
-    const lines = entries.map(
-      ([k, v]) => `${inner}${keyOf(k)}: ${valueToSource(v, inner)},`,
-    );
-    return `{\n${lines.join("\n")}\n${indent}}`;
-  }
+  if (Array.isArray(value)) return arraySource(value, indent);
+  if (typeof value === "object")
+    return objectSource(value as Record<string, unknown>, indent);
   return JSON.stringify(value) ?? "null";
+}
+
+function arraySource(value: unknown[], indent: string): string {
+  if (!value.length) return "[]";
+  const inner = `${indent}  `;
+  const items = value.map((v) => valueToSource(v, inner));
+  if (value.every(isScalar)) {
+    const oneLine = `[${items.join(", ")}]`;
+    if (oneLine.length + indent.length <= PRINT_WIDTH - 8) return oneLine;
+  }
+  return `[\n${items.map((i) => `${inner}${i},`).join("\n")}\n${indent}]`;
+}
+
+function objectSource(value: Record<string, unknown>, indent: string): string {
+  const entries = Object.entries(value).filter(([, v]) => v !== undefined);
+  if (!entries.length) return "{}";
+  const inner = `${indent}  `;
+  const keyOf = (k: string) => (IDENT.test(k) ? k : JSON.stringify(k));
+  // Like Prettier: a flat object that fits on one line stays on one line.
+  if (entries.every(([, v]) => isScalar(v))) {
+    const oneLine = `{ ${entries.map(([k, v]) => `${keyOf(k)}: ${valueToSource(v)}`).join(", ")} }`;
+    if (oneLine.length + indent.length <= PRINT_WIDTH - 2) return oneLine;
+  }
+  const lines = entries.map(
+    ([k, v]) => `${inner}${keyOf(k)}: ${valueToSource(v, inner)},`,
+  );
+  return `{\n${lines.join("\n")}\n${indent}}`;
 }
 
 function isScalar(v: unknown): boolean {

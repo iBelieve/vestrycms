@@ -58,12 +58,6 @@
     "src/core/values.ts": {
       "complexity_moderate": {
         "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
       }
     },
     "src/index.ts": {
@@ -88,36 +82,6 @@
       }
     },
     "src/integration/formatter.ts": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/mdx/expressions.ts": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/mdx/parse.ts": {
-      "complexity_moderate": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts": {
-      "complexity_high": {
-        "count": 1
-      },
-      "complexity_moderate": {
-        "count": 2
-      },
       "crap_high": {
         "count": 1
       }
@@ -404,16 +368,6 @@
         "count": 1
       }
     },
-    "src/core/values.ts\u0000assetToRepoPath": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/core/values.ts\u0000repoPathToAsset": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "src/core/values.ts\u0000summaryData": {
       "complexity_moderate": {
         "count": 1
@@ -454,50 +408,6 @@
     },
     "src/integration/formatter.ts\u0000formatterModule": {
       "crap_high": {
-        "count": 1
-      }
-    },
-    "src/mdx/expressions.ts\u0000literal": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/mdx/expressions.ts\u0000valueToSource": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/parse.ts\u0000block": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/parse.ts\u0000inlineNode": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts\u0000block": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts\u0000leaf": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts\u0000needsBlankLine": {
-      "complexity_moderate": {
         "count": 1
       }
     },
