@@ -6,6 +6,9 @@ import {
   fillTemplate,
   isSafeSlug,
   parsePathPattern,
+  relativePath,
+  resolveRelative,
+  safeFileName,
   slugFromPath,
   templateError,
 } from "../src/core/paths.js";
@@ -163,5 +166,48 @@ describe("nested slugs", () => {
 
   it("are unsafe with an empty segment, as a blank date would leave", () => {
     expect(isSafeSlug("//my-title")).toBe(false);
+  });
+});
+
+describe("safeFileName", () => {
+  it("drops the directory, on either kind of separator", () => {
+    expect(safeFileName("../../etc/Passwd")).toBe("passwd");
+    expect(safeFileName("C:\\Users\\me\\photo.png")).toBe("photo.png");
+  });
+
+  it("folds accents and replaces other characters with a dash", () => {
+    expect(safeFileName("Café Photo (1).JPG")).toBe("cafe-photo-1.jpg");
+  });
+
+  it("names a file that has nothing left", () => {
+    expect(safeFileName("???.png")).toBe("file.png");
+    expect(safeFileName("")).toBe("file");
+  });
+});
+
+describe("relative paths", () => {
+  const dir = "src/content/articles";
+
+  it("resolve against a directory", () => {
+    expect(resolveRelative(dir, "../../assets/images/a.jpg")).toBe(
+      "src/assets/images/a.jpg",
+    );
+    expect(resolveRelative(dir, "./images/./a.jpg")).toBe(
+      "src/content/articles/images/a.jpg",
+    );
+  });
+
+  it("stop at the repository root", () => {
+    expect(resolveRelative("src", "../../a.jpg")).toBe("a.jpg");
+  });
+
+  it("are written from a directory, and read back", () => {
+    for (const [file, rel] of [
+      ["src/assets/images/a.jpg", "../../assets/images/a.jpg"],
+      ["src/content/articles/images/a.jpg", "./images/a.jpg"],
+    ]) {
+      expect(relativePath(dir, file)).toBe(rel);
+      expect(resolveRelative(dir, rel)).toBe(file);
+    }
   });
 });

@@ -521,8 +521,9 @@ coverage), so it needs the coverage that `pnpm test:coverage` writes to
 `fallow-health-baseline.json` lists it at that severity. The baseline holds
 the functions that were over the line when the gate was added; after
 renaming one of them, or when a change knowingly makes one riskier, run
-`pnpm test:coverage && pnpm health:baseline` and commit the result. High
-cyclomatic and cognitive complexity are reported but don't fail.
+`pnpm health:baseline` (it runs the tests with coverage first) and commit
+the result. High cyclomatic and cognitive complexity are reported but don't
+fail.
 `npx fallow dupes` reports duplication and is not enforced.
 
 To work on Vestry against a site, run `pnpm dev` here (an initial build, then

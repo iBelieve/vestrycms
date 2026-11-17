@@ -4,7 +4,6 @@
   "ignorePatterns": ["test/fixtures/**"],
   "ignoreDependencies": ["zod"],
   "health": {
-    "coverage": "coverage",
     "ignore": ["test/**", "scripts/**"]
   },
   "rules": {

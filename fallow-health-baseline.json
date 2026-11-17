@@ -30,11 +30,6 @@
         "count": 1
       }
     },
-    "src/core/paths.ts": {
-      "crap_moderate": {
-        "count": 3
-      }
-    },
     "src/core/service.ts": {
       "complexity_critical": {
         "count": 1
@@ -359,21 +354,6 @@
       }
     },
     "src/core/mail.ts\u0000send": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/core/paths.ts\u0000relativePath": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/core/paths.ts\u0000resolveRelative": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/core/paths.ts\u0000safeFileName": {
       "crap_moderate": {
         "count": 1
       }

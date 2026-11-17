@@ -65,8 +65,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fallow": "fallow dead-code",
-    "health": "fallow health --complexity --baseline fallow-health-baseline.json --baseline-mode identity",
-    "health:baseline": "fallow health --complexity --report-only --save-baseline fallow-health-baseline.json --baseline-mode identity",
+    "health": "fallow health --complexity --coverage coverage --baseline fallow-health-baseline.json --baseline-mode identity",
+    "health:baseline": "vitest run --coverage && fallow health --complexity --coverage coverage --report-only --save-baseline fallow-health-baseline.json --baseline-mode identity",
     "prepack": "node scripts/build.mjs"
   },
   "peerDependencies": {

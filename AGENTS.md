@@ -29,8 +29,8 @@ main consumer; keep it free of site-specific code.
   `pnpm test:coverage`) fails on a function with a CRAP score of 30 or more
   that `fallow-health-baseline.json` doesn't list at that severity. Fix a new
   finding with tests or a simpler function; re-save the baseline
-  (`pnpm health:baseline`, after `pnpm test:coverage`) only when renaming a
-  listed function or when the maintainer accepts the risk.
+  (`pnpm health:baseline`, which runs the tests with coverage first) only
+  when renaming a listed function or when the maintainer accepts the risk.
 - `pnpm fallow` (Fallow's `dead-code`) fails on unused files, exports and
   dependencies, and on import cycles. Remove what is really unused, or record a
   deliberate exception in `.fallowrc.json` or with a
