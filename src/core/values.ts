@@ -91,6 +91,17 @@ export function summaryData(
   col: CollectionConfig,
   data: Record<string, unknown>,
 ): Record<string, unknown> {
+  const named = namedFields(col);
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!named.has(key) && isHeavy(col.schema[key], value)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/** The fields a collection's settings name, which listings always carry. */
+function namedFields(col: CollectionConfig): Set<string> {
   const named = new Set<string>([
     col.titleField ?? "title",
     col.idField ?? "id",
@@ -107,21 +118,18 @@ export function summaryData(
   for (const key of col.searchFields ?? []) add(key);
   for (const template of [col.previewUrl, col.slug?.template])
     for (const match of template?.matchAll(/\{([\w]+)/g) ?? []) add(match[1]);
+  return named;
+}
 
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (!named.has(key)) {
-      const field = col.schema[key];
-      const heavy = field
-        ? HEAVY_FIELDS.has(field.type) && !holdsReference(field)
-        : value !== null &&
-          typeof value === "object" &&
-          !(value instanceof Date);
-      if (heavy) continue;
-    }
-    out[key] = value;
-  }
-  return out;
+/**
+ * Whether a value is nested or long-form, so left out of listings: by its
+ * field's type, or for data the schema does not describe, by its shape.
+ */
+function isHeavy(field: Field | undefined, value: unknown): boolean {
+  if (field) return HEAVY_FIELDS.has(field.type) && !holdsReference(field);
+  return (
+    value !== null && typeof value === "object" && !(value instanceof Date)
+  );
 }
 
 export type AssetField = Extract<Field, { type: "image" | "file" }>;

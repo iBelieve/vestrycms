@@ -3,7 +3,13 @@
  * error at startup rather than something the control panel quietly ignores.
  */
 import { parsePathPattern, templateError } from "../core/paths.js";
-import type { Field, Schema, VestryConfig } from "./types.js";
+import type {
+  CollectionConfig,
+  ComponentConfig,
+  Field,
+  Schema,
+  VestryConfig,
+} from "./types.js";
 
 const fail = (message: string): never => {
   throw new Error(`[vestry] ${message}`);
@@ -81,28 +87,8 @@ export function validateConfig(config: VestryConfig) {
   }
   checkTemplate("commitMessage", config.commitMessage);
 
-  for (const [key, col] of Object.entries(config.collections ?? {})) {
-    const what = `collection "${key}"`;
-    if (!col.path) fail(`${what} needs a path`);
-    if (col.body) {
-      for (const name of col.body.components ?? []) {
-        if (!config.components?.[name]) {
-          fail(`${what} references unknown component "${name}"`);
-        }
-      }
-    }
-    checkFilenameDates(what, col.schema, !parsePathPattern(col.path).single);
-    checkTemplate(`${what} previewUrl`, col.previewUrl);
-    checkTemplate(`${what} slug.template`, col.slug?.template);
-    // A `*` path lists only the files directly in its directory, so entries
-    // created in subfolders would never show up again.
-    if (col.slug?.template?.includes("/") && !parsePathPattern(col.path).deep) {
-      fail(
-        `${what} slug.template contains "/", which needs a "**" wildcard in its path`,
-      );
-    }
-    checkTemplate(`${what} commitMessage`, col.commitMessage);
-  }
+  for (const [key, col] of Object.entries(config.collections ?? {}))
+    checkCollection(config, `collection "${key}"`, col);
 
   for (const [key, singleton] of Object.entries(config.singletons ?? {})) {
     const what = `singleton "${key}"`;
@@ -111,21 +97,48 @@ export function validateConfig(config: VestryConfig) {
     checkTemplate(`${what} commitMessage`, singleton.commitMessage);
   }
 
-  for (const [name, component] of Object.entries(config.components ?? {})) {
-    const props = component.props ?? {};
-    const dated = [...Object.entries(props), ...nestedFields(props)].find(
-      ([, field]) => isFilenameDate(field),
-    );
-    if (dated) {
-      fail(
-        `component "${name}": "${dated[0]}" uses storeIn: "filename", which is only for collection fields`,
-      );
-    }
-  }
+  for (const [name, component] of Object.entries(config.components ?? {}))
+    checkComponent(name, component);
 
   try {
     JSON.stringify(config);
   } catch {
     fail("config must be JSON-serializable (no functions)");
+  }
+}
+
+function checkCollection(
+  config: VestryConfig,
+  what: string,
+  col: CollectionConfig,
+) {
+  if (!col.path) fail(`${what} needs a path`);
+  for (const name of col.body ? (col.body.components ?? []) : []) {
+    if (!config.components?.[name]) {
+      fail(`${what} references unknown component "${name}"`);
+    }
+  }
+  checkFilenameDates(what, col.schema, !parsePathPattern(col.path).single);
+  checkTemplate(`${what} previewUrl`, col.previewUrl);
+  checkTemplate(`${what} slug.template`, col.slug?.template);
+  // A `*` path lists only the files directly in its directory, so entries
+  // created in subfolders would never show up again.
+  if (col.slug?.template?.includes("/") && !parsePathPattern(col.path).deep) {
+    fail(
+      `${what} slug.template contains "/", which needs a "**" wildcard in its path`,
+    );
+  }
+  checkTemplate(`${what} commitMessage`, col.commitMessage);
+}
+
+function checkComponent(name: string, component: ComponentConfig) {
+  const props = component.props ?? {};
+  const dated = [...Object.entries(props), ...nestedFields(props)].find(
+    ([, field]) => isFilenameDate(field),
+  );
+  if (dated) {
+    fail(
+      `component "${name}": "${dated[0]}" uses storeIn: "filename", which is only for collection fields`,
+    );
   }
 }

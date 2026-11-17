@@ -80,14 +80,7 @@ export default function vestry(
         const isDev = command === "dev";
         const fileEnv = loadEnv(isDev ? "development" : "production", root, "");
         const readEnv = (key: string) => process.env[key] ?? fileEnv[key];
-        const envMode = readEnv("VESTRY_MODE");
-        const mode =
-          options.mode ??
-          (envMode === "github" || envMode === "auth"
-            ? envMode
-            : isDev
-              ? "local"
-              : "github");
+        const mode = devMode(options.mode, readEnv("VESTRY_MODE"), isDev);
 
         let indexPromise: Promise<BuildIndex> | null = null;
         const getIndex = () => (indexPromise ??= buildIndex(root, config));
@@ -103,60 +96,28 @@ export default function vestry(
               return `\0${id}`;
             return null;
           },
-          async load(id) {
-            if (id === `\0${VIRTUAL.config}`)
-              return `export default ${JSON.stringify(config)};`;
-            if (id === `\0${VIRTUAL.runtime}`) {
-              return `export const basePath = ${JSON.stringify(basePath)};\nexport const name = ${JSON.stringify(config.name ?? "Vestry")};`;
-            }
-            if (id === `\0${VIRTUAL.formatter}`) {
-              return formatterModule(root, config.format !== false);
-            }
-            if (id === `\0${VIRTUAL.index}`) {
-              // Dev edits bypass the index (the local source reads disk), so
-              // an empty index keeps dev startup instant.
-              const index = isDev
-                ? { builtAt: "", files: {} }
-                : await getIndex();
-              return `export default ${JSON.stringify(index)};`;
-            }
-            return null;
+          load(id) {
+            if (!id.startsWith("\0")) return null;
+            return virtualModule(id.slice(1), {
+              config,
+              basePath,
+              root,
+              index: isDev ? null : getIndex,
+            });
           },
           configureServer(server) {
             if (!isDev) return;
-            const localSource =
-              mode === "github" ? undefined : new LocalSource(root);
-            // Dev keeps users and sessions in a SQLite file and, unless a real
-            // mail provider is configured, prints sign-in codes to the terminal.
-            let auth: Parameters<typeof createApi>[0]["auth"];
-            if (mode !== "local") {
-              const dir = path.join(root, ".vestry");
-              mkdirSync(dir, { recursive: true });
-              // Loaded only here, so builds and plain local dev never touch
-              // node:sqlite. A CJS require rather than import(): Astro runs
-              // this file through Vite's module runner, which intercepts
-              // dynamic imports and has already closed by the time this runs.
-              const { DatabaseSync } = createRequire(import.meta.url)(
-                "node:sqlite",
-              ) as typeof import("node:sqlite");
-              auth = {
-                database: new DatabaseSync(path.join(dir, "auth.sqlite")),
-                mailer:
-                  config.mail?.provider === "resend" &&
-                  readEnv("VESTRY_RESEND_API_KEY")
-                    ? undefined
-                    : consoleMailer((line) => logger.info(line)),
-                required: true,
-                dev: true,
-              };
-            }
             const api = createApi({
               config,
               index: { builtAt: "", files: {} },
               basePath,
               env: readEnv,
-              localSource,
-              auth,
+              localSource:
+                mode === "github" ? undefined : new LocalSource(root),
+              auth:
+                mode === "local"
+                  ? undefined
+                  : devAuth(root, config, readEnv, (line) => logger.info(line)),
             });
             const handler = nodeToFetchHandler(api.handle);
             server.middlewares.use((req, res, next) => {
@@ -168,13 +129,7 @@ export default function vestry(
               return handler(req, res, next);
             });
             logger.info(
-              `Control panel at ${basePath} (${
-                mode === "local"
-                  ? "editing local files, no sign-in"
-                  : mode === "auth"
-                    ? "editing local files, sign-in required"
-                    : `GitHub ${config.repo.owner}/${config.repo.name}`
-              })`,
+              `Control panel at ${basePath} (${modeDescription(mode, config)})`,
             );
           },
         };
@@ -200,5 +155,90 @@ export default function vestry(
         });
       },
     },
+  };
+}
+
+/**
+ * What `astro dev` does: the integration's option, else `VESTRY_MODE`, else
+ * local files in dev (and GitHub otherwise).
+ */
+function devMode(
+  option: VestryIntegrationOptions["mode"],
+  envMode: string | undefined,
+  isDev: boolean,
+): "local" | "auth" | "github" {
+  if (option) return option;
+  if (envMode === "github" || envMode === "auth") return envMode;
+  return isDev ? "local" : "github";
+}
+
+function modeDescription(
+  mode: "local" | "auth" | "github",
+  config: VestryConfig,
+): string {
+  if (mode === "local") return "editing local files, no sign-in";
+  if (mode === "auth") return "editing local files, sign-in required";
+  return `GitHub ${config.repo.owner}/${config.repo.name}`;
+}
+
+/** The source of one of the integration's virtual modules, by its id. */
+async function virtualModule(
+  id: string,
+  {
+    config,
+    basePath,
+    root,
+    index,
+  }: {
+    config: VestryConfig;
+    basePath: string;
+    root: string;
+    /** Builds the index; null in dev. */
+    index: (() => Promise<BuildIndex>) | null;
+  },
+): Promise<string | null> {
+  switch (id) {
+    case VIRTUAL.config:
+      return `export default ${JSON.stringify(config)};`;
+    case VIRTUAL.runtime:
+      return `export const basePath = ${JSON.stringify(basePath)};\nexport const name = ${JSON.stringify(config.name ?? "Vestry")};`;
+    case VIRTUAL.formatter:
+      return formatterModule(root, config.format !== false);
+    case VIRTUAL.index:
+      // Dev edits bypass the index (the local source reads disk), so
+      // an empty index keeps dev startup instant.
+      return `export default ${JSON.stringify(index ? await index() : { builtAt: "", files: {} })};`;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Sign-in for dev: users and sessions in a SQLite file under `.vestry`, and
+ * sign-in codes printed to the terminal unless a real mail provider is
+ * configured.
+ */
+function devAuth(
+  root: string,
+  config: VestryConfig,
+  readEnv: (key: string) => string | undefined,
+  log: (line: string) => void,
+): Parameters<typeof createApi>[0]["auth"] {
+  const dir = path.join(root, ".vestry");
+  mkdirSync(dir, { recursive: true });
+  // Loaded only here, so builds and plain local dev never touch
+  // node:sqlite. A CJS require rather than import(): Astro runs
+  // this file through Vite's module runner, which intercepts
+  // dynamic imports and has already closed by the time this runs.
+  const { DatabaseSync } = createRequire(import.meta.url)(
+    "node:sqlite",
+  ) as typeof import("node:sqlite");
+  const resend =
+    config.mail?.provider === "resend" && readEnv("VESTRY_RESEND_API_KEY");
+  return {
+    database: new DatabaseSync(path.join(dir, "auth.sqlite")),
+    mailer: resend ? undefined : consoleMailer(log),
+    required: true,
+    dev: true,
   };
 }

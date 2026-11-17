@@ -96,66 +96,22 @@ export class GitHubSource implements ContentSource {
     path: string,
     init: RequestInit & { etag?: string; raw?: boolean } = {},
   ): Promise<{ status: number; data: T; etag?: string }> {
-    const headers = new Headers(init.headers);
-    headers.set("Authorization", `Bearer ${await this.#token()}`);
-    headers.set(
-      "Accept",
-      init.raw
-        ? "application/vnd.github.raw+json"
-        : "application/vnd.github+json",
-    );
-    headers.set("X-GitHub-Api-Version", "2022-11-28");
-    headers.set("User-Agent", "vestry");
-    if (typeof init.body === "string")
-      headers.set("Content-Type", "application/json");
-    if (init.etag) headers.set("If-None-Match", init.etag);
-    let res = await fetch(`${this.#apiBase}${path}`, { ...init, headers });
+    const headers = requestHeaders(init, await this.#token());
+    const url = `${this.#apiBase}${path}`;
+    let res = await fetch(url, { ...init, headers });
+    const { token } = this.opts;
     if (
       res.status === 401 &&
-      typeof this.opts.token === "function" &&
-      "invalidate" in this.opts.token
+      typeof token === "function" &&
+      "invalidate" in token
     ) {
       // A cached installation token GitHub no longer accepts (app reinstalled,
       // key rotated): mint a fresh one and retry once.
-      this.opts.token.invalidate();
+      token.invalidate();
       headers.set("Authorization", `Bearer ${await this.#token()}`);
-      res = await fetch(`${this.#apiBase}${path}`, { ...init, headers });
+      res = await fetch(url, { ...init, headers });
     }
-    if (res.status === 304) {
-      return { status: 304, data: undefined as T, etag: init.etag };
-    }
-    if (!res.ok) {
-      let message = `GitHub API ${res.status} for ${path}`;
-      try {
-        const body = (await res.json()) as { message?: string };
-        if (body.message) message = `${body.message} (${res.status} ${path})`;
-      } catch {
-        /* ignore */
-      }
-      const code =
-        res.status === 401
-          ? "unauthorized"
-          : res.status === 403
-            ? "forbidden"
-            : res.status === 404
-              ? "not_found"
-              : res.status === 409
-                ? "conflict"
-                : "github_error";
-      throw new SourceError(
-        message,
-        res.status === 404 ? 404 : res.status,
-        code,
-      );
-    }
-    const data = (
-      init.raw ? new Uint8Array(await res.arrayBuffer()) : await res.json()
-    ) as T;
-    return {
-      status: res.status,
-      data,
-      etag: res.headers.get("etag") ?? undefined,
-    };
+    return readResponse<T>(res, path, init);
   }
 
   async branch(): Promise<string> {
@@ -392,4 +348,71 @@ function withCoAuthor(
   if (!author?.email) return message;
   const trailer = `Co-authored-by: ${author.name || author.email} <${author.email}>`;
   return `${message.trimEnd()}\n\n${trailer}`;
+}
+
+/** The headers of a request to GitHub's REST API. */
+function requestHeaders(
+  init: RequestInit & { etag?: string; raw?: boolean },
+  token: string,
+): Headers {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set(
+    "Accept",
+    init.raw
+      ? "application/vnd.github.raw+json"
+      : "application/vnd.github+json",
+  );
+  headers.set("X-GitHub-Api-Version", "2022-11-28");
+  headers.set("User-Agent", "vestry");
+  if (typeof init.body === "string")
+    headers.set("Content-Type", "application/json");
+  if (init.etag) headers.set("If-None-Match", init.etag);
+  return headers;
+}
+
+/** A response's data (JSON, or bytes for `raw`), or the error it reports. */
+async function readResponse<T>(
+  res: Response,
+  path: string,
+  init: { etag?: string; raw?: boolean },
+): Promise<{ status: number; data: T; etag?: string }> {
+  if (res.status === 304) {
+    return { status: 304, data: undefined as T, etag: init.etag };
+  }
+  if (!res.ok) throw await responseError(res, path);
+  const data = (
+    init.raw ? new Uint8Array(await res.arrayBuffer()) : await res.json()
+  ) as T;
+  return {
+    status: res.status,
+    data,
+    etag: res.headers.get("etag") ?? undefined,
+  };
+}
+
+const ERROR_CODES: Record<number, string> = {
+  401: "unauthorized",
+  403: "forbidden",
+  404: "not_found",
+  409: "conflict",
+};
+
+/** A failed response as a SourceError, with GitHub's message if it gave one. */
+async function responseError(
+  res: Response,
+  path: string,
+): Promise<SourceError> {
+  let message = `GitHub API ${res.status} for ${path}`;
+  try {
+    const body = (await res.json()) as { message?: string };
+    if (body.message) message = `${body.message} (${res.status} ${path})`;
+  } catch {
+    /* ignore */
+  }
+  return new SourceError(
+    message,
+    res.status,
+    ERROR_CODES[res.status] ?? "github_error",
+  );
 }

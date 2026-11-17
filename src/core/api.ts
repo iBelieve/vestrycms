@@ -268,371 +268,518 @@ export function createApi(options: ApiOptions) {
     ctx: RequestContext,
     cookies: string[],
   ): Promise<Response> {
-    const url = new URL(request.url);
-    const rel = url.pathname.startsWith(apiPrefix)
-      ? url.pathname.slice(apiPrefix.length)
-      : null;
-    if (rel === null) return error("Not found", 404, "not_found");
-    let segments: string[];
+    const route = parseRoute(request, apiPrefix);
+    if (route instanceof Response) return route;
     try {
-      segments = rel.split("/").filter(Boolean).map(decodeURIComponent);
-    } catch {
-      return error("Malformed path", 400, "bad_request");
-    }
-    const method = request.method.toUpperCase();
-
-    // Cross-site writes are refused outright; the SameSite cookie already
-    // keeps other sites' requests anonymous, this is the second lock.
-    if (method !== "GET" && method !== "HEAD") {
-      const origin = request.headers.get("origin");
-      const fetchSite = request.headers.get("sec-fetch-site");
-      if ((origin && origin !== url.origin) || fetchSite === "cross-site") {
-        return error("Cross-site request refused", 403, "cross_site");
-      }
-    }
-
-    try {
-      // Everything that needs sign-in shares one setup check.
-      let setupError: string | undefined;
-      let vestryAuth: VestryAuth | null = null;
-      if (authRequired) {
-        const resolved = resolveAuth(url, ctx);
-        if ("error" in resolved) setupError = resolved.error;
-        else vestryAuth = resolved;
-      }
-      if (vestryAuth) await vestryAuth.ensureMigrated();
-
-      // ------------------------------------------------------------- auth
-      // Better Auth owns sign-in under /auth: sending and checking codes,
-      // sessions, sign-out. Only the routes the panel uses are reachable;
-      // the admin plugin's endpoints stay behind Vestry's /users routes so
-      // their guards (config admins, last admin) cannot be bypassed.
-      if (segments[0] === "auth") {
-        if (!authRequired)
-          return error("Sign-in is not used in local mode", 400, "local_mode");
-        if (!vestryAuth) return error(setupError!, 500, "setup");
-        const authPath = `/${segments.slice(1).join("/")}`;
-        if (!AUTH_ROUTES.has(authPath))
-          return error("Not found", 404, "not_found");
-        return vestryAuth.auth.handler(request);
-      }
-
-      let user: PublicUser | null = null;
-      if (vestryAuth) {
-        const { headers: sessionHeaders, response: session } =
-          await vestryAuth.auth.api.getSession({
-            headers: request.headers,
-            returnHeaders: true,
-          });
-        cookies.push(...sessionHeaders.getSetCookie());
-        if (session) user = vestryAuth.toPublicUser(session.user);
-      } else if (!authRequired) {
-        user = LOCAL_USER;
-      }
-
-      // ----------------------------------------------------------- config
-      if (segments[0] === "config" && method === "GET") {
-        const source = resolveSource();
-        if ("error" in source) setupError ??= source.error;
-        const info = "error" in source ? null : source.info();
-        const payload: ClientConfig = {
-          config: user ? clientConfig(config) : publicConfig(config),
-          basePath,
-          mode: options.localSource ? "local" : "github",
-          auth: authRequired,
-          source: info
-            ? { label: info.label, branch: info.branch, url: info.url }
-            : {
-                label: `${config.repo.owner}/${config.repo.name}`,
-                branch: config.repo.branch,
-                url: `https://github.com/${config.repo.owner}/${config.repo.name}`,
-              },
-          user,
-          setupError,
-        };
-        return json(payload);
-      }
-
-      // The logo is shown on the sign-in page, so it is public.
-      if (
-        segments[0] === "file" &&
-        method === "GET" &&
-        config.logo &&
-        normalizePath(url.searchParams.get("path") ?? "") ===
-          normalizePath(config.logo)
-      ) {
-        const source = resolveSource();
-        if ("error" in source) return error(source.error, 500, "setup");
-        return serveFile(
-          new ContentService(config, source, options.index),
-          config.logo,
-          request,
-        );
-      }
-
-      if (!user) {
-        return error(
-          setupError ?? "Sign in required",
-          401,
-          setupError ? "setup" : "unauthorized",
-        );
-      }
-
-      // ------------------------------------------------------------ users
-      if (segments[0] === "users") {
-        if (!vestryAuth) {
-          return error(
-            setupError ?? "User management is not available in local mode",
-            400,
-            setupError ? "setup" : "local_mode",
-          );
-        }
-        if (user.role !== "admin")
-          return error("Only admins can manage users.", 403, "forbidden");
-        const { auth, toPublicUser, isConfigAdmin, sendInvite } = vestryAuth;
-        const headers = request.headers;
-        const getUser = async (id: string): Promise<PublicUser | null> => {
-          try {
-            const found = await auth.api.getUser({ query: { id }, headers });
-            return found ? toPublicUser(found) : null;
-          } catch (e) {
-            if (isAPIError(e) && e.statusCode === 404) return null;
-            throw e;
-          }
-        };
-        const adminCount = async () => {
-          const { total } = await auth.api.listUsers({
-            query: { filterField: "role", filterValue: "admin", limit: 1 },
-            headers,
-          });
-          return total;
-        };
-
-        if (segments.length === 1 && method === "GET") {
-          const { users } = await auth.api.listUsers({
-            query: { limit: 1000, sortBy: "name", sortDirection: "asc" },
-            headers,
-          });
-          return json({ users: users.map(toPublicUser) });
-        }
-        if (segments.length === 1 && method === "POST") {
-          const body = (await request.json()) as {
-            email?: string;
-            name?: string;
-            role?: Role;
-          };
-          const email = normalizeEmail(String(body.email ?? ""));
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-            return error("Enter a valid email address.", 400, "invalid_email");
-          const role: Role = isRole(body.role) ? body.role : "editor";
-          const created = await auth.api.createUser({
-            body: {
-              email,
-              name: body.name?.trim() || nameFromEmail(email),
-              role: isConfigAdmin(email) ? "admin" : role,
-            },
-            headers,
-          });
-          const invited = toPublicUser(created.user);
-          // The user exists from here on; a failed email must not hide them.
-          let mailError: string | undefined;
-          try {
-            await sendInvite(user, invited);
-          } catch (e) {
-            mailError = e instanceof Error ? e.message : String(e);
-            console.error("[vestry] invitation email failed", e);
-          }
-          return json({ user: invited, mailError }, { status: 201 });
-        }
-        const id = segments[1];
-        if (id && segments.length === 2 && method === "PATCH") {
-          const body = (await request.json()) as {
-            name?: string;
-            role?: Role;
-          };
-          const target = await getUser(id);
-          if (!target) return error("User not found.", 404, "not_found");
-          if (body.role !== undefined && body.role !== target.role) {
-            if (!isRole(body.role))
-              return error("Unknown role.", 400, "invalid_role");
-            if (target.origin === "config") {
-              return error(
-                "This address is listed as an admin in the Vestry config, so its role can only be changed there.",
-                400,
-                "config_admin",
-              );
-            }
-            if (target.role === "admin" && (await adminCount()) <= 1) {
-              return error(
-                `${target.name} is the only admin. Make someone else an admin first.`,
-                400,
-                "last_admin",
-              );
-            }
-            await auth.api.setRole({
-              body: { userId: id, role: body.role },
-              headers,
-            });
-          }
-          if (body.name !== undefined && body.name.trim()) {
-            await auth.api.adminUpdateUser({
-              body: { userId: id, data: { name: body.name.trim() } },
-              headers,
-            });
-          }
-          return json({ user: await getUser(id) });
-        }
-        if (id && segments.length === 2 && method === "DELETE") {
-          if (id === user.id)
-            return error("You can't remove yourself.", 400, "self");
-          const target = await getUser(id);
-          if (!target) return json({ ok: true });
-          if (target.origin === "config") {
-            return error(
-              "This address is listed as an admin in the Vestry config. Remove it there first.",
-              400,
-              "config_admin",
-            );
-          }
-          if (target.role === "admin" && (await adminCount()) <= 1) {
-            return error(
-              `${target.name} is the only admin. Make someone else an admin first.`,
-              400,
-              "last_admin",
-            );
-          }
-          await auth.api.removeUser({ body: { userId: id }, headers });
-          return json({ ok: true });
-        }
-        if (id && segments[2] === "invite" && method === "POST") {
-          const target = await getUser(id);
-          if (!target) return error("User not found.", 404, "not_found");
-          await sendInvite(user, target);
-          return json({ user: target });
-        }
-        return error("Not found", 404, "not_found");
-      }
-
-      // ----------------------------------------------------------- content
-      const baseSource = resolveSource();
-      if ("error" in baseSource) return error(baseSource.error, 500, "setup");
-      const source = user.email
-        ? withAuthor(baseSource, { name: user.name, email: user.email })
-        : baseSource;
-      const service = new ContentService(config, source, options.index);
-
-      if (segments[0] === "status" && method === "GET") {
-        return json({ head: await source.head(), source: source.info() });
-      }
-
-      // ------------------------------------------------------ collections
-      if (segments[0] === "collections" && segments[1]) {
-        const key = segments[1];
-        if (segments.length === 2 && method === "GET") {
-          return json({
-            entries: await service.listEntries(key),
-            head: await source.head(),
-          });
-        }
-        // Slugs can contain "/", so the entry is named in the query string.
-        if (segments[2] === "references" && method === "GET") {
-          const slug = url.searchParams.get("slug") ?? "";
-          return json({ references: await service.referencesTo(key, slug) });
-        }
-        if (segments[2] === "entries") {
-          const slug = segments.slice(3).join("/");
-          if (!slug && method === "POST") {
-            const input = (await request.json()) as SaveEntryInput;
-            return json(await service.saveEntry(key, null, input), {
-              status: 201,
-            });
-          }
-          if (slug && method === "GET") {
-            const entry = await service.getEntry(key, slug);
-            return entry
-              ? json(entry)
-              : error("Entry not found", 404, "not_found");
-          }
-          if (slug && method === "PUT") {
-            const input = (await request.json()) as SaveEntryInput;
-            return json(await service.saveEntry(key, slug, input));
-          }
-          if (slug && method === "DELETE") {
-            return json(await service.deleteEntry(key, slug));
-          }
-        }
-        return error("Not found", 404, "not_found");
-      }
-
-      // ------------------------------------------------------- singletons
-      if (segments[0] === "singletons" && segments[1]) {
-        const key = segments[1];
-        if (method === "GET") return json(await service.getSingleton(key));
-        if (method === "PUT") {
-          const input = (await request.json()) as SaveEntryInput;
-          return json(await service.saveSingleton(key, input));
-        }
-        return error("Not found", 404, "not_found");
-      }
-
-      // ----------------------------------------------------------- assets
-      if (segments[0] === "assets" && segments[1]) {
-        const container = segments[1];
-        const dir = url.searchParams.get("dir") ?? "";
-        if (method === "GET")
-          return json(await service.listAssets(container, dir));
-        if (method === "POST") {
-          const body = (await request.json()) as {
-            dir?: string;
-            files: { name: string; base64: string }[];
-          };
-          return json(
-            await service.uploadAssets(
-              container,
-              body.dir ?? dir,
-              body.files ?? [],
-            ),
-            { status: 201 },
-          );
-        }
-        if (method === "DELETE") {
-          const body = (await request.json()) as { path: string };
-          return json(await service.deleteAsset(container, body.path));
-        }
-        return error("Not found", 404, "not_found");
-      }
-
-      // ------------------------------------------------------------- file
-      if (segments[0] === "file" && method === "GET") {
-        const path = url.searchParams.get("path");
-        if (!path) return error("Missing path", 400);
-        return serveFile(service, path, request);
-      }
-
-      return error("Not found", 404, "not_found");
+      return await routeRequest(request, ctx, cookies, route);
     } catch (e) {
-      if (isAPIError(e)) {
-        const body = e.body as { message?: string; code?: string } | undefined;
-        return error(
-          body?.message ?? e.message,
-          e.statusCode,
-          body?.code?.toLowerCase() ?? "auth_error",
-        );
-      }
-      if (e instanceof SourceError) return error(e.message, e.status, e.code);
-      if (e instanceof MailError) return error(e.message, 502, "mail");
-      if (e instanceof SyntaxError)
-        return error(`Invalid request: ${e.message}`, 400, "bad_request");
-      console.error("[vestry] API error", e);
-      return error(
-        e instanceof Error ? e.message : "Unexpected error",
-        500,
-        "internal",
-      );
+      return errorResponse(e);
     }
   }
 
+  async function routeRequest(
+    request: Request,
+    ctx: RequestContext,
+    cookies: string[],
+    route: Route,
+  ): Promise<Response> {
+    const { url, segments, method } = route;
+    // Everything that needs sign-in shares one setup check.
+    const signIn = await signInSetup(url, ctx);
+
+    // Better Auth owns sign-in under /auth: sending and checking codes,
+    // sessions, sign-out. Only the routes the panel uses are reachable;
+    // the admin plugin's endpoints stay behind Vestry's /users routes so
+    // their guards (config admins, last admin) cannot be bypassed.
+    if (segments[0] === "auth") return authRoute(request, segments, signIn);
+
+    const user = await currentUser(request, signIn.vestryAuth, cookies);
+    if (segments[0] === "config" && method === "GET")
+      return configRoute(user, signIn.setupError);
+
+    // The logo is shown on the sign-in page, so it is public.
+    if (isLogoRequest(route)) {
+      const source = resolveSource();
+      if ("error" in source) return error(source.error, 500, "setup");
+      return serveFile(
+        new ContentService(config, source, options.index),
+        config.logo!,
+        request,
+      );
+    }
+
+    if (!user) {
+      const { setupError } = signIn;
+      return error(
+        setupError ?? "Sign in required",
+        401,
+        setupError ? "setup" : "unauthorized",
+      );
+    }
+
+    if (segments[0] === "users") {
+      return usersRoute(request, route, user, signIn);
+    }
+
+    const baseSource = resolveSource();
+    if ("error" in baseSource) return error(baseSource.error, 500, "setup");
+    const source = user.email
+      ? withAuthor(baseSource, { name: user.name, email: user.email })
+      : baseSource;
+    return contentRoute(
+      request,
+      route,
+      source,
+      new ContentService(config, source, options.index),
+    );
+  }
+
+  async function signInSetup(url: URL, ctx: RequestContext): Promise<SignIn> {
+    if (!authRequired) return { vestryAuth: null };
+    const resolved = resolveAuth(url, ctx);
+    if ("error" in resolved)
+      return { vestryAuth: null, setupError: resolved.error };
+    await resolved.ensureMigrated();
+    return { vestryAuth: resolved };
+  }
+
+  function authRoute(
+    request: Request,
+    segments: string[],
+    { vestryAuth, setupError }: SignIn,
+  ): Response | Promise<Response> {
+    if (!authRequired)
+      return error("Sign-in is not used in local mode", 400, "local_mode");
+    if (!vestryAuth) return error(setupError!, 500, "setup");
+    const authPath = `/${segments.slice(1).join("/")}`;
+    if (!AUTH_ROUTES.has(authPath)) return error("Not found", 404, "not_found");
+    return vestryAuth.auth.handler(request);
+  }
+
+  /** The signed-in user (refreshing their session), or the local user. */
+  async function currentUser(
+    request: Request,
+    vestryAuth: VestryAuth | null,
+    cookies: string[],
+  ): Promise<PublicUser | null> {
+    if (!vestryAuth) return authRequired ? null : LOCAL_USER;
+    const { headers, response: session } = await vestryAuth.auth.api.getSession(
+      { headers: request.headers, returnHeaders: true },
+    );
+    cookies.push(...headers.getSetCookie());
+    return session ? vestryAuth.toPublicUser(session.user) : null;
+  }
+
+  function configRoute(
+    user: PublicUser | null,
+    setupError: string | undefined,
+  ): Response {
+    const source = resolveSource();
+    const info = "error" in source ? null : source.info();
+    const payload: ClientConfig = {
+      config: user ? clientConfig(config) : publicConfig(config),
+      basePath,
+      mode: options.localSource ? "local" : "github",
+      auth: authRequired,
+      source: info
+        ? { label: info.label, branch: info.branch, url: info.url }
+        : {
+            label: `${config.repo.owner}/${config.repo.name}`,
+            branch: config.repo.branch,
+            url: `https://github.com/${config.repo.owner}/${config.repo.name}`,
+          },
+      user,
+      setupError: setupError ?? ("error" in source ? source.error : undefined),
+    };
+    return json(payload);
+  }
+
+  function isLogoRequest({ url, segments, method }: Route): boolean {
+    return (
+      segments[0] === "file" &&
+      method === "GET" &&
+      Boolean(config.logo) &&
+      normalizePath(url.searchParams.get("path") ?? "") ===
+        normalizePath(config.logo!)
+    );
+  }
+
+  function usersRoute(
+    request: Request,
+    { segments, method }: Route,
+    user: PublicUser,
+    { vestryAuth, setupError }: SignIn,
+  ): Promise<Response> | Response {
+    if (!vestryAuth) {
+      return error(
+        setupError ?? "User management is not available in local mode",
+        400,
+        setupError ? "setup" : "local_mode",
+      );
+    }
+    if (user.role !== "admin")
+      return error("Only admins can manage users.", 403, "forbidden");
+    const admin = userAdmin(vestryAuth, request.headers, user);
+    const id = segments[1];
+    if (segments.length === 1 && method === "GET") return listUsers(admin);
+    if (segments.length === 1 && method === "POST")
+      return inviteUser(admin, request);
+    if (id && segments.length === 2 && method === "PATCH")
+      return updateUser(admin, request, id);
+    if (id && segments.length === 2 && method === "DELETE")
+      return removeUser(admin, id);
+    if (id && segments[2] === "invite" && method === "POST")
+      return resendInvite(admin, id);
+    return error("Not found", 404, "not_found");
+  }
+
   return { handle, apiPrefix };
+}
+
+/** An API request: its URL, its path below the API and its method. */
+interface Route {
+  url: URL;
+  segments: string[];
+  method: string;
+}
+
+/** Whether sign-in is set up, and if not, why. */
+interface SignIn {
+  vestryAuth: VestryAuth | null;
+  setupError?: string;
+}
+
+/** The route of a request, or the response that refuses it. */
+function parseRoute(request: Request, apiPrefix: string): Route | Response {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith(apiPrefix))
+    return error("Not found", 404, "not_found");
+  const rel = url.pathname.slice(apiPrefix.length);
+  let segments: string[];
+  try {
+    segments = rel.split("/").filter(Boolean).map(decodeURIComponent);
+  } catch {
+    return error("Malformed path", 400, "bad_request");
+  }
+  const method = request.method.toUpperCase();
+  // Cross-site writes are refused outright; the SameSite cookie already
+  // keeps other sites' requests anonymous, this is the second lock.
+  if (method !== "GET" && method !== "HEAD" && isCrossSite(request, url))
+    return error("Cross-site request refused", 403, "cross_site");
+  return { url, segments, method };
+}
+
+function isCrossSite(request: Request, url: URL): boolean {
+  const origin = request.headers.get("origin");
+  return (
+    Boolean(origin && origin !== url.origin) ||
+    request.headers.get("sec-fetch-site") === "cross-site"
+  );
+}
+
+function errorResponse(e: unknown): Response {
+  if (isAPIError(e)) {
+    const body = e.body as { message?: string; code?: string } | undefined;
+    return error(
+      body?.message ?? e.message,
+      e.statusCode,
+      body?.code?.toLowerCase() ?? "auth_error",
+    );
+  }
+  if (e instanceof SourceError) return error(e.message, e.status, e.code);
+  if (e instanceof MailError) return error(e.message, 502, "mail");
+  if (e instanceof SyntaxError)
+    return error(`Invalid request: ${e.message}`, 400, "bad_request");
+  console.error("[vestry] API error", e);
+  return error(
+    e instanceof Error ? e.message : "Unexpected error",
+    500,
+    "internal",
+  );
+}
+
+// ------------------------------------------------------------------ users
+
+/** What the /users routes work with: Better Auth's admin API, as the admin. */
+interface UserAdmin {
+  vestryAuth: VestryAuth;
+  headers: Headers;
+  /** The signed-in admin. */
+  user: PublicUser;
+  getUser(id: string): Promise<PublicUser | null>;
+  adminCount(): Promise<number>;
+}
+
+function userAdmin(
+  vestryAuth: VestryAuth,
+  headers: Headers,
+  user: PublicUser,
+): UserAdmin {
+  const { auth, toPublicUser } = vestryAuth;
+  return {
+    vestryAuth,
+    headers,
+    user,
+    async getUser(id) {
+      try {
+        const found = await auth.api.getUser({ query: { id }, headers });
+        return found ? toPublicUser(found) : null;
+      } catch (e) {
+        if (isAPIError(e) && e.statusCode === 404) return null;
+        throw e;
+      }
+    },
+    async adminCount() {
+      const { total } = await auth.api.listUsers({
+        query: { filterField: "role", filterValue: "admin", limit: 1 },
+        headers,
+      });
+      return total;
+    },
+  };
+}
+
+async function listUsers({ vestryAuth, headers }: UserAdmin) {
+  const { users } = await vestryAuth.auth.api.listUsers({
+    query: { limit: 1000, sortBy: "name", sortDirection: "asc" },
+    headers,
+  });
+  return json({ users: users.map(vestryAuth.toPublicUser) });
+}
+
+async function inviteUser(
+  { vestryAuth, headers, user }: UserAdmin,
+  request: Request,
+): Promise<Response> {
+  const { auth, toPublicUser, isConfigAdmin, sendInvite } = vestryAuth;
+  const body = (await request.json()) as {
+    email?: string;
+    name?: string;
+    role?: Role;
+  };
+  const email = normalizeEmail(String(body.email ?? ""));
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return error("Enter a valid email address.", 400, "invalid_email");
+  const role: Role = isRole(body.role) ? body.role : "editor";
+  const created = await auth.api.createUser({
+    body: {
+      email,
+      name: body.name?.trim() || nameFromEmail(email),
+      role: isConfigAdmin(email) ? "admin" : role,
+    },
+    headers,
+  });
+  const invited = toPublicUser(created.user);
+  // The user exists from here on; a failed email must not hide them.
+  let mailError: string | undefined;
+  try {
+    await sendInvite(user, invited);
+  } catch (e) {
+    mailError = e instanceof Error ? e.message : String(e);
+    console.error("[vestry] invitation email failed", e);
+  }
+  return json({ user: invited, mailError }, { status: 201 });
+}
+
+async function updateUser(
+  admin: UserAdmin,
+  request: Request,
+  id: string,
+): Promise<Response> {
+  const { auth } = admin.vestryAuth;
+  const { headers } = admin;
+  const body = (await request.json()) as { name?: string; role?: Role };
+  const target = await admin.getUser(id);
+  if (!target) return error("User not found.", 404, "not_found");
+  if (body.role !== undefined && body.role !== target.role) {
+    const refusal = await roleChangeRefusal(admin, target, body.role);
+    if (refusal) return refusal;
+    await auth.api.setRole({ body: { userId: id, role: body.role }, headers });
+  }
+  if (body.name !== undefined && body.name.trim()) {
+    await auth.api.adminUpdateUser({
+      body: { userId: id, data: { name: body.name.trim() } },
+      headers,
+    });
+  }
+  return json({ user: await admin.getUser(id) });
+}
+
+/** Why a user's role cannot change to `role`, if it cannot. */
+async function roleChangeRefusal(
+  admin: UserAdmin,
+  target: PublicUser,
+  role: unknown,
+): Promise<Response | null> {
+  if (!isRole(role)) return error("Unknown role.", 400, "invalid_role");
+  if (target.origin === "config") {
+    return error(
+      "This address is listed as an admin in the Vestry config, so its role can only be changed there.",
+      400,
+      "config_admin",
+    );
+  }
+  return lastAdminRefusal(admin, target);
+}
+
+/** Refuses to take away the last admin. */
+async function lastAdminRefusal(
+  admin: UserAdmin,
+  target: PublicUser,
+): Promise<Response | null> {
+  if (target.role === "admin" && (await admin.adminCount()) <= 1) {
+    return error(
+      `${target.name} is the only admin. Make someone else an admin first.`,
+      400,
+      "last_admin",
+    );
+  }
+  return null;
+}
+
+async function removeUser(admin: UserAdmin, id: string): Promise<Response> {
+  if (id === admin.user.id)
+    return error("You can't remove yourself.", 400, "self");
+  const target = await admin.getUser(id);
+  if (!target) return json({ ok: true });
+  if (target.origin === "config") {
+    return error(
+      "This address is listed as an admin in the Vestry config. Remove it there first.",
+      400,
+      "config_admin",
+    );
+  }
+  const refusal = await lastAdminRefusal(admin, target);
+  if (refusal) return refusal;
+  await admin.vestryAuth.auth.api.removeUser({
+    body: { userId: id },
+    headers: admin.headers,
+  });
+  return json({ ok: true });
+}
+
+async function resendInvite(admin: UserAdmin, id: string): Promise<Response> {
+  const target = await admin.getUser(id);
+  if (!target) return error("User not found.", 404, "not_found");
+  await admin.vestryAuth.sendInvite(admin.user, target);
+  return json({ user: target });
+}
+
+// ---------------------------------------------------------------- content
+
+const notFound = () => error("Not found", 404, "not_found");
+
+async function contentRoute(
+  request: Request,
+  { url, segments, method }: Route,
+  source: ContentSource,
+  service: ContentService,
+): Promise<Response> {
+  const [section, key] = segments;
+  if (section === "status" && method === "GET") {
+    return json({ head: await source.head(), source: source.info() });
+  }
+  if (section === "collections" && key)
+    return collectionRoute(request, url, segments, source, service);
+  if (section === "singletons" && key)
+    return singletonRoute(request, method, key, service);
+  if (section === "assets" && key)
+    return assetsRoute(request, url, key, service);
+  if (section === "file" && method === "GET") {
+    const path = url.searchParams.get("path");
+    if (!path) return error("Missing path", 400);
+    return serveFile(service, path, request);
+  }
+  return notFound();
+}
+
+async function collectionRoute(
+  request: Request,
+  url: URL,
+  segments: string[],
+  source: ContentSource,
+  service: ContentService,
+): Promise<Response> {
+  const method = request.method.toUpperCase();
+  const key = segments[1]!;
+  if (segments.length === 2 && method === "GET") {
+    return json({
+      entries: await service.listEntries(key),
+      head: await source.head(),
+    });
+  }
+  // Slugs can contain "/", so the entry is named in the query string.
+  if (segments[2] === "references" && method === "GET") {
+    const slug = url.searchParams.get("slug") ?? "";
+    return json({ references: await service.referencesTo(key, slug) });
+  }
+  if (segments[2] === "entries")
+    return entryRoute(request, key, segments.slice(3).join("/"), service);
+  return notFound();
+}
+
+async function entryRoute(
+  request: Request,
+  key: string,
+  slug: string,
+  service: ContentService,
+): Promise<Response> {
+  const method = request.method.toUpperCase();
+  if (!slug && method === "POST") {
+    const input = (await request.json()) as SaveEntryInput;
+    return json(await service.saveEntry(key, null, input), { status: 201 });
+  }
+  if (!slug) return notFound();
+  if (method === "GET") {
+    const entry = await service.getEntry(key, slug);
+    return entry ? json(entry) : error("Entry not found", 404, "not_found");
+  }
+  if (method === "PUT") {
+    const input = (await request.json()) as SaveEntryInput;
+    return json(await service.saveEntry(key, slug, input));
+  }
+  if (method === "DELETE") return json(await service.deleteEntry(key, slug));
+  return notFound();
+}
+
+async function singletonRoute(
+  request: Request,
+  method: string,
+  key: string,
+  service: ContentService,
+): Promise<Response> {
+  if (method === "GET") return json(await service.getSingleton(key));
+  if (method === "PUT") {
+    const input = (await request.json()) as SaveEntryInput;
+    return json(await service.saveSingleton(key, input));
+  }
+  return notFound();
+}
+
+async function assetsRoute(
+  request: Request,
+  url: URL,
+  container: string,
+  service: ContentService,
+): Promise<Response> {
+  const method = request.method.toUpperCase();
+  const dir = url.searchParams.get("dir") ?? "";
+  if (method === "GET") return json(await service.listAssets(container, dir));
+  if (method === "POST") {
+    const body = (await request.json()) as {
+      dir?: string;
+      files: { name: string; base64: string }[];
+    };
+    return json(
+      await service.uploadAssets(container, body.dir ?? dir, body.files ?? []),
+      { status: 201 },
+    );
+  }
+  if (method === "DELETE") {
+    const body = (await request.json()) as { path: string };
+    return json(await service.deleteAsset(container, body.path));
+  }
+  return notFound();
 }
 
 /** A Cloudflare D1 binding, by its shape (the type lives in workers-types). */
