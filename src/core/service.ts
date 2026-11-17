@@ -1,6 +1,7 @@
 import type {
   AssetContainerConfig,
   CollectionConfig,
+  EntryFormat,
   Schema,
   SingletonConfig,
   VestryConfig,
@@ -36,6 +37,7 @@ import {
   joinPath,
   normalizePath,
   parsePathPattern,
+  type PathPattern,
   safeFileName,
   slugFromPath,
   slugify,
@@ -104,6 +106,27 @@ export interface SaveEntryInput {
   sha?: string | null;
   uploads?: Upload[];
   message?: string;
+}
+
+/** What `saveEntry` returns. */
+export interface SavedEntry {
+  slug: string;
+  sha: string;
+  commit: string;
+  path: string;
+}
+
+/** An entry being saved, as `saveEntry` hands it to its steps. */
+interface EntrySave {
+  key: string;
+  col: CollectionConfig;
+  pattern: PathPattern;
+  format: EntryFormat;
+  /** The entry's slug, or null for a new entry. */
+  slug: string | null;
+  input: SaveEntryInput;
+  /** The input's data, with automatic fields filled in. */
+  data: Record<string, unknown>;
 }
 
 export interface AssetItem {
@@ -281,120 +304,93 @@ export class ContentService {
     key: string,
     slug: string | null,
     input: SaveEntryInput,
-  ): Promise<{ slug: string; sha: string; commit: string; path: string }> {
+  ): Promise<SavedEntry> {
     const col = this.collection(key);
-    const pattern = parsePathPattern(col.path);
-    const format = collectionFormat(col);
+    const save: EntrySave = {
+      key,
+      col,
+      pattern: parsePathPattern(col.path),
+      format: collectionFormat(col),
+      slug,
+      input,
+      data: applyAutoFields(col.schema, { ...input.data }),
+    };
+    return save.pattern.single
+      ? this.saveListEntry(save)
+      : this.saveFileEntry(save);
+  }
+
+  /** Save an entry of a collection kept as a list in one file. */
+  private async saveListEntry(save: EntrySave): Promise<SavedEntry> {
+    const { key, col, pattern, format, slug, input, data } = save;
     const isNew = slug === null;
-
-    let data = applyAutoFields(col.schema, { ...input.data });
-
-    if (pattern.single) {
-      const idField = col.idField ?? "id";
-      const file = await this.source.read(pattern.prefix);
-      const items = file ? parseEntryList(format, toText(file.bytes)) : [];
-      if (file && input.sha && input.sha !== file.sha) {
-        throw new SourceError(
-          "This file changed since you opened it.",
-          409,
-          "conflict",
-        );
-      }
-      const id = String(data[idField] ?? slug ?? this.newSlug(col, data));
-      if (!id)
-        throw new SourceError(
-          `Entries need an "${idField}"`,
-          400,
-          "validation",
-        );
-      data[idField] = id;
-      const stored = toStoredValues(col.schema, data, pattern.prefix);
-      const existingIdx = items.findIndex(
-        (i) => String(i[idField]) === (slug ?? id),
+    const idField = col.idField ?? "id";
+    const file = await this.source.read(pattern.prefix);
+    const items = file ? parseEntryList(format, toText(file.bytes)) : [];
+    if (file && input.sha && input.sha !== file.sha) {
+      throw new SourceError(
+        "This file changed since you opened it.",
+        409,
+        "conflict",
       );
-      if (isNew && existingIdx !== -1) {
-        throw new SourceError(
-          `An entry with id "${id}" already exists`,
-          409,
-          "exists",
-        );
-      }
-      if (existingIdx === -1) items.push(stored);
-      else items[existingIdx] = stored;
-      const text = serializeEntryList(format, items);
-      const changes: FileChange[] = [
-        { path: pattern.prefix, content: text },
-        ...uploadChanges(input.uploads),
-      ];
-      const commit = await this.source.commit(changes, {
-        message: this.commitMessage(
-          col,
-          isNew ? "Create" : "Update",
-          id,
-          this.titleOf(col, data, id),
-          key,
-          input.message,
-        ),
-      });
-      return {
-        slug: id,
-        sha: await gitBlobSha(text),
-        commit: commit.sha,
-        path: pattern.prefix,
-      };
     }
-
-    // The slug to save under. A new entry takes the one given or derives
-    // it; an existing entry keeps its own unless a different one is given
-    // (a rename). A date kept in the file name is then made its prefix, so
-    // changing that date renames the file too.
-    const requested = input.slug?.trim();
-    let finalSlug = isNew
-      ? requested || this.newSlug(col, data)
-      : requested || slug;
-    const filenameDate = filenameDateKey(col.schema);
-    if (filenameDate) finalSlug = slugWithDate(finalSlug, data[filenameDate]);
-    if (!isSafeSlug(finalSlug))
-      throw new SourceError(`Invalid slug "${finalSlug}"`, 400, "bad_slug");
-    // A `*` path lists only the files directly in its directory, so an entry
-    // written into a subfolder would never show up again.
-    if (!pattern.deep && finalSlug.includes("/"))
+    const id = String(data[idField] ?? slug ?? this.newSlug(col, data));
+    if (!id)
+      throw new SourceError(`Entries need an "${idField}"`, 400, "validation");
+    data[idField] = id;
+    const stored = toStoredValues(col.schema, data, pattern.prefix);
+    const existingIdx = items.findIndex(
+      (i) => String(i[idField]) === (slug ?? id),
+    );
+    // A new entry, or one whose id changes, must not take another's id.
+    const clash = items.findIndex((i) => String(i[idField]) === id);
+    if (clash !== -1 && (isNew || clash !== existingIdx)) {
       throw new SourceError(
-        `Slug "${finalSlug}" contains "/", which needs a "**" wildcard in the collection's path`,
-        400,
-        "bad_slug",
-      );
-    const path = entryPath(pattern, finalSlug);
-    const renamedFrom =
-      !isNew && finalSlug !== slug ? entryPath(pattern, slug) : null;
-    const target = await this.source.read(path);
-    if ((isNew || renamedFrom) && target) {
-      throw new SourceError(
-        `An entry at "${path}" already exists`,
+        `An entry with id "${id}" already exists`,
         409,
         "exists",
       );
     }
-    const existing = renamedFrom ? await this.source.read(renamedFrom) : target;
-    // The file to rename is gone: someone renamed or deleted the entry.
-    if (renamedFrom && !existing) {
-      throw new SourceError(
-        "This entry changed since you opened it.",
-        409,
-        "conflict",
-      );
-    }
-    if (!isNew && existing && input.sha && input.sha !== existing.sha) {
-      throw new SourceError(
-        "This entry changed since you opened it.",
-        409,
-        "conflict",
-      );
-    }
+    if (existingIdx === -1) items.push(stored);
+    else items[existingIdx] = stored;
+    const text = serializeEntryList(format, items);
+    const changes: FileChange[] = [
+      { path: pattern.prefix, content: text },
+      ...uploadChanges(input.uploads),
+    ];
+    const commit = await this.source.commit(changes, {
+      message: this.commitMessage(
+        col,
+        isNew ? "Create" : "Update",
+        id,
+        this.titleOf(col, data, id),
+        key,
+        input.message,
+      ),
+    });
+    return {
+      slug: id,
+      sha: await gitBlobSha(text),
+      commit: commit.sha,
+      path: pattern.prefix,
+    };
+  }
+
+  /** Save an entry kept in a file of its own, renaming it if its slug changes. */
+  private async saveFileEntry(save: EntrySave): Promise<SavedEntry> {
+    const { key, col, pattern, format, slug, input } = save;
+    const isNew = slug === null;
+    const finalSlug = this.slugToSave(save);
+    const path = entryPath(pattern, finalSlug);
+    const renamedFrom =
+      !isNew && finalSlug !== slug ? entryPath(pattern, slug) : null;
+    await this.checkSaveTarget(save, path, renamedFrom);
     // An entry that refers to itself follows its own rename. (A file composed
     // by the client, `raw`, has had the same done to it there.)
-    if (renamedFrom)
-      data = rewriteReferences(col.schema, data, key, slug!, finalSlug) ?? data;
+    const data = renamedFrom
+      ? (rewriteReferences(col.schema, save.data, key, slug!, finalSlug) ??
+        save.data)
+      : save.data;
     const stored = toStoredValues(col.schema, data, path);
     const text =
       input.raw ??
@@ -414,10 +410,11 @@ export class ContentService {
         : []),
       ...uploadChanges(input.uploads),
     ];
+    const action = isNew ? "Create" : renamedFrom ? "Rename" : "Update";
     const commit = await this.source.commit(changes, {
       message: this.commitMessage(
         col,
-        isNew ? "Create" : renamedFrom ? "Rename" : "Update",
+        action,
         finalSlug,
         this.titleOf(col, data, finalSlug),
         key,
@@ -433,6 +430,68 @@ export class ContentService {
   }
 
   /**
+   * The slug to save under. A new entry takes the one given or derives it;
+   * an existing entry keeps its own unless a different one is given (a
+   * rename). A date kept in the file name is then made its prefix, so
+   * changing that date renames the file too.
+   */
+  private slugToSave({ col, pattern, slug, input, data }: EntrySave): string {
+    // The current slug names the file a rename deletes.
+    if (slug !== null && !isSafeSlug(slug))
+      throw new SourceError(`Invalid slug "${slug}"`, 400, "bad_slug");
+    const requested = input.slug?.trim();
+    let finalSlug =
+      slug === null ? requested || this.newSlug(col, data) : requested || slug;
+    const filenameDate = filenameDateKey(col.schema);
+    if (filenameDate) finalSlug = slugWithDate(finalSlug, data[filenameDate]);
+    if (!isSafeSlug(finalSlug))
+      throw new SourceError(`Invalid slug "${finalSlug}"`, 400, "bad_slug");
+    // A `*` path lists only the files directly in its directory, so an entry
+    // written into a subfolder would never show up again.
+    if (!pattern.deep && finalSlug.includes("/"))
+      throw new SourceError(
+        `Slug "${finalSlug}" contains "/", which needs a "**" wildcard in the collection's path`,
+        400,
+        "bad_slug",
+      );
+    return finalSlug;
+  }
+
+  /**
+   * Refuses to overwrite another entry, and to save over a version newer
+   * than the one the editor opened.
+   */
+  private async checkSaveTarget(
+    { slug, input }: EntrySave,
+    path: string,
+    renamedFrom: string | null,
+  ): Promise<void> {
+    const isNew = slug === null;
+    const target = await this.source.read(path);
+    if ((isNew || renamedFrom) && target) {
+      throw new SourceError(
+        `An entry at "${path}" already exists`,
+        409,
+        "exists",
+      );
+    }
+    const existing = renamedFrom ? await this.source.read(renamedFrom) : target;
+    // The file is gone: someone renamed or deleted the entry. Saving it as
+    // opened would bring it back.
+    const gone =
+      !isNew && !existing && (renamedFrom !== null || Boolean(input.sha));
+    const changed =
+      !isNew && existing && input.sha && input.sha !== existing.sha;
+    if (gone || changed) {
+      throw new SourceError(
+        "This entry changed since you opened it.",
+        409,
+        "conflict",
+      );
+    }
+  }
+
+  /**
    * Entries and singletons whose reference fields point at entry `slug` of
    * collection `key`. References inside MDX component props are not found.
    */
@@ -440,20 +499,8 @@ export class ContentService {
     this.collection(key);
     const found: EntryReference[] = [];
     for (const [colKey, col] of Object.entries(this.config.collections ?? {})) {
-      if (!referencesCollection(col.schema, key)) continue;
-      for (const entry of await this.listEntries(colKey)) {
-        if (colKey === key && entry.slug === slug) continue;
-        if (!rewriteReferences(col.schema, entry.data, key, slug, slug))
-          continue;
-        found.push({
-          kind: "collection",
-          key: colKey,
-          label: col.label,
-          slug: entry.slug,
-          title: entry.title,
-          path: entry.path,
-        });
-      }
+      if (referencesCollection(col.schema, key))
+        found.push(...(await this.entriesReferring(colKey, col, key, slug)));
     }
     for (const [sKey, s] of Object.entries(this.config.singletons ?? {})) {
       if (!referencesCollection(s.schema, key)) continue;
@@ -465,6 +512,29 @@ export class ContentService {
         label: s.label,
         slug: sKey,
         title: s.label,
+        path: entry.path,
+      });
+    }
+    return found;
+  }
+
+  /** The entries of collection `colKey` that refer to entry `slug` of `key`. */
+  private async entriesReferring(
+    colKey: string,
+    col: CollectionConfig,
+    key: string,
+    slug: string,
+  ): Promise<EntryReference[]> {
+    const found: EntryReference[] = [];
+    for (const entry of await this.listEntries(colKey)) {
+      if (colKey === key && entry.slug === slug) continue;
+      if (!rewriteReferences(col.schema, entry.data, key, slug, slug)) continue;
+      found.push({
+        kind: "collection",
+        key: colKey,
+        label: col.label,
+        slug: entry.slug,
+        title: entry.title,
         path: entry.path,
       });
     }

@@ -23,6 +23,13 @@ describe("ignoreMatcher", () => {
     expect(ignored("src/contents/hello.mdx")).toBe(false);
   });
 
+  it("matches only directories with a trailing slash", () => {
+    const build = ignoreMatcher("build/");
+    expect(build("build/index.js")).toBe(true);
+    expect(build("docs/build/index.js")).toBe(true);
+    expect(build("docs/build")).toBe(false);
+  });
+
   it("matches a pattern without a slash at any depth", () => {
     expect(ignored("dist/index.js")).toBe(true);
     expect(ignored("packages/site/dist/index.js")).toBe(true);

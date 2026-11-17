@@ -6,6 +6,7 @@ import type {
   EntryReference,
   EntrySummary,
   SaveEntryInput,
+  SavedEntry,
 } from "../core/service.js";
 
 export type {
@@ -139,15 +140,12 @@ export function createClient(basePath: string) {
         `/collections/${enc(collection)}/entries/${enc(slug)}`,
       ),
     createEntry: (collection: string, input: SaveEntryInput) =>
-      request<{ slug: string; sha: string; commit: string; path: string }>(
-        `/collections/${enc(collection)}/entries`,
-        {
-          method: "POST",
-          body: JSON.stringify(input),
-        },
-      ),
+      request<SavedEntry>(`/collections/${enc(collection)}/entries`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
     updateEntry: (collection: string, slug: string, input: SaveEntryInput) =>
-      request<{ slug: string; sha: string; commit: string; path: string }>(
+      request<SavedEntry>(
         `/collections/${enc(collection)}/entries/${enc(slug)}`,
         { method: "PUT", body: JSON.stringify(input) },
       ),
