@@ -9,7 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { openPanel } from "./harness.js";
 import {
   collection,
@@ -222,6 +222,47 @@ describe("an existing entry", () => {
     expect(await read(root, "src/content/posts/hello.md")).toContain(
       "title: Hi",
     );
+  });
+
+  it("keeps what is typed while it saves", async () => {
+    const { root } = await openPanel(config, {
+      url: "/collections/posts/hello",
+      files,
+    });
+    await screen.findByDisplayValue("Hello");
+    fireEvent.change(titleInput(), { target: { value: "First" } });
+    // Hold the save until the title has changed again.
+    const api = globalThis.fetch;
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    vi.stubGlobal("fetch", async (input: RequestInfo, init?: RequestInit) => {
+      if (init?.method === "PUT") await held;
+      return api(input, init);
+    });
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect((saveButton() as HTMLButtonElement).disabled).toBe(true),
+    );
+    fireEvent.change(titleInput(), { target: { value: "Second" } });
+    release();
+    await screen.findByText("Saved to disk");
+    expect(await read(root, "src/content/posts/hello.md")).toContain(
+      "title: First",
+    );
+    expect(titleInput().value).toBe("Second");
+    expect(screen.getByText("Unsaved changes")).toBeTruthy();
+  });
+
+  it("opens as saved when it is opened again", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    await user.type(titleInput(), " again");
+    await user.click(saveButton());
+    await screen.findByText("Saved to disk");
+    await user.click(screen.getAllByRole("link", { name: "Posts" })[0]);
+    await user.click(await screen.findByRole("link", { name: /Hello again/ }));
+    await screen.findByDisplayValue("Hello again");
   });
 
   it("is renamed, with the entries that refer to it", async () => {

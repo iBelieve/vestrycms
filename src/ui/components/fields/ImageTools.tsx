@@ -8,11 +8,10 @@ import {
 } from "react";
 import type { CropField, FocalPointField } from "../../../config/types.js";
 import { useVestry } from "../../context.js";
-import { cx } from "../../lib/utils.js";
+import { clamp, cx } from "../../lib/utils.js";
 import type { PendingUpload } from "../AssetPicker.js";
 import { Button } from "../ui.js";
 import {
-  clamp,
   defaultCrop,
   dragCrop,
   formatAspect,

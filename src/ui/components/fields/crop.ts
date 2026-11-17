@@ -2,6 +2,7 @@
  * The geometry of the crop and focal point inputs: rectangles in the
  * image's own pixels, kept inside the image and at the field's aspect.
  */
+import { clamp } from "../../lib/utils.js";
 
 export interface CropRect {
   x: number;
@@ -21,9 +22,6 @@ interface Size {
   width: number;
   height: number;
 }
-
-export const clamp = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, v));
 
 /** Largest rectangle of the given aspect that fits the image, centred. */
 export function defaultCrop(natural: Size, aspect?: number): CropRect {

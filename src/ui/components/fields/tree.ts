@@ -3,6 +3,7 @@
  * into rows for display, and the moves a drag makes.
  */
 import { arrayMove } from "@dnd-kit/sortable";
+import { clamp } from "../../lib/utils.js";
 
 /** Pixels of indent per level, and of sideways drag per level. */
 export const INDENT = 28;
@@ -100,9 +101,6 @@ export function insertNode(
 export function descendantIds(node: TreeNode): string[] {
   return node.children.flatMap((c) => [c.id, ...descendantIds(c)]);
 }
-
-const clamp = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, v));
 
 /** Where the dragged item would land: depth and parent, from its horizontal offset. */
 export function getProjection(

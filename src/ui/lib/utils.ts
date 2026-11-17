@@ -6,6 +6,15 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
+export const clamp = (v: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, v));
+
+/** The entry for a field's type in a table of them; none for an unknown type. */
+const forType = (table: object, field: Field): unknown =>
+  Object.hasOwn(table, field.type)
+    ? (table as Record<string, unknown>)[field.type]
+    : undefined;
+
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
 
 /**
@@ -83,7 +92,8 @@ export function formatDate(value: unknown): string {
 
 /** Default value for a field (used when creating entries / array items). */
 export function defaultValue(field: Field): unknown {
-  const of = DEFAULTS[field.type] as ((field: Field) => unknown) | undefined;
+  const of = forType(DEFAULTS, field) as
+    ((field: Field) => unknown) | undefined;
   return of?.(field);
 }
 
@@ -156,7 +166,7 @@ export function validate(
         errors.push({ path, message: `${label} is required` });
       continue;
     }
-    const check = CHECKS[field.type] as Check<Field> | undefined;
+    const check = forType(CHECKS, field) as Check<Field> | undefined;
     if (check) errors.push(...check(field, value, path, label));
   }
   return errors;
@@ -347,8 +357,7 @@ function summarizeProp(key: string, value: unknown): string {
   if (isRawExpression(value)) return `${key}={…}`;
   if (typeof value === "string")
     return `${key}="${value.length > 40 ? `${value.slice(0, 40)}…` : value}"`;
-  if (Array.isArray(value))
-    return `${key}: ${value.length} item${value.length === 1 ? "" : "s"}`;
+  if (Array.isArray(value)) return `${key}: ${summarize(value)}`;
   if (typeof value === "object") return `${key}: ${summarize(value) || "{…}"}`;
   return `${key}=${String(value)}`;
 }

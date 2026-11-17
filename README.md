@@ -535,8 +535,9 @@ pnpm link ../vestrycms
 
 ### Tests
 
-Tests use [Vitest](https://vitest.dev). Files matching `test/**/*.test.ts`
-run in CI; `pnpm typecheck` covers everything under `test/`.
+Tests use [Vitest](https://vitest.dev). Files matching
+`test/**/*.test.{ts,tsx}` run in CI; `pnpm typecheck` covers everything under
+`test/`.
 
 ```sh
 pnpm test                    # run the suite once
@@ -582,6 +583,12 @@ FC_RUNS=10000 pnpm test      # property tests with 10,000 cases each (default 20
   errors for them.
 - `test/service.test.ts`: `ContentService` on the local source in a
   temporary directory (entries with nested slugs).
+- `test/ui/*.test.tsx`: the control panel, rendered in jsdom with Testing
+  Library. `test/ui/harness.tsx` opens it on a temporary project with `fetch`
+  routed to the real API, so a test clicks through it and reads back the
+  files it saved. `test/ui/*.test.ts` cover the panel's logic apart from
+  React (the API client, crop geometry, tree moves, the entry editor's
+  helpers).
 
 The auth and GitHub source tests are ordered scenarios that build on shared
 state, so filter them by file, not by test name (`-t`).

@@ -164,7 +164,10 @@ export async function openPanel(
       const response = await api.handle(request);
       for (const cookie of response.headers.getSetCookie()) {
         const [pair, ...attrs] = cookie.split(";");
-        const [name, value = ""] = pair.split("=");
+        // A value may hold "=" itself (base64 padding).
+        const eq = pair.indexOf("=");
+        const name = eq === -1 ? pair : pair.slice(0, eq);
+        const value = eq === -1 ? "" : pair.slice(eq + 1);
         if (attrs.some((a) => /max-age=0/i.test(a)))
           cookies.delete(name.trim());
         else cookies.set(name.trim(), value);

@@ -460,12 +460,24 @@ function useDocument(col: Entry, entry: EntryDetail | undefined) {
     (u: PendingUpload) => setUploads((m) => ({ ...m, [u.path]: u })),
     [],
   );
-  /** Takes in a saved version: its data, and the version to save on. */
-  const saved = (data: Record<string, unknown>, newSha: string | null) => {
-    setUploads({});
+  /**
+   * Takes in a saved version: its data (as saving completed it), the version
+   * to save on next, and what was sent. Edits and uploads made while it was
+   * saving are kept, and left unsaved.
+   */
+  const saved = (
+    data: Record<string, unknown>,
+    newSha: string | null,
+    sent: Sent,
+  ) => {
+    setUploads((m) =>
+      Object.fromEntries(
+        Object.entries(m).filter(([path, u]) => sent.uploads[path] !== u),
+      ),
+    );
     setSha(newSha);
-    setInitial({ data, body: state.body });
-    setState((s) => ({ ...s, data }));
+    setInitial({ data, body: sent.state.body });
+    setState((s) => (s.data === sent.state.data ? { ...s, data } : s));
   };
   return {
     state,
@@ -479,6 +491,12 @@ function useDocument(col: Entry, entry: EntryDetail | undefined) {
   };
 }
 type Document = ReturnType<typeof useDocument>;
+
+/** What a save sent: the entry as it stood, and its uploads. */
+interface Sent {
+  state: EditorState;
+  uploads: Record<string, PendingUpload>;
+}
 
 /** The slug an entry is saved under, and what its slug box shows. */
 function useSlug({
@@ -571,7 +589,8 @@ function useSave({
 
   const save = useMutation({
     mutationFn: async () => {
-      const errs = validate(col.schema, doc.state.data);
+      const sent: Sent = { state: doc.state, uploads: doc.uploads };
+      const errs = validate(col.schema, sent.state.data);
       setErrors(errs);
       if (errs.length) throw new Error(errs[0].message);
       const input = await saveInput({
@@ -580,35 +599,42 @@ function useSave({
         collectionKey,
         pattern,
         filePath,
-        state: doc.state,
+        state: sent.state,
         sha: doc.sha,
         isNew,
         rename: renaming ? { from: slug!, to: finalSlug } : null,
-        uploads: doc.uploads,
+        uploads: sent.uploads,
       });
-      return sendSave(
+      const res = await sendSave(
         api,
         { kind, collectionKey, slug, isNew, renaming, finalSlug },
         input,
       );
+      return { ...res, sent };
     },
     onSuccess: (res) => {
       toast(
         "success",
         client.mode === "local" ? "Saved to disk" : "Saved and committed",
       );
-      doc.saved(res.data, res.sha);
+      doc.saved(res.data, res.sha, res.sent);
       qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
       qc.invalidateQueries({ queryKey: ["assets"] });
-      if (kind === "singleton") return;
-      qc.setQueryData(["entry", collectionKey, res.slug], undefined);
+      // The editor opens on what is cached, so the cache must not keep the
+      // version from before this save.
+      if (kind === "singleton") {
+        qc.invalidateQueries({ queryKey: ["singleton", collectionKey] });
+        return;
+      }
+      if (!isNew && res.slug === slug) {
+        qc.invalidateQueries({ queryKey: ["entry", collectionKey, slug] });
+        return;
+      }
       // A new or renamed entry now lives at a different address.
-      if (!isNew && res.slug !== slug)
+      if (!isNew)
         qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
-      if (isNew || res.slug !== slug)
-        navigate(`/collections/${collectionKey}/${res.slug}`, {
-          replace: true,
-        });
+      qc.removeQueries({ queryKey: ["entry", collectionKey, res.slug] });
+      navigate(`/collections/${collectionKey}/${res.slug}`, { replace: true });
     },
     onError: (e) => toast("error", saveErrorMessage(e, Boolean(slugs.dateKey))),
   });
@@ -649,6 +675,8 @@ function useRemove(collectionKey: string, slug: string | null) {
     onSuccess: () => {
       toast("success", "Entry deleted");
       qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
+      // Not to be opened again from the cache.
+      qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
       navigate(`/collections/${collectionKey}`);
     },
     onError: (e) => toast("error", (e as Error).message),
@@ -670,7 +698,11 @@ function BodyCard({
   doc: Document;
 }) {
   const format = collectionFormat(col);
-  const body = col.body === false ? null : (col.body ?? {});
+  // Kept from render to render, so the editor's environment is too.
+  const body = useMemo(
+    () => (col.body === false ? null : (col.body ?? {})),
+    [col.body],
+  );
   const { uploads } = doc;
   const env = useMemo<EditorEnv>(
     () => bodyEnv({ body, filePath, config, uploads, fileUrl }),
