@@ -543,6 +543,7 @@ pnpm test                    # run the suite once
 pnpm test:watch              # re-run on change
 pnpm test mdx                # only files whose path matches "mdx"
 pnpm test -u                 # update snapshots after an intended change
+FC_RUNS=10000 pnpm test      # property tests with 10,000 cases each (default 200)
 ```
 
 - `test/auth.test.ts`: sign-in, users and guards over HTTP (memory adapter).
@@ -562,6 +563,13 @@ pnpm test -u                 # update snapshots after an intended change
   serializer's canonical style (`_emphasis_`, `-` bullets, blank lines around
   component children). Prettier skips that directory. Record a known gap as
   an `it.fails` test and move it into the fixtures once fixed.
+- `test/mdx.property.test.ts`: [fast-check](https://fast-check.dev) property
+  tests. Generated editor documents must save and reload with every block,
+  character and mark, and a saved file must save back unchanged. A failure
+  prints a shrunk counterexample and a seed; cases marked `KNOWN` are
+  upstream quirks the generators steer around.
+- `test/core.property.test.ts`: paths, slugs, date prefixes, asset references
+  and frontmatter read back what they write.
 - `test/editor-schema.test.ts`: the same fixtures pass through the editor's
   Tiptap schema (`src/ui/components/editor/schema.ts`) without losing node
   types or attributes, so a page saved from the editor matches its source.

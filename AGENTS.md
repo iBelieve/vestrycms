@@ -45,6 +45,12 @@ main consumer; keep it free of site-specific code.
   (`test/editor-schema.test.ts`), and `test/editor-commands.test.ts` runs
   editor commands on a headless Tiptap editor (`element: null`; there is no
   DOM, so insert text with `tr.insertText`, not `insertContent`).
+- `test/*.property.test.ts` are fast-check property tests: editor
+  documents must save and reload unchanged, and the path, slug and
+  frontmatter helpers must read back what they write. They run 200 cases
+  each; `FC_RUNS=10000 pnpm test` searches harder. A failure prints a
+  shrunk counterexample and a seed. Cases marked `KNOWN` are upstream
+  quirks the generators steer around.
 - `test/manual/*` are scripts outside the suite. `github-read.ts` (given a
   site checkout) and `github-write.ts` need `GH_TOKEN` (push access for the
   write test) and cannot run through the sandbox proxy.
