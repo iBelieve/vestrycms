@@ -13,6 +13,7 @@ import {
   Loading,
   NotFoundState,
 } from "../components/ui.js";
+import type { EntrySummary } from "../../core/service.js";
 import { useVestry } from "../context.js";
 import { cx, fieldLabel, formatDate, titleCase } from "../lib/utils.js";
 
@@ -59,18 +60,8 @@ export function CollectionListPage() {
     if (sort) {
       const dir = sort.dir === "asc" ? 1 : -1;
       list = [...list].sort((a, b) => {
-        const av =
-          sort.field === "title"
-            ? a.title
-            : sort.field === "slug"
-              ? a.slug
-              : String(a.data[sort.field] ?? "");
-        const bv =
-          sort.field === "title"
-            ? b.title
-            : sort.field === "slug"
-              ? b.slug
-              : String(b.data[sort.field] ?? "");
+        const av = sortValue(a, sort.field);
+        const bv = sortValue(b, sort.field);
         return av < bv ? -dir : av > bv ? dir : 0;
       });
     }
@@ -254,6 +245,13 @@ export function CollectionListPage() {
       </div>
     </>
   );
+}
+
+/** What an entry is sorted by in a column. */
+function sortValue(entry: EntrySummary, field: string): string {
+  if (field === "title") return entry.title;
+  if (field === "slug") return entry.slug;
+  return String(entry.data[field] ?? "");
 }
 
 function CellValue({ field, value }: { field?: Field; value: unknown }) {

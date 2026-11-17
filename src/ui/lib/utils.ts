@@ -1,29 +1,46 @@
 import type { CSSProperties } from "react";
 import type { Field, Schema } from "../../config/types.js";
+import { isRawExpression } from "../../mdx/types.js";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
+export const clamp = (v: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, v));
+
+/** The entry for a field's type in a table of them; none for an unknown type. */
+const forType = (table: object, field: Field): unknown =>
+  Object.hasOwn(table, field.type)
+    ? (table as Record<string, unknown>)[field.type]
+    : undefined;
+
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/g;
+
+/**
+ * A URL found in text, without the sentence punctuation after it
+ * ("…/limits/." or "(…/limits/)").
+ */
+function trimUrl(found: string): string {
+  let url = found;
+  for (let prev = ""; prev !== url;) {
+    prev = url;
+    url = url.replace(/[.,;:!?…”’]+$/, "");
+    // A closing bracket is the URL's own only if the URL opened it.
+    const close = url.slice(-1);
+    const open = close === ")" ? "(" : close === "]" ? "[" : "";
+    if (open && url.split(open).length < url.split(close).length)
+      url = url.slice(0, -1);
+  }
+  return url;
+}
 
 /** Splits text around the http(s) URLs in it, for rendering them as links. */
 export function splitLinks(text: string): { text: string; url?: string }[] {
   const parts: { text: string; url?: string }[] = [];
   let last = 0;
   for (const match of text.matchAll(URL_PATTERN)) {
-    // Sentence punctuation after a URL ("…/limits/." or "(…/limits/)") is
-    // not part of it.
-    let url = match[0];
-    for (let prev = ""; prev !== url;) {
-      prev = url;
-      url = url.replace(/[.,;:!?…”’]+$/, "");
-      // A closing bracket is the URL's own only if the URL opened it.
-      const close = url.slice(-1);
-      const open = close === ")" ? "(" : close === "]" ? "[" : "";
-      if (open && url.split(open).length < url.split(close).length)
-        url = url.slice(0, -1);
-    }
+    const url = trimUrl(match[0]);
     if (match.index > last) parts.push({ text: text.slice(last, match.index) });
     parts.push({ text: url, url });
     last = match.index + url.length;
@@ -75,52 +92,48 @@ export function formatDate(value: unknown): string {
 
 /** Default value for a field (used when creating entries / array items). */
 export function defaultValue(field: Field): unknown {
-  switch (field.type) {
-    case "text":
-    case "textarea":
-    case "slug":
-    case "color":
-    case "image":
-    case "file":
-    case "reference":
-    case "markdown":
-    case "code":
-      return field.default ?? "";
-    case "number":
-      return field.default ?? null;
-    case "boolean":
-      return field.default ?? false;
-    case "date":
-      return field.default === "now"
-        ? new Date().toISOString().slice(0, 10)
-        : (field.default ?? "");
-    case "datetime":
-      if (field.default === "now") {
-        return field.storage === "local"
-          ? new Date().toISOString().slice(0, 16)
-          : new Date().toISOString();
-      }
-      return field.default ?? "";
-    case "select":
-      return (
-        field.default ??
-        (field.clearable ? "" : (field.options[0]?.value ?? ""))
-      );
-    case "multiselect":
-      return field.default ?? [];
-    case "object":
-      return defaultValues(field.fields);
-    case "array":
-      return [];
-    case "json":
-      return field.default ?? null;
-    case "crop":
-    case "focalPoint":
-      return undefined;
-    case "tree":
-      return [];
-  }
+  const of = forType(DEFAULTS, field) as
+    ((field: Field) => unknown) | undefined;
+  return of?.(field);
 }
+
+const textDefault = (field: { default?: string }) => field.default ?? "";
+
+/** The default value of each type of field. */
+const DEFAULTS: {
+  [Type in Field["type"]]: (field: Extract<Field, { type: Type }>) => unknown;
+} = {
+  text: textDefault,
+  textarea: textDefault,
+  slug: textDefault,
+  color: textDefault,
+  image: textDefault,
+  file: textDefault,
+  reference: textDefault,
+  markdown: textDefault,
+  code: textDefault,
+  number: (field) => field.default ?? null,
+  boolean: (field) => field.default ?? false,
+  date: (field) =>
+    field.default === "now"
+      ? new Date().toISOString().slice(0, 10)
+      : (field.default ?? ""),
+  datetime: (field) => {
+    if (field.default !== "now") return field.default ?? "";
+    return field.storage === "local"
+      ? new Date().toISOString().slice(0, 16)
+      : new Date().toISOString();
+  },
+  select: (field) =>
+    field.default ?? (field.clearable ? "" : (field.options[0]?.value ?? "")),
+  multiselect: (field) => field.default ?? [],
+  object: (field) => defaultValues(field.fields),
+  array: () => [],
+  json: (field) => field.default ?? null,
+  crop: () => undefined,
+  focalPoint: () => undefined,
+  tree: () => [],
+};
 
 export function defaultValues(schema: Schema): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -148,88 +161,123 @@ export function validate(
     const path = prefix ? `${prefix}.${key}` : key;
     const value = data?.[key];
     const label = fieldLabel(key, field);
-    const empty =
-      value === undefined ||
-      value === null ||
-      value === "" ||
-      (Array.isArray(value) && value.length === 0);
-    if (field.required && empty) {
-      errors.push({ path, message: `${label} is required` });
+    if (isEmpty(value)) {
+      if (field.required)
+        errors.push({ path, message: `${label} is required` });
       continue;
     }
-    if (empty) continue;
-    if (field.type === "text" && field.pattern && typeof value === "string") {
-      if (!new RegExp(field.pattern).test(value))
-        errors.push({
+    const check = forType(CHECKS, field) as Check<Field> | undefined;
+    if (check) errors.push(...check(field, value, path, label));
+  }
+  return errors;
+}
+
+const isEmpty = (value: unknown) =>
+  value === undefined ||
+  value === null ||
+  value === "" ||
+  (Array.isArray(value) && value.length === 0);
+
+type Check<F> = (
+  field: F,
+  value: unknown,
+  path: string,
+  label: string,
+) => ValidationError[];
+
+function maxLengthErrors(
+  field: { maxLength?: number },
+  value: unknown,
+  path: string,
+  label: string,
+): ValidationError[] {
+  return field.maxLength &&
+    typeof value === "string" &&
+    value.length > field.maxLength
+    ? [
+        {
           path,
-          message: `${label} is not in the expected format`,
-        });
-    }
-    if (
-      (field.type === "text" || field.type === "textarea") &&
-      field.maxLength &&
-      typeof value === "string" &&
-      value.length > field.maxLength
-    ) {
-      errors.push({
-        path,
-        message: `${label} must be at most ${field.maxLength} characters`,
-      });
-    }
-    if (field.type === "number" && typeof value === "number") {
-      if (field.min !== undefined && value < field.min)
-        errors.push({
-          path,
-          message: `${label} must be at least ${field.min}`,
-        });
-      if (field.max !== undefined && value > field.max)
-        errors.push({ path, message: `${label} must be at most ${field.max}` });
-    }
-    if (field.type === "object" && value && typeof value === "object") {
+          message: `${label} must be at most ${field.maxLength} characters`,
+        },
+      ]
+    : [];
+}
+
+/** The checks for a field with a value, by its type. */
+const CHECKS: {
+  [Type in Field["type"]]?: Check<Extract<Field, { type: Type }>>;
+} = {
+  text: (field, value, path, label) => [
+    ...(field.pattern &&
+    typeof value === "string" &&
+    !new RegExp(field.pattern).test(value)
+      ? [{ path, message: `${label} is not in the expected format` }]
+      : []),
+    ...maxLengthErrors(field, value, path, label),
+  ],
+  textarea: maxLengthErrors,
+  number: (field, value, path, label) => {
+    if (typeof value !== "number") return [];
+    const errors: ValidationError[] = [];
+    if (field.min !== undefined && value < field.min)
+      errors.push({ path, message: `${label} must be at least ${field.min}` });
+    if (field.max !== undefined && value > field.max)
+      errors.push({ path, message: `${label} must be at most ${field.max}` });
+    return errors;
+  },
+  object: (field, value, path) =>
+    value && typeof value === "object"
+      ? validate(field.fields, value as Record<string, unknown>, path)
+      : [],
+  tree: (field, value, path) =>
+    Array.isArray(value) ? treeErrors(field, value, path) : [],
+  array: (field, value, path, label) =>
+    Array.isArray(value) ? arrayErrors(field, value, path, label) : [],
+};
+
+/** Each node of a tree, and its children's, checked against the tree's fields. */
+function treeErrors(
+  field: Extract<Field, { type: "tree" }>,
+  nodes: unknown[],
+  path: string,
+): ValidationError[] {
+  const key = field.childrenKey ?? "children";
+  return nodes.flatMap((n, i) => {
+    if (!n || typeof n !== "object") return [];
+    const kids = (n as Record<string, unknown>)[key];
+    return [
+      ...validate(field.fields, n as Record<string, unknown>, `${path}.${i}`),
+      ...(Array.isArray(kids)
+        ? treeErrors(field, kids, `${path}.${i}.${key}`)
+        : []),
+    ];
+  });
+}
+
+function arrayErrors(
+  field: Extract<Field, { type: "array" }>,
+  items: unknown[],
+  path: string,
+  label: string,
+): ValidationError[] {
+  const errors: ValidationError[] = [];
+  if (field.min !== undefined && items.length < field.min)
+    errors.push({
+      path,
+      message: `${label} needs at least ${field.min} items`,
+    });
+  if (field.max !== undefined && items.length > field.max)
+    errors.push({
+      path,
+      message: `${label} allows at most ${field.max} items`,
+    });
+  const of = field.of;
+  if (of.type === "object") {
+    items.forEach((item, i) =>
       errors.push(
-        ...validate(field.fields, value as Record<string, unknown>, path),
-      );
-    }
-    if (field.type === "tree" && Array.isArray(value)) {
-      const key = field.childrenKey ?? "children";
-      const walk = (nodes: unknown[], prefix: string) =>
-        nodes.forEach((n, i) => {
-          if (!n || typeof n !== "object") return;
-          errors.push(
-            ...validate(
-              field.fields,
-              n as Record<string, unknown>,
-              `${prefix}.${i}`,
-            ),
-          );
-          const kids = (n as Record<string, unknown>)[key];
-          if (Array.isArray(kids)) walk(kids, `${prefix}.${i}.${key}`);
-        });
-      walk(value, path);
-    }
-    if (field.type === "array" && Array.isArray(value)) {
-      if (field.min !== undefined && value.length < field.min)
-        errors.push({
-          path,
-          message: `${label} needs at least ${field.min} items`,
-        });
-      if (field.max !== undefined && value.length > field.max)
-        errors.push({
-          path,
-          message: `${label} allows at most ${field.max} items`,
-        });
-      if (field.of.type === "object") {
-        value.forEach((item, i) =>
-          errors.push(
-            ...validate(
-              (field.of as { fields: Schema }).fields,
-              item as Record<string, unknown>,
-              `${path}.${i}`,
-            ),
-          ),
-        );
-      }
-    }
+        ...validate(of.fields, item as Record<string, unknown>, `${path}.${i}`),
+      ),
+    );
   }
   return errors;
 }
@@ -242,21 +290,20 @@ export function summarize(value: unknown, field?: Field): string {
     return String(value);
   if (Array.isArray(value))
     return `${value.length} item${value.length === 1 ? "" : "s"}`;
-  if (typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    if (
-      field?.type === "array" &&
-      field.itemLabel &&
-      obj[field.itemLabel] !== undefined
-    )
-      return String(obj[field.itemLabel]);
-    for (const k of ["title", "label", "name", "heading", "id"]) {
-      if (typeof obj[k] === "string" && obj[k]) return obj[k] as string;
-    }
-    const first = Object.values(obj).find((v) => typeof v === "string" && v);
-    return first ? String(first) : "";
-  }
+  if (typeof value === "object")
+    return objectSummary(value as Record<string, unknown>, field);
   return "";
+}
+
+/** An object's item label, title-like field or first text. */
+function objectSummary(obj: Record<string, unknown>, field?: Field): string {
+  const itemLabel = field?.type === "array" ? field.itemLabel : undefined;
+  if (itemLabel && obj[itemLabel] !== undefined) return String(obj[itemLabel]);
+  for (const k of ["title", "label", "name", "heading", "id"]) {
+    if (typeof obj[k] === "string" && obj[k]) return obj[k] as string;
+  }
+  const first = Object.values(obj).find((v) => typeof v === "string" && v);
+  return first ? String(first) : "";
 }
 
 export function isImagePath(p: string): boolean {
@@ -296,4 +343,21 @@ export function initials(nameOrEmail: string): string {
   const first = parts[0]?.[0] ?? "?";
   const last = parts.length > 1 ? parts[parts.length - 1]![0] : "";
   return `${first}${last ?? ""}`.toUpperCase();
+}
+
+/** A component's props in a line, as its collapsed block shows them. */
+export function summarizeProps(props: Record<string, unknown>): string {
+  return Object.entries(props)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => summarizeProp(k, v))
+    .join(" · ");
+}
+
+function summarizeProp(key: string, value: unknown): string {
+  if (isRawExpression(value)) return `${key}={…}`;
+  if (typeof value === "string")
+    return `${key}="${value.length > 40 ? `${value.slice(0, 40)}…` : value}"`;
+  if (Array.isArray(value)) return `${key}: ${summarize(value)}`;
+  if (typeof value === "object") return `${key}: ${summarize(value) || "{…}"}`;
+  return `${key}=${String(value)}`;
 }

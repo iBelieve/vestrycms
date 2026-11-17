@@ -36,9 +36,18 @@ main consumer; keep it free of site-specific code.
   deliberate exception in `.fallowrc.json` or with a
   `// fallow-ignore-next-line <rule>` comment that says why (see the
   recursive field rendering in `TreeInput.tsx`).
-- `pnpm test` runs Vitest over `test/**/*.test.ts`; `pnpm test:watch`
+- `pnpm test` runs Vitest over `test/**/*.test.{ts,tsx}`; `pnpm test:watch`
   re-runs on change, `pnpm test -u` updates snapshots. `pnpm typecheck`
   covers everything under `test/`.
+- `test/ui/*.test.tsx` (marked `// @vitest-environment jsdom`) render the
+  control panel with Testing Library. `test/ui/harness.tsx` opens it on a
+  temporary project with `fetch` routed to `createApi`'s handler, so a test
+  clicks through the real API and reads back the files it saved; `signIn()`
+  adds sign-in on Better Auth's memory adapter. jsdom loads no images and
+  lays nothing out, so the image tool and tree tests stub `Image` and element
+  sizes, and CodeMirror is mocked where a test types code.
+  `virtual:vestry/formatter` resolves to `test/ui/formatter-stub.ts`
+  (`vitest.config.ts`).
 - `test/fixtures/mdx` files must round-trip byte for byte, so Prettier skips
   them; write them in the serializer's canonical style.
 - The fixtures also pass through the editor schema

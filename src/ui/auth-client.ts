@@ -14,23 +14,24 @@ export function createVestryAuthClient(basePath: string) {
 
 export type VestryAuthClient = ReturnType<typeof createVestryAuthClient>;
 
+const AUTH_MESSAGES: Record<string, string> = {
+  INVALID_OTP: "That code isn't right. Check the email and try again.",
+  OTP_EXPIRED: "That code has expired. Request a new one.",
+  TOO_MANY_ATTEMPTS: "Too many incorrect codes. Request a new one.",
+  INVALID_EMAIL: "Enter a valid email address.",
+};
+
 /** Turns a Better Auth client error into something to show the user. */
 export function authErrorMessage(
   error: { code?: string; message?: string } | null | undefined,
   fallback = "Something went wrong. Please try again.",
 ): string {
-  switch (error?.code) {
-    case "INVALID_OTP":
-      return "That code isn't right. Check the email and try again.";
-    case "OTP_EXPIRED":
-      return "That code has expired. Request a new one.";
-    case "TOO_MANY_ATTEMPTS":
-      return "Too many incorrect codes. Request a new one.";
-    case "INVALID_EMAIL":
-      return "Enter a valid email address.";
-    default:
-      if (error?.message?.toLowerCase().includes("too many requests"))
-        return "Too many sign-in attempts. Please wait a minute and try again.";
-      return error?.message || fallback;
-  }
+  const code = error?.code ?? "";
+  const known = Object.hasOwn(AUTH_MESSAGES, code)
+    ? AUTH_MESSAGES[code]
+    : undefined;
+  if (known) return known;
+  if (error?.message?.toLowerCase().includes("too many requests"))
+    return "Too many sign-in attempts. Please wait a minute and try again.";
+  return error?.message || fallback;
 }

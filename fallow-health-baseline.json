@@ -1,640 +1,156 @@
 {
   "kind": "health",
   "finding_counts": {
-    "src/ui/App.tsx": {
-      "crap_high": {
-        "count": 2
-      }
-    },
-    "src/ui/api.ts": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/auth-client.ts": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "src/ui/components/AssetPicker.tsx": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_high": {
+      "complexity_high": {
         "count": 1
       }
     },
     "src/ui/components/Layout.tsx": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 2
-      },
-      "crap_moderate": {
+      "complexity_moderate": {
         "count": 1
       }
     },
     "src/ui/components/editor/NodeViews.tsx": {
-      "complexity_critical": {
-        "count": 2
-      },
-      "crap_critical": {
-        "count": 2
-      },
-      "crap_high": {
-        "count": 3
+      "complexity_moderate": {
+        "count": 1
       }
     },
     "src/ui/components/editor/RichTextEditor.tsx": {
-      "complexity_critical": {
-        "count": 1
-      },
       "complexity_high": {
         "count": 1
       },
-      "crap_critical": {
+      "complexity_moderate": {
         "count": 1
-      },
-      "crap_high": {
-        "count": 3
-      },
-      "crap_moderate": {
-        "count": 2
       }
     },
     "src/ui/components/fields/FieldRenderer.tsx": {
-      "complexity_critical": {
-        "count": 2
-      },
-      "crap_critical": {
-        "count": 4
-      },
-      "crap_high": {
-        "count": 3
-      },
-      "crap_moderate": {
-        "count": 2
+      "complexity_moderate": {
+        "count": 1
       }
     },
     "src/ui/components/fields/ImageTools.tsx": {
-      "complexity_critical": {
-        "count": 2
-      },
-      "crap_critical": {
-        "count": 2
-      },
-      "crap_high": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 2
+      "complexity_moderate": {
+        "count": 1
       }
     },
     "src/ui/components/fields/TreeInput.tsx": {
-      "complexity_critical": {
+      "complexity_moderate": {
         "count": 2
-      },
-      "crap_critical": {
-        "count": 3
-      },
-      "crap_moderate": {
-        "count": 1
       }
     },
     "src/ui/components/ui.tsx": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/lib/utils.ts": {
-      "complexity_critical": {
-        "count": 3
-      },
       "complexity_moderate": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 3
-      },
-      "crap_high": {
-        "count": 3
-      },
-      "crap_moderate": {
         "count": 1
       }
     },
     "src/ui/pages/Assets.tsx": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
+      "complexity_high": {
         "count": 1
       }
     },
     "src/ui/pages/CollectionList.tsx": {
-      "complexity_critical": {
+      "complexity_moderate": {
         "count": 1
-      },
-      "crap_critical": {
-        "count": 3
-      },
-      "crap_high": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 2
-      }
-    },
-    "src/ui/pages/Dashboard.tsx": {
-      "crap_high": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 2
       }
     },
     "src/ui/pages/EntryEditor.tsx": {
-      "complexity_critical": {
+      "complexity_high": {
         "count": 1
-      },
-      "crap_critical": {
-        "count": 3
-      },
-      "crap_high": {
-        "count": 3
-      },
-      "crap_moderate": {
-        "count": 5
       }
     },
     "src/ui/pages/Login.tsx": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      },
-      "crap_moderate": {
+      "complexity_high": {
         "count": 1
       }
     },
     "src/ui/pages/Users.tsx": {
-      "complexity_critical": {
-        "count": 2
+      "complexity_high": {
+        "count": 1
       },
-      "crap_critical": {
-        "count": 2
-      },
-      "crap_moderate": {
+      "complexity_moderate": {
         "count": 1
       }
     }
   },
   "identity_finding_counts": {
-    "src/ui/App.tsx\u0000Root": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/App.tsx\u0000afterLogin": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/api.ts\u0000request": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/auth-client.ts\u0000authErrorMessage": {
-      "crap_high": {
-        "count": 1
-      }
-    },
     "src/ui/components/AssetPicker.tsx\u0000AssetPicker": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/AssetPicker.tsx\u0000upload": {
-      "crap_high": {
+      "complexity_high": {
         "count": 1
       }
     },
     "src/ui/components/Layout.tsx\u0000Shell": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/Layout.tsx\u0000TopBar": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/Layout.tsx\u0000itemFor": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/editor/NodeViews.tsx\u0000<arrow>": {
-      "crap_high": {
+      "complexity_moderate": {
         "count": 1
       }
     },
     "src/ui/components/editor/NodeViews.tsx\u0000ComponentNodeView": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/editor/NodeViews.tsx\u0000InlineComponentNodeView": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/editor/NodeViews.tsx\u0000RawBlockNodeView": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/editor/NodeViews.tsx\u0000summaryOf": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/editor/RichTextEditor.tsx\u0000<arrow>": {
-      "crap_high": {
-        "count": 1
-      },
-      "crap_moderate": {
+      "complexity_moderate": {
         "count": 1
       }
     },
     "src/ui/components/editor/RichTextEditor.tsx\u0000EditorInner": {
       "complexity_high": {
         "count": 1
-      },
-      "crap_high": {
-        "count": 1
       }
     },
     "src/ui/components/editor/RichTextEditor.tsx\u0000Toolbar": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/editor/RichTextEditor.tsx\u0000insertComponent": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/editor/RichTextEditor.tsx\u0000switchMode": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000ArrayInput": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000AssetInput": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000DatetimeInput": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000FieldInput": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000FieldRenderer": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000ReferenceInput": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000SlugInput": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000objectHeader": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/FieldRenderer.tsx\u0000scalarRow": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/ImageTools.tsx\u0000<arrow>": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/ImageTools.tsx\u0000CropInput": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/ImageTools.tsx\u0000FocalPointInput": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/ImageTools.tsx\u0000onKeyDown": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/ImageTools.tsx\u0000onPointerMove": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/ImageTools.tsx\u0000useImageSource": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/TreeInput.tsx\u0000TreeInput": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/TreeInput.tsx\u0000TreeRow": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/TreeInput.tsx\u0000getProjection": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/components/fields/TreeInput.tsx\u0000onDragEnd": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/ui.tsx\u0000Alert": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/components/ui.tsx\u0000ErrorState": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/lib/utils.ts\u0000cssToStyle": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/lib/utils.ts\u0000defaultValue": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/lib/utils.ts\u0000defaultValues": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/lib/utils.ts\u0000formatDate": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/lib/utils.ts\u0000initials": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/lib/utils.ts\u0000splitLinks": {
       "complexity_moderate": {
         "count": 1
       }
     },
-    "src/ui/lib/utils.ts\u0000summarize": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
+    "src/ui/components/fields/FieldRenderer.tsx\u0000AssetInput": {
+      "complexity_moderate": {
         "count": 1
       }
     },
-    "src/ui/lib/utils.ts\u0000validate": {
-      "complexity_critical": {
+    "src/ui/components/fields/ImageTools.tsx\u0000CropInput": {
+      "complexity_moderate": {
         "count": 1
-      },
-      "crap_critical": {
+      }
+    },
+    "src/ui/components/fields/TreeInput.tsx\u0000TreeInput": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/ui/components/fields/TreeInput.tsx\u0000TreeRow": {
+      "complexity_moderate": {
+        "count": 1
+      }
+    },
+    "src/ui/components/ui.tsx\u0000ErrorState": {
+      "complexity_moderate": {
         "count": 1
       }
     },
     "src/ui/pages/Assets.tsx\u0000AssetsPage": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/CollectionList.tsx\u0000<arrow>": {
-      "crap_high": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/CollectionList.tsx\u0000CellValue": {
-      "crap_critical": {
+      "complexity_high": {
         "count": 1
       }
     },
     "src/ui/pages/CollectionList.tsx\u0000CollectionListPage": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
+      "complexity_moderate": {
         "count": 1
       }
     },
-    "src/ui/pages/CollectionList.tsx\u0000columns": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/CollectionList.tsx\u0000entries": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/Dashboard.tsx\u0000<arrow>": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/Dashboard.tsx\u0000recentCount": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/Dashboard.tsx\u0000recentDateField": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000<arrow>": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000EntryEditor": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000effectiveSlug": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000env": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000filePath": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000mutationFn": {
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000onError": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000onSuccess": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000requestSave": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000sectionCard": {
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/EntryEditor.tsx\u0000toRepoPath": {
-      "crap_moderate": {
+    "src/ui/pages/EntryEditor.tsx\u0000EntryForm": {
+      "complexity_high": {
         "count": 1
       }
     },
     "src/ui/pages/Login.tsx\u0000LoginPage": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/Login.tsx\u0000verify": {
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/ui/pages/Users.tsx\u0000<arrow>": {
-      "crap_moderate": {
+      "complexity_high": {
         "count": 1
       }
     },
     "src/ui/pages/Users.tsx\u0000UserForm": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
+      "complexity_moderate": {
         "count": 1
       }
     },
     "src/ui/pages/Users.tsx\u0000UsersPage": {
-      "complexity_critical": {
-        "count": 1
-      },
-      "crap_critical": {
+      "complexity_high": {
         "count": 1
       }
     }

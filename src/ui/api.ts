@@ -60,6 +60,33 @@ export function describeError(error: unknown): {
   return { message: message || "Unknown error", meta };
 }
 
+/** A response's JSON body, or null if it has none (or is not JSON). */
+async function readJson(res: Response): Promise<unknown> {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The error a failed request throws. A 401 for want of sign-in also tells
+ * the app, which returns to the sign-in page.
+ */
+function failure(status: number, data: unknown): ApiError {
+  const err = (data as { error?: { message?: string; code?: string } } | null)
+    ?.error;
+  if (status === 401 && err?.code === "unauthorized") {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  }
+  return new ApiError(
+    err?.message ?? `Request failed (${status})`,
+    status,
+    err?.code ?? "error",
+  );
+}
+
 export function createClient(basePath: string) {
   const prefix = `${basePath.replace(/\/$/, "")}/api`;
 
@@ -74,26 +101,8 @@ export function createClient(basePath: string) {
       credentials: "same-origin",
     });
     if (res.status === 204) return undefined as T;
-    let data: unknown = null;
-    const text = await res.text();
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = null;
-    }
-    if (!res.ok) {
-      const err = (
-        data as { error?: { message?: string; code?: string } } | null
-      )?.error;
-      if (res.status === 401 && err?.code === "unauthorized") {
-        window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
-      }
-      throw new ApiError(
-        err?.message ?? `Request failed (${res.status})`,
-        res.status,
-        err?.code ?? "error",
-      );
-    }
+    const data = await readJson(res);
+    if (!res.ok) throw failure(res.status, data);
     return data as T;
   }
 
