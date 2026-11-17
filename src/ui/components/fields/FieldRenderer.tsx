@@ -52,6 +52,7 @@ import { MarkdownField } from "./MarkdownField.js";
 import { CodeInput } from "./CodeInput.js";
 import { CropInput, FocalPointInput } from "./ImageTools.js";
 import { TreeInput } from "./TreeInput.js";
+import { datetimeStorage, localDateTime } from "../../../core/values.js";
 
 export interface FieldContext {
   /** Collects files picked through image/file fields so they're committed with the entry. */
@@ -63,11 +64,40 @@ export interface FieldContext {
   siblings?: Record<string, unknown>;
 }
 
+/** Values by field key, as a form holds them. */
+type Values = Record<string, unknown>;
+
+/**
+ * Changes a form's values. It takes an update of the values as they stand,
+ * not the values themselves, so that two fields changing at once (two
+ * crops seeding their defaults as their images load) both keep their
+ * change instead of the second overwriting the first.
+ */
+export type ValuesChange = (update: (values: Values) => Values) => void;
+
+const isValues = (value: unknown): value is Values =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * What a field's `onChange` asks for: the value it was given, or, given a
+ * function, that update of `current`.
+ */
+export function changedValue(change: unknown, current: unknown): unknown {
+  return typeof change === "function"
+    ? (change as (value: unknown) => unknown)(current)
+    : change;
+}
+
 export interface FieldProps<F extends Field = Field> {
   fieldKey: string;
   path: string;
   field: F;
   value: unknown;
+  /**
+   * Sets the field's value. A function is an update of its current value
+   * instead (from the form an object, list item or tree item nests), so
+   * whatever renders a field resolves it with `changedValue`.
+   */
   onChange: (value: unknown) => void;
   errors?: ValidationError[];
   ctx?: FieldContext;
@@ -87,8 +117,8 @@ export function FieldSet({
   hideLabels,
 }: {
   schema: Schema;
-  values: Record<string, unknown>;
-  onChange: (values: Record<string, unknown>) => void;
+  values: Values;
+  onChange: ValuesChange;
   errors?: ValidationError[];
   filter?: (key: string, field: Field) => boolean;
   ctx?: FieldContext;
@@ -116,7 +146,12 @@ export function FieldSet({
             path={pathPrefix ? `${pathPrefix}.${key}` : key}
             field={field}
             value={values[key]}
-            onChange={(v) => onChange({ ...values, [key]: v })}
+            onChange={(v) =>
+              onChange((current) => ({
+                ...current,
+                [key]: changedValue(v, current[key]),
+              }))
+            }
             errors={errors}
             ctx={{ ...ctx, siblings: values }}
             hideLabel={hideLabels?.includes(key)}
@@ -231,7 +266,7 @@ const INPUTS: { [T in Field["type"]]: (props: InputProps<T>) => ReactNode } = {
       <DatetimeInput
         id={id}
         value={value}
-        storage={field.storage ?? "local"}
+        storage={datetimeStorage(field)}
         onChange={onChange}
         readOnly={field.readOnly}
       />
@@ -468,7 +503,9 @@ function ObjectInput({
     <FieldSet
       schema={field.fields}
       values={obj}
-      onChange={onChange}
+      onChange={(update) =>
+        onChange((current: unknown) => update(isValues(current) ? current : {}))
+      }
       errors={errors}
       ctx={ctx}
       pathPrefix={path}
@@ -538,10 +575,7 @@ function DatetimeInput({
     if (storage === "local") display = value.slice(0, 16);
     else {
       const d = new Date(value);
-      if (!Number.isNaN(d.getTime())) {
-        const pad = (n: number) => String(n).padStart(2, "0");
-        display = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      }
+      if (!Number.isNaN(d.getTime())) display = localDateTime(d);
     }
   }
   return (
@@ -793,8 +827,15 @@ function ArrayInput(props: FieldProps<Extract<Field, { type: "array" }>>) {
       ],
       [...ids.slice(0, i + 1), newRowId(), ...ids.slice(i + 1)],
     );
+  // Applied to the list as it stands, like the form's own updates.
   const setItem = (i: number, v: unknown) =>
-    update(items.map((x, j) => (j === i ? v : x)));
+    onChange((current: unknown) =>
+      (Array.isArray(current) ? current : []).map((x, j) =>
+        j !== i ? x : changedValue(v, x),
+      ),
+    );
+  const updateItem = (i: number, change: (values: Values) => Values) =>
+    setItem(i, (x: unknown) => change(isValues(x) ? x : {}));
 
   const moveButtons = (i: number) => (
     <>
@@ -952,7 +993,7 @@ function ArrayInput(props: FieldProps<Extract<Field, { type: "array" }>>) {
                             <FieldSet
                               schema={(field.of as { fields: Schema }).fields}
                               values={(item ?? {}) as Record<string, unknown>}
-                              onChange={(v) => setItem(i, v)}
+                              onChange={(update) => updateItem(i, update)}
                               errors={props.errors}
                               ctx={ctx}
                               pathPrefix={`${props.path}.${i}`}

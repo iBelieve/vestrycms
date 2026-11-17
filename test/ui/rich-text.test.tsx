@@ -244,6 +244,18 @@ describe("the rich text editor", () => {
     await waitFor(() => expect(ed.output()).not.toContain("<Badge>"));
   });
 
+  it("edits an item of a list setting", async () => {
+    const ed = open('<Gallery items={["a"]} />\n');
+    const gallery = (
+      await screen.findByText("Gallery", { selector: ".v-block__name" })
+    ).closest(".v-block") as HTMLElement;
+    fireEvent.click(within(gallery).getByTitle("Edit settings"));
+    fireEvent.change(within(gallery).getByDisplayValue("a"), {
+      target: { value: "b" },
+    });
+    await ed.reports('<Gallery items={["b"]} />');
+  });
+
   it("edits code it cannot show", async () => {
     const user = userEvent.setup();
     const ed = open(

@@ -15,7 +15,13 @@ import {
 } from "../components/ui.js";
 import type { EntrySummary } from "../../core/service.js";
 import { useVestry } from "../context.js";
-import { cx, fieldLabel, formatDate, titleCase } from "../lib/utils.js";
+import {
+  cx,
+  entryHref,
+  fieldLabel,
+  formatDate,
+  titleCase,
+} from "../lib/utils.js";
 
 export function CollectionListPage() {
   const { collection: key = "" } = useParams();
@@ -182,7 +188,7 @@ export function CollectionListPage() {
                         <td className="v-table__main">
                           <Link
                             className="v-table__title"
-                            to={`/collections/${key}/${e.slug}`}
+                            to={entryHref(key, e.slug)}
                           >
                             {e.title}
                           </Link>

@@ -26,7 +26,7 @@ import {
   parsePathPattern,
   type PathPattern,
 } from "../../core/paths.js";
-import { filenameDateKey } from "../../core/values.js";
+import { filenameDateKey, rewriteReferences } from "../../core/values.js";
 import { ApiError, type EntryDetail, type EntryReference } from "../api.js";
 import type { PendingUpload } from "../components/AssetPicker.js";
 import type { EditorEnv } from "../components/editor/EditorContext.js";
@@ -47,8 +47,9 @@ import {
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
 import {
-  defaultValues,
   deepEqual,
+  defaultValues,
+  entryHref,
   fieldLabel,
   formatDate,
   validate,
@@ -115,6 +116,50 @@ interface EditorState {
 
 type Entry = CollectionConfig | SingletonConfig;
 
+/**
+ * What changed while a new or renamed entry was saving, which its editor at
+ * the new address opens with: the data or body if they changed (the saved
+ * version's otherwise), and the uploads the save did not send.
+ */
+interface Draft {
+  data?: Record<string, unknown>;
+  body?: string;
+  /** What the slug box holds, if it changed. */
+  typed?: string;
+  uploads: Record<string, PendingUpload>;
+}
+/**
+ * The draft a save hands to the editor it navigates to, by that editor's
+ * address. There is one at most: the next editor opened takes it or, at
+ * another address, drops it, so a draft never outlives that navigation.
+ */
+let handoff: { key: string; draft: Draft } | null = null;
+const draftKey = (kind: Kind, collectionKey: string, slug: string | null) =>
+  JSON.stringify([kind, collectionKey, slug]);
+
+/** The draft a save left for this editor, taken once so it applies once. */
+function useDraft(kind: Kind, collectionKey: string, slug: string | null) {
+  const key = draftKey(kind, collectionKey, slug);
+  const [draft] = useState(() =>
+    handoff?.key === key ? handoff.draft : undefined,
+  );
+  useEffect(() => {
+    handoff = null;
+  }, [key]);
+  return draft;
+}
+
+/** The configuration of the collection or global being edited, if any. */
+function entryConfig(
+  config: VestryConfig,
+  kind: Kind,
+  key: string,
+): Entry | undefined {
+  return kind === "collection"
+    ? config.collections?.[key]
+    : config.singletons?.[key];
+}
+
 function EntryEditor({
   kind,
   collectionKey,
@@ -127,10 +172,8 @@ function EntryEditor({
   isNew?: boolean;
 }) {
   const { config, api } = useVestry();
-  const col: Entry | undefined =
-    kind === "collection"
-      ? config.collections?.[collectionKey]
-      : config.singletons?.[collectionKey];
+  const col = entryConfig(config, kind, collectionKey);
+  const draft = useDraft(kind, collectionKey, slug);
 
   const query = useQuery({
     queryKey:
@@ -168,7 +211,7 @@ function EntryEditor({
   if (!query.data) return <Loading />;
   return (
     <EntryForm
-      {...{ kind, collectionKey, slug, isNew, col }}
+      {...{ kind, collectionKey, slug, isNew, col, draft }}
       entry={query.data}
     />
   );
@@ -218,6 +261,7 @@ function EntryForm({
   isNew,
   col,
   entry,
+  draft,
 }: {
   kind: Kind;
   collectionKey: string;
@@ -225,15 +269,24 @@ function EntryForm({
   isNew: boolean;
   col: Entry;
   entry?: EntryDetail;
+  draft?: Draft;
 }) {
   const { config, api } = useVestry();
   const collection = kind === "collection" ? (col as CollectionConfig) : null;
-  const doc = useDocument(col, entry);
+  const doc = useDocument(col, entry, draft);
   const { state, setData, uploads } = doc;
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const pattern = useMemo(() => parsePathPattern(col.path), [col]);
-  const slugs = useSlug({ kind, collection, pattern, slug, isNew, state });
+  const slugs = useSlug({
+    kind,
+    collection,
+    pattern,
+    slug,
+    isNew,
+    state,
+    draft,
+  });
   const { finalSlug, renaming } = slugs;
 
   // Ask before leaving the page with anything unsaved, a rename included.
@@ -349,7 +402,10 @@ function EntryForm({
                 value={display.titleValue}
                 placeholder={`${fieldLabel(display.titleInput, col.schema[display.titleInput])}…`}
                 onChange={(title) =>
-                  setData({ ...state.data, [display.titleInput!]: title })
+                  setData((data) => ({
+                    ...data,
+                    [display.titleInput!]: title,
+                  }))
                 }
                 autoFocus={isNew}
                 error={
@@ -438,27 +494,60 @@ interface FieldSetProps {
   hideLabels?: string[];
 }
 
-/** The entry being edited, as last saved and as it stands, with its uploads. */
-function useDocument(col: Entry, entry: EntryDetail | undefined) {
-  const [state, setState] = useState<EditorState>(() =>
+/**
+ * The entry being edited, as last saved and as it stands, with its uploads.
+ * A draft left by the save that created or renamed it is laid over the
+ * saved version.
+ */
+function useDocument(
+  col: Entry,
+  entry: EntryDetail | undefined,
+  draft: Draft | undefined,
+) {
+  const [initial, setInitial] = useState<EditorState>(() =>
     entry
       ? { data: entry.data, body: entry.body }
       : { data: defaultValues(col.schema), body: "" },
   );
-  const [initial, setInitial] = useState<EditorState>(state);
-  const [uploads, setUploads] = useState<Record<string, PendingUpload>>({});
+  const [form, setForm] = useState<Form>(() => ({
+    state: {
+      data: draft?.data ?? initial.data,
+      body: draft?.body ?? initial.body,
+    },
+    uploads: draft?.uploads ?? {},
+  }));
+  // The form as it stands, kept here too so that a save finishing reads
+  // every change, including one made since the last render.
+  const latest = useRef(form);
+  const change = useCallback((update: (form: Form) => Form) => {
+    latest.current = update(latest.current);
+    setForm(latest.current);
+  }, []);
   const [sha, setSha] = useState<string | null>(entry?.sha ?? null);
+  /** Sets the data, or updates it as it stands. */
   const setData = useCallback(
-    (data: Record<string, unknown>) => setState((s) => ({ ...s, data })),
-    [],
+    (
+      data:
+        | Record<string, unknown>
+        | ((data: Record<string, unknown>) => Record<string, unknown>),
+    ) =>
+      change((f) => ({
+        ...f,
+        state: {
+          ...f.state,
+          data: typeof data === "function" ? data(f.state.data) : data,
+        },
+      })),
+    [change],
   );
   const setBody = useCallback(
-    (body: string) => setState((s) => ({ ...s, body })),
-    [],
+    (body: string) => change((f) => ({ ...f, state: { ...f.state, body } })),
+    [change],
   );
   const addUpload = useCallback(
-    (u: PendingUpload) => setUploads((m) => ({ ...m, [u.path]: u })),
-    [],
+    (u: PendingUpload) =>
+      change((f) => ({ ...f, uploads: { ...f.uploads, [u.path]: u } })),
+    [change],
   );
   /**
    * Takes in a saved version: its data (as saving completed it), the version
@@ -470,33 +559,57 @@ function useDocument(col: Entry, entry: EntryDetail | undefined) {
     newSha: string | null,
     sent: Sent,
   ) => {
-    setUploads((m) =>
-      Object.fromEntries(
-        Object.entries(m).filter(([path, u]) => sent.uploads[path] !== u),
-      ),
-    );
     setSha(newSha);
     setInitial({ data, body: sent.state.body });
-    setState((s) => (s.data === sent.state.data ? { ...s, data } : s));
+    change((f) => ({
+      state: f.state.data === sent.state.data ? { ...f.state, data } : f.state,
+      uploads: unsent(f.uploads, sent),
+    }));
+  };
+  /**
+   * What changed since `sent` was saved, for the editor a new or renamed
+   * entry opens in next; null if nothing did.
+   */
+  const leftover = (sent: Sent, typed: string): Draft | null => {
+    const now = latest.current;
+    const draft: Draft = { uploads: unsent(now.uploads, sent) };
+    if (now.state.data !== sent.state.data) draft.data = now.state.data;
+    if (now.state.body !== sent.state.body) draft.body = now.state.body;
+    if (typed !== sent.typed) draft.typed = typed;
+    const changed =
+      Object.keys(draft).length > 1 || Object.keys(draft.uploads).length > 0;
+    return changed ? draft : null;
   };
   return {
-    state,
-    dirty: !deepEqual(state, initial),
-    uploads,
+    state: form.state,
+    dirty: !deepEqual(form.state, initial),
+    uploads: form.uploads,
     sha,
     setData,
     setBody,
     addUpload,
     saved,
+    leftover,
   };
 }
 type Document = ReturnType<typeof useDocument>;
 
-/** What a save sent: the entry as it stood, and its uploads. */
-interface Sent {
+/** The entry as it stands in the editor, and the files to upload with it. */
+interface Form {
   state: EditorState;
   uploads: Record<string, PendingUpload>;
 }
+
+/** What a save sent: the form as it stood, and what the slug box held. */
+interface Sent extends Form {
+  typed: string;
+}
+
+/** The uploads in `uploads` that `sent` did not send. */
+const unsent = (uploads: Record<string, PendingUpload>, sent: Form) =>
+  Object.fromEntries(
+    Object.entries(uploads).filter(([path, u]) => sent.uploads[path] !== u),
+  );
 
 /** The slug an entry is saved under, and what its slug box shows. */
 function useSlug({
@@ -506,6 +619,7 @@ function useSlug({
   slug,
   isNew,
   state,
+  draft,
 }: {
   kind: Kind;
   collection: CollectionConfig | null;
@@ -513,8 +627,15 @@ function useSlug({
   slug: string | null;
   isNew: boolean;
   state: EditorState;
+  draft: Draft | undefined;
 }) {
-  const [typed, setTyped] = useState("");
+  const [typed, setTypedState] = useState(draft?.typed ?? "");
+  // Read by a save as it finishes, so it sees a change not yet rendered.
+  const latestTyped = useRef(typed);
+  const setTyped = useCallback((value: string) => {
+    latestTyped.current = value;
+    setTypedState(value);
+  }, []);
   // A date kept in the file name is edited with the date field, so the slug
   // box holds only what follows it.
   const dateKey =
@@ -532,6 +653,7 @@ function useSlug({
     finalSlug,
     dateKey,
     setTyped,
+    latestTyped: () => latestTyped.current,
     box: slugBox(finalSlug, typed, dateKey),
     error: slugProblem(kind, pattern, finalSlug),
     /** Saving will move an existing entry to a different file. */
@@ -589,7 +711,11 @@ function useSave({
 
   const save = useMutation({
     mutationFn: async () => {
-      const sent: Sent = { state: doc.state, uploads: doc.uploads };
+      const sent: Sent = {
+        state: doc.state,
+        uploads: doc.uploads,
+        typed: slugs.latestTyped(),
+      };
       const errs = validate(col.schema, sent.state.data);
       setErrors(errs);
       if (errs.length) throw new Error(errs[0].message);
@@ -630,11 +756,27 @@ function useSave({
         qc.invalidateQueries({ queryKey: ["entry", collectionKey, slug] });
         return;
       }
-      // A new or renamed entry now lives at a different address.
+      // A new or renamed entry now lives at a different address, where its
+      // editor opens with whatever changed while it saved.
       if (!isNew)
         qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
       qc.removeQueries({ queryKey: ["entry", collectionKey, res.slug] });
-      navigate(`/collections/${collectionKey}/${res.slug}`, { replace: true });
+      const draft = doc.leftover(res.sent, slugs.latestTyped());
+      // Its references to itself follow the rename, as the saved ones did.
+      if (draft?.data && !isNew)
+        draft.data =
+          rewriteReferences(
+            col.schema,
+            draft.data,
+            collectionKey,
+            slug!,
+            res.slug,
+          ) ?? draft.data;
+      handoff = draft && {
+        key: draftKey(kind, collectionKey, res.slug),
+        draft,
+      };
+      navigate(entryHref(collectionKey, res.slug), { replace: true });
     },
     onError: (e) => toast("error", saveErrorMessage(e, Boolean(slugs.dateKey))),
   });

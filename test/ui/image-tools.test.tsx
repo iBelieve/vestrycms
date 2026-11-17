@@ -48,6 +48,18 @@ const config = defineConfig({
         focus: fields.focalPoint({ image: "image", previews: ["1:1"] }),
       },
     }),
+    albums: collection({
+      label: "Albums",
+      path: "src/content/albums/*.json",
+      schema: {
+        title: fields.text(),
+        cover: fields.object({
+          image: fields.image({ directory: "public/images" }),
+          banner: fields.crop({ image: "image", aspect: 2 }),
+          square: fields.crop({ image: "image", aspect: 1 }),
+        }),
+      },
+    }),
   },
 });
 
@@ -135,6 +147,47 @@ describe("the image tools", () => {
     );
     expect(saved.wide).toEqual({ x: 0, y: 40, width: 400, height: 200 });
     expect(saved.free).toEqual({ x: 0, y: 0, width: 400, height: 300 });
+  });
+
+  it("seed two crops at once and keep both", async () => {
+    const user = userEvent.setup();
+    const { root } = await open({ image: "/images/a.png" });
+    // Both crops seed their default as the image loads, in the same moment.
+    await waitFor(() => expect(bar("Wide")).toMatch(/400 × 200 px at 0, 50/));
+    expect(bar("Free")).toMatch(/400 × 300 px at 0, 0/);
+    await user.click(screen.getByRole("button", { name: /^Save/ }));
+    await screen.findByText("Saved to disk");
+    const saved = JSON.parse(
+      await readFile(path.join(root, "src/content/photos/p.json"), "utf8"),
+    );
+    expect(saved.wide).toEqual({ x: 0, y: 50, width: 400, height: 200 });
+    expect(saved.free).toEqual({ x: 0, y: 0, width: 400, height: 300 });
+  });
+
+  it("seed two crops at once inside an object", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("Image", FakeImage);
+    const { root } = await openPanel(config, {
+      url: "/collections/albums/a",
+      files: {
+        "src/content/albums/a.json": JSON.stringify({
+          title: "A",
+          cover: { image: "/images/a.png" },
+        }),
+      },
+    });
+    await waitFor(() => expect(bar("Banner")).toMatch(/400 × 200 px at 0, 50/));
+    expect(bar("Square")).toMatch(/300 × 300 px at 50, 0/);
+    await user.click(screen.getByRole("button", { name: /^Save/ }));
+    await screen.findByText("Saved to disk");
+    const saved = JSON.parse(
+      await readFile(path.join(root, "src/content/albums/a.json"), "utf8"),
+    );
+    expect(saved.cover).toEqual({
+      image: "/images/a.png",
+      banner: { x: 0, y: 50, width: 400, height: 200 },
+      square: { x: 50, y: 0, width: 300, height: 300 },
+    });
   });
 
   it("pull a crop out of range back into the image", async () => {
