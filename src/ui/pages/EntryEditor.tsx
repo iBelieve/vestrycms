@@ -5,43 +5,29 @@ import {
   Trash,
   TriangleExclamationPoint,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router";
 import type {
   CollectionConfig,
   EditorSection,
   Field,
   SingletonConfig,
+  VestryConfig,
 } from "../../config/types.js";
-import { serializeEntry } from "../../core/entries.js";
 import {
   collectionFormat,
-  dirname,
-  entryPath,
-  fillTemplate as fillPathTemplate,
-  isSafeSlug,
-  normalizePath,
   parsePathPattern,
-  relativePath,
-  resolveRelative,
-  slugify,
+  type PathPattern,
 } from "../../core/paths.js";
-import {
-  applyAutoFields,
-  assetToRepoPath,
-  filenameDateKey,
-  repoPathToAsset,
-  rewriteReferences,
-  slugWithDate,
-  slugWithoutDate,
-  toStoredValues,
-} from "../../core/values.js";
-import {
-  ApiError,
-  type EntryDetail,
-  type EntryReference,
-  type SaveEntryInput,
-} from "../api.js";
+import { filenameDateKey } from "../../core/values.js";
+import { ApiError, type EntryDetail, type EntryReference } from "../api.js";
 import type { PendingUpload } from "../components/AssetPicker.js";
 import type { EditorEnv } from "../components/editor/EditorContext.js";
 import { RichTextEditor } from "../components/editor/RichTextEditor.js";
@@ -60,7 +46,6 @@ import {
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { formatEntry } from "../lib/format.js";
 import {
   defaultValues,
   deepEqual,
@@ -69,8 +54,22 @@ import {
   validate,
   type ValidationError,
 } from "../lib/utils.js";
-
-type Kind = "collection" | "singleton";
+import {
+  bodyEnv,
+  effectiveSlug,
+  entryDisplay,
+  entryFile,
+  fieldPlacement,
+  publishToggle,
+  type Kind,
+  saveErrorMessage,
+  saveInput,
+  sectionFields,
+  sendSave,
+  slugBox,
+  slugHint,
+  slugProblem,
+} from "./entry-editing.js";
 
 export function CollectionEntryPage() {
   const { collection = "", "*": slug = "" } = useParams();
@@ -114,6 +113,8 @@ interface EditorState {
   body: string;
 }
 
+type Entry = CollectionConfig | SingletonConfig;
+
 function EntryEditor({
   kind,
   collectionKey,
@@ -125,15 +126,11 @@ function EntryEditor({
   slug: string | null;
   isNew?: boolean;
 }) {
-  const { config, api, client } = useVestry();
-  const navigate = useNavigate();
-  const toast = useToast();
-  const qc = useQueryClient();
-  const col: CollectionConfig | SingletonConfig | undefined =
+  const { config, api } = useVestry();
+  const col: Entry | undefined =
     kind === "collection"
       ? config.collections?.[collectionKey]
       : config.singletons?.[collectionKey];
-  const collection = kind === "collection" ? (col as CollectionConfig) : null;
 
   const query = useQuery({
     queryKey:
@@ -148,93 +145,386 @@ function EntryEditor({
     staleTime: 0,
   });
 
-  const [state, setState] = useState<EditorState | null>(null);
-  const [initial, setInitial] = useState<EditorState | null>(null);
-  const [errors, setErrors] = useState<ValidationError[]>([]);
-  const [uploads, setUploads] = useState<Record<string, PendingUpload>>({});
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [slugInput, setSlugInput] = useState("");
-  const [sha, setSha] = useState<string | null>(null);
-
-  // Initialise state from the loaded entry (or defaults for a new one).
-  useEffect(() => {
-    if (!col || state) return;
-    if (isNew) {
-      const init = { data: defaultValues(col.schema), body: "" };
-      setState(init);
-      setInitial(init);
-      return;
-    }
-    if (query.data) {
-      const init = { data: query.data.data, body: query.data.body };
-      setState(init);
-      setInitial(init);
-      setSha(query.data.sha);
-    }
-  }, [col, isNew, query.data, state]);
-
-  const dirty =
-    state !== null && initial !== null && !deepEqual(state, initial);
-
-  const format = col ? collectionFormat(col) : "mdx";
-  const pattern = useMemo(
-    () => (col ? parsePathPattern(col.path) : null),
-    [col],
+  if (!col)
+    return (
+      <NotFoundState
+        title={`No ${kind === "singleton" ? "global" : "collection"} called “${collectionKey}”`}
+      />
+    );
+  if (isNew)
+    return <EntryForm {...{ kind, collectionKey, slug, isNew, col }} />;
+  if (query.isLoading) return <Loading />;
+  // A failed background refetch keeps the entry already open on screen.
+  if (query.error && !query.data)
+    return (
+      <LoadError
+        kind={kind}
+        name={kind === "singleton" ? collectionKey : slug}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+        retrying={query.isFetching}
+      />
+    );
+  if (!query.data) return <Loading />;
+  return (
+    <EntryForm
+      {...{ kind, collectionKey, slug, isNew, col }}
+      entry={query.data}
+    />
   );
+}
 
+function LoadError({
+  kind,
+  name,
+  error,
+  onRetry,
+  retrying,
+}: {
+  kind: Kind;
+  name: string | null;
+  error: Error;
+  onRetry: () => void;
+  retrying: boolean;
+}) {
+  const what = kind === "singleton" ? "global" : "entry";
+  if (error instanceof ApiError && error.status === 404) {
+    return kind === "singleton" ? (
+      <NotFoundState title={`No global called “${name}”`} />
+    ) : (
+      <NotFoundState title={`No entry called “${name}”`}>
+        It may have been renamed or deleted.
+      </NotFoundState>
+    );
+  }
+  return (
+    <ErrorState
+      title={`Couldn't open this ${what}`}
+      error={error}
+      onRetry={onRetry}
+      retrying={retrying}
+    >
+      Vestry couldn't load it from the repository. This is often temporary, so
+      try again in a moment.
+    </ErrorState>
+  );
+}
+
+/** The editor itself, for an entry that is loaded (or new). */
+function EntryForm({
+  kind,
+  collectionKey,
+  slug,
+  isNew,
+  col,
+  entry,
+}: {
+  kind: Kind;
+  collectionKey: string;
+  slug: string | null;
+  isNew: boolean;
+  col: Entry;
+  entry?: EntryDetail;
+}) {
+  const { config, api } = useVestry();
+  const collection = kind === "collection" ? (col as CollectionConfig) : null;
+  const doc = useDocument(col, entry);
+  const { state, setData, uploads } = doc;
+  const [errors, setErrors] = useState<ValidationError[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const pattern = useMemo(() => parsePathPattern(col.path), [col]);
+  const slugs = useSlug({ kind, collection, pattern, slug, isNew, state });
+  const { finalSlug, renaming } = slugs;
+
+  // Ask before leaving the page with anything unsaved, a rename included.
+  const unsaved = doc.dirty || renaming;
+  useLeaveWarning(unsaved);
+
+  const filePath = entryFile(kind, col, pattern, finalSlug);
+  const saving = useSave({
+    kind,
+    collectionKey,
+    slug,
+    isNew,
+    col,
+    pattern,
+    filePath,
+    doc,
+    slugs,
+    setErrors,
+  });
+  const remove = useRemove(collectionKey, slug);
+
+  const display = entryDisplay({
+    kind,
+    col,
+    data: state.data,
+    isNew,
+    slug: finalSlug,
+    siteUrl: config.siteUrl,
+  });
+  const placement = fieldPlacement(col, display.editable);
+  const fieldSet = (props: FieldSetProps) => (
+    <FieldSet
+      {...props}
+      values={state.data}
+      onChange={setData}
+      errors={errors}
+      ctx={{
+        addUpload: doc.addUpload,
+        pendingUploads: uploads,
+        isNew,
+        siblings: state.data,
+      }}
+    />
+  );
+  const sectionCard = (section: Exclude<EditorSection, "body">, i: number) => {
+    const inSection = (key: string) =>
+      section.fields.includes(key) && display.editable(key);
+    if (!placement.hasVisible(inSection)) return null;
+    const { schema, hideLabels } = sectionFields(col, section, fieldLabel);
+    return (
+      <Card
+        key={`section-${i}`}
+        title={section.label}
+        note={section.description}
+      >
+        {fieldSet({ schema, filter: inSection, hideLabels })}
+      </Card>
+    );
+  };
+  const bodyCard = (
+    <BodyCard
+      key="body"
+      col={col}
+      filePath={filePath}
+      config={config}
+      fileUrl={api.fileUrl}
+      doc={doc}
+    />
+  );
+  const uploadCount = Object.keys(uploads).length;
+
+  return (
+    <>
+      <TopBar
+        status={
+          display.isPublished === null ? null : statusOf(display.isPublished)
+        }
+        crumbs={
+          collection
+            ? [{ label: collection.label, to: `/collections/${collectionKey}` }]
+            : undefined
+        }
+        title={
+          isNew
+            ? `New ${collection?.singular ?? "entry"}`
+            : display.titleValue || finalSlug
+        }
+        actions={
+          <EditorActions
+            unsaved={unsaved}
+            previewHref={display.previewHref}
+            canDelete={
+              kind === "collection" && !isNew && collection!.delete !== false
+            }
+            onDelete={() => setConfirmDelete(true)}
+            onSave={() => void saving.requestSave()}
+            saving={saving.save.isPending}
+            saveDisabled={
+              saving.save.isPending ||
+              !!slugs.error ||
+              (!unsaved && !isNew && uploadCount === 0)
+            }
+            isNew={isNew}
+          />
+        }
+      />
+      <div className="v-page">
+        {errors.length > 0 && <ErrorList errors={errors} />}
+        <div className="v-editor-layout">
+          <div className="v-stack" style={{ gap: 20 }}>
+            {display.titleInput && (
+              <TitleCard
+                value={display.titleValue}
+                placeholder={`${fieldLabel(display.titleInput, col.schema[display.titleInput])}…`}
+                onChange={(title) =>
+                  setData({ ...state.data, [display.titleInput!]: title })
+                }
+                autoFocus={isNew}
+                error={
+                  errors.find((e) => e.path === display.titleInput)?.message
+                }
+              />
+            )}
+            {placement.sections.map((section, i) =>
+              section === "body"
+                ? bodyCard
+                : section.sidebar
+                  ? null
+                  : sectionCard(section, i),
+            )}
+            {placement.hasVisible(placement.isMain) && (
+              <Card title="Details">
+                {fieldSet({ schema: col.schema, filter: placement.isMain })}
+              </Card>
+            )}
+            {!placement.bodyPlaced && bodyCard}
+          </div>
+          <aside className="v-editor-sidebar v-stack">
+            {(display.statusField || collection) && (
+              <PublishCard
+                isPublished={display.isPublished}
+                onPublish={publishToggle(display, state.data, setData)}
+              >
+                {collection && (
+                  <SlugField
+                    pattern={pattern}
+                    slug={finalSlug}
+                    box={slugs.box}
+                    onChange={slugs.setTyped}
+                    error={slugs.error}
+                    hint={slugHint(pattern, finalSlug, isNew, renaming)}
+                  />
+                )}
+                {entry && (
+                  <EntryMeta path={entry.path} col={col} data={state.data} />
+                )}
+              </PublishCard>
+            )}
+            {placement.sections.map((section, i) =>
+              section !== "body" && section.sidebar
+                ? sectionCard(section, i)
+                : null,
+            )}
+            {placement.hasVisible(placement.isSidebar) && (
+              <Card>
+                {fieldSet({ schema: col.schema, filter: placement.isSidebar })}
+              </Card>
+            )}
+            {uploadCount > 0 && <UploadsNote count={uploadCount} />}
+          </aside>
+        </div>
+      </div>
+      {saving.renameReferences && (
+        <RenameDialog
+          references={saving.renameReferences}
+          busy={saving.save.isPending}
+          onCancel={() => saving.setRenameReferences(null)}
+          onConfirm={() => {
+            saving.setRenameReferences(null);
+            saving.save.mutate();
+          }}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete “${display.titleValue}”?`}
+          message="The file will be removed from the repository in a new commit."
+          confirmLabel="Delete"
+          danger
+          busy={remove.isPending}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => remove.mutate()}
+        />
+      )}
+    </>
+  );
+}
+
+interface FieldSetProps {
+  schema: Record<string, Field>;
+  filter: (key: string, f: Field) => boolean;
+  hideLabels?: string[];
+}
+
+/** The entry being edited, as last saved and as it stands, with its uploads. */
+function useDocument(col: Entry, entry: EntryDetail | undefined) {
+  const [state, setState] = useState<EditorState>(() =>
+    entry
+      ? { data: entry.data, body: entry.body }
+      : { data: defaultValues(col.schema), body: "" },
+  );
+  const [initial, setInitial] = useState<EditorState>(state);
+  const [uploads, setUploads] = useState<Record<string, PendingUpload>>({});
+  const [sha, setSha] = useState<string | null>(entry?.sha ?? null);
+  const setData = useCallback(
+    (data: Record<string, unknown>) => setState((s) => ({ ...s, data })),
+    [],
+  );
+  const setBody = useCallback(
+    (body: string) => setState((s) => ({ ...s, body })),
+    [],
+  );
+  const addUpload = useCallback(
+    (u: PendingUpload) => setUploads((m) => ({ ...m, [u.path]: u })),
+    [],
+  );
+  /** Takes in a saved version: its data, and the version to save on. */
+  const saved = (data: Record<string, unknown>, newSha: string | null) => {
+    setUploads({});
+    setSha(newSha);
+    setInitial({ data, body: state.body });
+    setState((s) => ({ ...s, data }));
+  };
+  return {
+    state,
+    dirty: !deepEqual(state, initial),
+    uploads,
+    sha,
+    setData,
+    setBody,
+    addUpload,
+    saved,
+  };
+}
+type Document = ReturnType<typeof useDocument>;
+
+/** The slug an entry is saved under, and what its slug box shows. */
+function useSlug({
+  kind,
+  collection,
+  pattern,
+  slug,
+  isNew,
+  state,
+}: {
+  kind: Kind;
+  collection: CollectionConfig | null;
+  pattern: PathPattern;
+  slug: string | null;
+  isNew: boolean;
+  state: EditorState;
+}) {
+  const [typed, setTyped] = useState("");
   // A date kept in the file name is edited with the date field, so the slug
   // box holds only what follows it.
   const dateKey =
-    collection && !pattern?.single ? filenameDateKey(collection.schema) : null;
+    collection && !pattern.single ? filenameDateKey(collection.schema) : null;
+  const finalSlug = effectiveSlug({
+    collection,
+    pattern,
+    slug,
+    typed,
+    isNew,
+    data: state.data,
+    dateKey,
+  });
+  return {
+    finalSlug,
+    dateKey,
+    setTyped,
+    box: slugBox(finalSlug, typed, dateKey),
+    error: slugProblem(kind, pattern, finalSlug),
+    /** Saving will move an existing entry to a different file. */
+    renaming:
+      kind === "collection" && !isNew && !!finalSlug && finalSlug !== slug,
+  };
+}
+type Slugs = ReturnType<typeof useSlug>;
 
-  // The slug the entry will be saved under: what was typed, else the
-  // current one, else (for a new entry) one derived from its fields. A date
-  // kept in the file name is always its prefix, so changing that date
-  // changes the slug.
-  const effectiveSlug = useMemo(() => {
-    if (!collection || !state) return slug ?? "";
-    if (pattern?.single) return slug ?? "";
-    let base: string;
-    if (slugInput) base = slugInput;
-    else if (!isNew) base = slug ?? "";
-    else {
-      const template = collection.slug?.template;
-      const from = collection.slug?.from ?? collection.titleField ?? "title";
-      base = template
-        ? fillPathTemplate(template, state.data, { slug: true })
-        : slugify(String(state.data[from] ?? ""));
-    }
-    if (!dateKey) return base;
-    return slugWithDate(slugWithoutDate(base), state.data[dateKey]);
-  }, [collection, state, isNew, slug, slugInput, pattern, dateKey]);
-
-  /** What the slug box shows: the slug, less a date held by the date field. */
-  const slugBoxValue =
-    slugInput || (dateKey ? slugWithoutDate(effectiveSlug) : effectiveSlug);
-  /** The date prefix shown, fixed, in front of the slug box. */
-  const slugPrefix =
-    dateKey && effectiveSlug !== slugBoxValue && !slugBoxValue.includes("/")
-      ? effectiveSlug.slice(0, effectiveSlug.length - slugBoxValue.length)
-      : "";
-  const slugError =
-    kind !== "collection" || !pattern || pattern.single || !effectiveSlug
-      ? null
-      : !isSafeSlug(effectiveSlug)
-        ? "Use letters, numbers, hyphens, dots and underscores."
-        : // A `*` path lists only the files directly in its directory.
-          !pattern.deep && effectiveSlug.includes("/")
-          ? "This collection has no folders, so a slug cannot contain a slash."
-          : null;
-
-  /** Saving will move an existing entry to a different file. */
-  const renaming =
-    kind === "collection" &&
-    !isNew &&
-    !!effectiveSlug &&
-    effectiveSlug !== slug;
-
-  // Ask before leaving the page with anything unsaved, a rename included.
-  const unsaved = dirty || renaming;
+/** Asks before the page is left while `unsaved`. */
+function useLeaveWarning(unsaved: boolean) {
   useEffect(() => {
     if (!unsaved) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -243,171 +533,95 @@ function EntryEditor({
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [unsaved]);
+}
 
-  // Entries that refer to this one, shown for confirmation before a rename.
-  const [renameReferences, setRenameReferences] = useState<
-    EntryReference[] | null
-  >(null);
-
-  const filePath = useMemo(() => {
-    if (!pattern) return "";
-    if (kind === "singleton") return normalizePath(col!.path);
-    if (pattern.single) return pattern.prefix;
-    return entryPath(pattern, effectiveSlug || "new-entry");
-  }, [pattern, kind, col, effectiveSlug]);
-
-  // Body editor environment: resolve image references relative to this file.
-  const bodyConfig = col?.body === false ? null : (col?.body ?? {});
-  const env = useMemo<EditorEnv>(() => {
-    const images = bodyConfig?.images;
-    const fileDir = dirname(filePath);
-    const toRepoPath = (src: string): string | null => {
-      if (/^https?:\/\//.test(src)) return null;
-      if (images) return assetToRepoPath(images, src, filePath);
-      if (src.startsWith("/")) return `public${src}`;
-      if (src.startsWith(".")) return resolveRelative(fileDir, src);
-      return null;
-    };
-    const components = Object.fromEntries(
-      (bodyConfig?.components ?? [])
-        .map((n) => [n, config.components?.[n]])
-        .filter(([, c]) => c),
-    ) as EditorEnv["components"];
-    return {
-      components,
-      textStyles: config.textStyles,
-      imageDirectory: images?.directory,
-      toRepoPath,
-      toDocPath: (repoPath) =>
-        images
-          ? repoPathToAsset(images, repoPath, filePath)
-          : relativePath(fileDir, repoPath),
-      resolveImage: (src) => {
-        const repo = toRepoPath(src);
-        if (!repo) return src;
-        const pending = uploads[repo];
-        return pending ? pending.previewUrl : api.fileUrl(repo);
-      },
-    };
-  }, [
-    bodyConfig,
-    filePath,
-    config.components,
-    config.textStyles,
-    uploads,
-    api,
-  ]);
+/**
+ * Saving: the save itself, and the request (a button or the shortcut) that
+ * first confirms a rename that other entries refer to, since it changes
+ * those entries too.
+ */
+function useSave({
+  kind,
+  collectionKey,
+  slug,
+  isNew,
+  col,
+  pattern,
+  filePath,
+  doc,
+  slugs,
+  setErrors,
+}: {
+  kind: Kind;
+  collectionKey: string;
+  slug: string | null;
+  isNew: boolean;
+  col: Entry;
+  pattern: PathPattern;
+  filePath: string;
+  doc: Document;
+  slugs: Slugs;
+  setErrors: (errors: ValidationError[]) => void;
+}) {
+  const { api, client } = useVestry();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const qc = useQueryClient();
+  const { finalSlug, renaming } = slugs;
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!col || !state) throw new Error("Nothing to save");
-      const errs = validate(col.schema, state.data);
+      const errs = validate(col.schema, doc.state.data);
       setErrors(errs);
       if (errs.length) throw new Error(errs[0].message);
-      const fields = applyAutoFields(col.schema, state.data);
-      // An entry that refers to itself follows its own rename.
-      const data =
-        (renaming &&
-          rewriteReferences(
-            col.schema,
-            fields,
-            collectionKey,
-            slug!,
-            effectiveSlug,
-          )) ||
-        fields;
-      const input: SaveEntryInput = {
-        data,
-        body: state.body,
-        sha: isNew ? undefined : sha,
-        uploads: Object.values(uploads).map((u) => ({
-          path: u.path,
-          base64: u.base64,
-        })),
-      };
-      // Compose the whole file here (and format it with the project's
-      // Prettier) whenever the file holds just this entry. Single-file
-      // collections are merged on the server instead.
-      if (kind === "singleton" || (pattern && !pattern.single)) {
-        const stored = toStoredValues(col.schema, data, filePath);
-        let raw = serializeEntry(format, { data: stored, body: state.body });
-        try {
-          raw = await formatEntry(raw, filePath, format);
-        } catch (e) {
-          console.warn("[vestry] formatting failed, saving unformatted", e);
-        }
-        input.raw = raw;
-      }
-      if (kind === "singleton")
-        return {
-          ...(await api.saveSingleton(collectionKey, input)),
-          slug: collectionKey,
-          data,
-        };
-      if (isNew) {
-        input.slug = effectiveSlug;
-        return { ...(await api.createEntry(collectionKey, input)), data };
-      }
-      if (renaming) input.slug = effectiveSlug;
-      return { ...(await api.updateEntry(collectionKey, slug!, input)), data };
+      const input = await saveInput({
+        kind,
+        col,
+        collectionKey,
+        pattern,
+        filePath,
+        state: doc.state,
+        sha: doc.sha,
+        isNew,
+        rename: renaming ? { from: slug!, to: finalSlug } : null,
+        uploads: doc.uploads,
+      });
+      return sendSave(
+        api,
+        { kind, collectionKey, slug, isNew, renaming, finalSlug },
+        input,
+      );
     },
     onSuccess: (res) => {
       toast(
         "success",
         client.mode === "local" ? "Saved to disk" : "Saved and committed",
       );
-      setUploads({});
-      setSha(res.sha);
-      setInitial(state ? { data: res.data, body: state.body } : null);
-      setState((s) => (s ? { ...s, data: res.data } : s));
+      doc.saved(res.data, res.sha);
       qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
       qc.invalidateQueries({ queryKey: ["assets"] });
-      if (kind === "collection")
-        qc.setQueryData(["entry", collectionKey, res.slug], undefined);
+      if (kind === "singleton") return;
+      qc.setQueryData(["entry", collectionKey, res.slug], undefined);
       // A new or renamed entry now lives at a different address.
-      if (isNew || (kind === "collection" && res.slug !== slug)) {
-        if (!isNew)
-          qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
+      if (!isNew && res.slug !== slug)
+        qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
+      if (isNew || res.slug !== slug)
         navigate(`/collections/${collectionKey}/${res.slug}`, {
           replace: true,
         });
-      }
     },
-    onError: (e) => {
-      if (e instanceof ApiError && e.code === "exists") {
-        // Another entry has this file name: reloading would not help.
-        toast(
-          "error",
-          `${e.message}. Change the slug${dateKey ? " or the date" : ""}.`,
-        );
-      } else if (e instanceof ApiError && e.status === 409) {
-        toast(
-          "error",
-          `${e.message} Reload the page to pick up the latest version.`,
-        );
-      } else {
-        toast("error", (e as Error).message);
-      }
-    },
+    onError: (e) => toast("error", saveErrorMessage(e, Boolean(slugs.dateKey))),
   });
 
-  const remove = useMutation({
-    mutationFn: () => api.deleteEntry(collectionKey, slug!),
-    onSuccess: () => {
-      toast("success", "Entry deleted");
-      qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
-      navigate(`/collections/${collectionKey}`);
-    },
-    onError: (e) => toast("error", (e as Error).message),
-  });
-
-  // Saving goes through here: a rename that other entries refer to is
-  // confirmed first, since it changes those entries too.
+  // Entries that refer to this one, shown for confirmation before a rename.
+  const [renameReferences, setRenameReferences] = useState<
+    EntryReference[] | null
+  >(null);
   const checkingReferences = useRef(false);
   const requestSave = async () => {
     // The lookup below takes a moment, during which a second request (the
     // shortcut pressed twice) must not start a second save.
-    if (save.isPending || slugError || checkingReferences.current) return;
+    if (save.isPending || slugs.error || checkingReferences.current) return;
     if (renaming) {
       checkingReferences.current = true;
       try {
@@ -421,8 +635,82 @@ function EntryEditor({
     }
     save.mutate();
   };
-  const saveRef = useRef(requestSave);
-  saveRef.current = requestSave;
+  useSaveShortcut(requestSave);
+  return { save, requestSave, renameReferences, setRenameReferences };
+}
+
+function useRemove(collectionKey: string, slug: string | null) {
+  const { api } = useVestry();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteEntry(collectionKey, slug!),
+    onSuccess: () => {
+      toast("success", "Entry deleted");
+      qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
+      navigate(`/collections/${collectionKey}`);
+    },
+    onError: (e) => toast("error", (e as Error).message),
+  });
+}
+
+/** The rich text editor for the entry's body, if it has one. */
+function BodyCard({
+  col,
+  filePath,
+  config,
+  fileUrl,
+  doc,
+}: {
+  col: Entry;
+  filePath: string;
+  config: VestryConfig;
+  fileUrl: (path: string) => string;
+  doc: Document;
+}) {
+  const format = collectionFormat(col);
+  const body = col.body === false ? null : (col.body ?? {});
+  const { uploads } = doc;
+  const env = useMemo<EditorEnv>(
+    () => bodyEnv({ body, filePath, config, uploads, fileUrl }),
+    [body, filePath, config, uploads, fileUrl],
+  );
+  if (!body || (format !== "md" && format !== "mdx")) return null;
+  return (
+    <div className="v-card v-card--editor">
+      <div className="v-card__header">
+        <h3 className="v-card__title">{body.label ?? "Content"}</h3>
+      </div>
+      <RichTextEditor
+        value={doc.state.body}
+        onChange={doc.setBody}
+        components={body.components ?? []}
+        env={env}
+        format={format}
+        placeholder={body.placeholder}
+        onUpload={doc.addUpload}
+        flush
+      />
+    </div>
+  );
+}
+
+function UploadsNote({ count }: { count: number }) {
+  return (
+    <Alert kind="info">
+      {count} new file
+      {count === 1 ? "" : "s"} will be committed with this entry.
+    </Alert>
+  );
+}
+
+const statusOf = (published: boolean) => (published ? "published" : "draft");
+
+/** Saves on ⌘S (or Ctrl+S) with whatever `save` is at the time. */
+function useSaveShortcut(save: () => Promise<void>) {
+  const saveRef = useRef(save);
+  saveRef.current = save;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
@@ -433,436 +721,270 @@ function EntryEditor({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+}
 
-  const setData = useCallback(
-    (data: Record<string, unknown>) =>
-      setState((s) => (s ? { ...s, data } : s)),
-    [],
-  );
-  const setBody = useCallback(
-    (body: string) => setState((s) => (s ? { ...s, body } : s)),
-    [],
-  );
-  const addUpload = useCallback(
-    (u: PendingUpload) => setUploads((m) => ({ ...m, [u.path]: u })),
-    [],
-  );
-
-  if (!col)
-    return (
-      <NotFoundState
-        title={`No ${kind === "singleton" ? "global" : "collection"} called “${collectionKey}”`}
-      />
-    );
-  if (!isNew && query.isLoading) return <Loading />;
-  // A failed background refetch keeps the entry already open on screen.
-  if (!isNew && query.error && !query.data) {
-    if (query.error instanceof ApiError && query.error.status === 404) {
-      return kind === "singleton" ? (
-        <NotFoundState title={`No global called “${collectionKey}”`} />
-      ) : (
-        <NotFoundState title={`No entry called “${slug}”`}>
-          It may have been renamed or deleted.
-        </NotFoundState>
-      );
-    }
-    return (
-      <ErrorState
-        title={`Couldn't open this ${kind === "singleton" ? "global" : "entry"}`}
-        error={query.error}
-        onRetry={() => void query.refetch()}
-        retrying={query.isFetching}
-      >
-        Vestry couldn't load it from the repository. This is often temporary, so
-        try again in a moment.
-      </ErrorState>
-    );
-  }
-  if (!state) return <Loading />;
-
-  const titleField =
-    kind === "collection" ? (collection!.titleField ?? "title") : null;
-  const titleIsText = titleField
-    ? col.schema[titleField]?.type === "text"
-    : false;
-  const statusField = collection?.status?.field ?? null;
-  const publishedWhen = collection?.status?.publishedWhen ?? true;
-  const isPublished = statusField
-    ? Boolean(state.data[statusField]) === publishedWhen
-    : null;
-  const titleValue = titleField
-    ? String(state.data[titleField] ?? "")
-    : col.label;
-  const previewHref =
-    col.previewUrl && !isNew
-      ? `${config.siteUrl ?? ""}${fillPathTemplate(col.previewUrl, { ...state.data, slug: effectiveSlug })}`
-      : null;
-  const entry = query.data as EntryDetail | undefined;
-
-  const sections = col.sections ?? [];
-  const sectioned = new Set(
-    sections.flatMap((s) => (typeof s === "string" ? [] : s.fields)),
-  );
-  const isEditable = (key: string) =>
-    key !== statusField && !(titleIsText && key === titleField);
-  const isMain = (key: string, f: Field) =>
-    !f.sidebar && !sectioned.has(key) && isEditable(key);
-  const isSidebar = (key: string, f: Field) =>
-    Boolean(f.sidebar) && !sectioned.has(key) && isEditable(key);
-  const hasVisible = (filter: (key: string, f: Field) => boolean) =>
-    Object.entries(col.schema).some(([k, f]) => filter(k, f) && !f.hidden);
-  const bodyPlaced = sections.includes("body");
-  const sectionCard = (section: Exclude<EditorSection, "body">, i: number) => {
-    const inSection = (key: string) =>
-      section.fields.includes(key) && isEditable(key);
-    if (!hasVisible(inSection)) return null;
-    // A lone field named like its section doesn't need a second heading.
-    const lone = section.fields.length === 1 ? section.fields[0] : null;
-    const hideLabels =
-      lone &&
-      col.schema[lone] &&
-      fieldLabel(lone, col.schema[lone]) === section.label
-        ? [lone]
-        : undefined;
-    return (
-      <div className="v-card" key={`section-${i}`}>
+function Card({
+  title,
+  note,
+  children,
+}: {
+  title?: string;
+  note?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="v-card">
+      {title && (
         <div className="v-card__header">
-          <h3 className="v-card__title">{section.label}</h3>
-          {section.description && (
+          <h3 className="v-card__title">{title}</h3>
+          {note && (
             <span className="v-muted" style={{ fontSize: 12.5 }}>
-              {section.description}
+              {note}
             </span>
           )}
         </div>
-        <div className="v-card__body">
-          <FieldSet
-            schema={Object.fromEntries(
-              section.fields
-                .filter((k) => col.schema[k])
-                .map((k) => [k, col.schema[k]]),
-            )}
-            values={state.data}
-            onChange={setData}
-            errors={errors}
-            filter={inSection}
-            ctx={ctx}
-            hideLabels={hideLabels}
-          />
-        </div>
-      </div>
-    );
-  };
-  const bodyCard =
-    bodyConfig && (format === "md" || format === "mdx") ? (
-      <div className="v-card v-card--editor" key="body">
-        <div className="v-card__header">
-          <h3 className="v-card__title">{bodyConfig.label ?? "Content"}</h3>
-        </div>
-        <RichTextEditor
-          value={state.body}
-          onChange={setBody}
-          components={bodyConfig.components ?? []}
-          env={env}
-          format={format}
-          placeholder={bodyConfig.placeholder}
-          onUpload={addUpload}
-          flush
-        />
-      </div>
-    ) : null;
-  const ctx = {
-    addUpload,
-    pendingUploads: uploads,
-    isNew,
-    siblings: state.data,
-  };
+      )}
+      <div className="v-card__body">{children}</div>
+    </div>
+  );
+}
 
+function EditorActions({
+  unsaved,
+  previewHref,
+  canDelete,
+  onDelete,
+  onSave,
+  saving,
+  saveDisabled,
+  isNew,
+}: {
+  unsaved: boolean;
+  previewHref: string | null;
+  canDelete: boolean;
+  onDelete: () => void;
+  onSave: () => void;
+  saving: boolean;
+  saveDisabled: boolean;
+  isNew: boolean;
+}) {
   return (
     <>
-      <TopBar
-        status={
-          isPublished === null ? null : isPublished ? "published" : "draft"
-        }
-        crumbs={
-          kind === "collection"
-            ? [
-                {
-                  label: collection!.label,
-                  to: `/collections/${collectionKey}`,
-                },
-              ]
-            : undefined
-        }
-        title={
-          isNew
-            ? `New ${collection?.singular ?? "entry"}`
-            : titleValue || effectiveSlug
-        }
-        actions={
-          <>
-            {unsaved && (
-              <span className="v-unsaved">
-                <TriangleExclamationPoint size={13} /> Unsaved changes
-              </span>
-            )}
-            {previewHref && (
-              <a
-                className="v-btn"
-                href={previewHref}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink /> View
-              </a>
-            )}
-            {kind === "collection" &&
-              !isNew &&
-              collection!.delete !== false && (
-                <Button
-                  variant="danger"
-                  icon
-                  title="Delete"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Trash />
-                </Button>
-              )}
-            <Button
-              variant="primary"
-              onClick={() => void requestSave()}
-              disabled={
-                save.isPending ||
-                !!slugError ||
-                (!unsaved && !isNew && Object.keys(uploads).length === 0)
-              }
-            >
-              {save.isPending ? <Spinner /> : <Save />}{" "}
-              {isNew ? "Create" : "Save"}
-              <span className="v-kbd">⌘S</span>
-            </Button>
-          </>
-        }
-      />
-      <div className="v-page">
-        {errors.length > 0 && (
-          <div style={{ marginBottom: 18 }}>
-            <Alert kind="error">
-              <strong>Please fix the following:</strong>
-              <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
-                {errors.map((e) => (
-                  <li key={e.path}>{e.message}</li>
-                ))}
-              </ul>
-            </Alert>
-          </div>
-        )}
-        <div className="v-editor-layout">
-          <div className="v-stack" style={{ gap: 20 }}>
-            {titleIsText && (
-              <div className="v-card">
-                <div className="v-card__body" style={{ padding: "14px 18px" }}>
-                  <input
-                    className="v-title-input"
-                    value={titleValue}
-                    placeholder={`${fieldLabel(titleField!, col.schema[titleField!])}…`}
-                    onChange={(e) =>
-                      setData({ ...state.data, [titleField!]: e.target.value })
-                    }
-                    autoFocus={isNew}
-                  />
-                  {errors.some((e) => e.path === titleField) && (
-                    <div className="v-field__error">
-                      {errors.find((e) => e.path === titleField)!.message}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            {sections.map((section, i) =>
-              section === "body"
-                ? bodyCard
-                : section.sidebar
-                  ? null
-                  : sectionCard(section, i),
-            )}
-            {hasVisible(isMain) && (
-              <div className="v-card">
-                <div className="v-card__header">
-                  <h3 className="v-card__title">Details</h3>
-                </div>
-                <div className="v-card__body">
-                  <FieldSet
-                    schema={col.schema}
-                    values={state.data}
-                    onChange={setData}
-                    errors={errors}
-                    filter={isMain}
-                    ctx={ctx}
-                  />
-                </div>
-              </div>
-            )}
-            {!bodyPlaced && bodyCard}
-          </div>
-          <aside className="v-editor-sidebar v-stack">
-            {(statusField || kind === "collection") && (
-              <div className="v-card">
-                <div className="v-card__header">
-                  <h3 className="v-card__title">Publish</h3>
-                  {isPublished !== null && (
-                    <span style={{ marginLeft: "auto" }}>
-                      <Badge status={isPublished ? "published" : "draft"} />
-                    </span>
-                  )}
-                </div>
-                <div className="v-card__body v-stack">
-                  {statusField && (
-                    <Toggle
-                      checked={isPublished ?? false}
-                      label={isPublished ? "Published" : "Draft"}
-                      onChange={(on) =>
-                        setData({
-                          ...state.data,
-                          [statusField]: on ? publishedWhen : !publishedWhen,
-                        })
-                      }
-                    />
-                  )}
-                  {kind === "collection" && (
-                    <div>
-                      <label className="v-field__label">Slug</label>
-                      {!pattern?.single ? (
-                        <div className="v-slug">
-                          {slugPrefix && (
-                            <span
-                              className="v-slug__prefix v-mono"
-                              title="Set by the date field"
-                            >
-                              {slugPrefix}
-                            </span>
-                          )}
-                          <input
-                            className="v-input v-input--mono"
-                            value={slugBoxValue}
-                            onChange={(e) => setSlugInput(e.target.value)}
-                            placeholder="auto"
-                            aria-invalid={slugError ? true : undefined}
-                          />
-                        </div>
-                      ) : (
-                        <input
-                          className="v-input v-input--mono"
-                          readOnly
-                          value={effectiveSlug}
-                        />
-                      )}
-                      {slugError && (
-                        <div className="v-field__error">{slugError}</div>
-                      )}
-                      {(isNew || renaming) && pattern && !pattern.single && (
-                        <div
-                          className="v-field__hint v-mono"
-                          style={{ fontSize: 11.5 }}
-                        >
-                          {renaming && "Renames the file to "}
-                          {entryPath(pattern, effectiveSlug || "…")}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {entry && (
-                    <dl className="v-meta">
-                      <dt>File</dt>
-                      <dd title={entry.path}>{entry.path}</dd>
-                      {Object.entries(col.schema)
-                        .filter(
-                          ([, f]) => f.type === "datetime" && f.autoUpdate,
-                        )
-                        .map(([k]) => (
-                          <span key={k} style={{ display: "contents" }}>
-                            <dt>{fieldLabel(k, col.schema[k])}</dt>
-                            <dd>
-                              {state.data[k] ? formatDate(state.data[k]) : "—"}
-                            </dd>
-                          </span>
-                        ))}
-                    </dl>
-                  )}
-                </div>
-              </div>
-            )}
-            {sections.map((section, i) =>
-              section !== "body" && section.sidebar
-                ? sectionCard(section, i)
-                : null,
-            )}
-            {hasVisible(isSidebar) && (
-              <div className="v-card">
-                <div className="v-card__body">
-                  <FieldSet
-                    schema={col.schema}
-                    values={state.data}
-                    onChange={setData}
-                    errors={errors}
-                    filter={isSidebar}
-                    ctx={ctx}
-                  />
-                </div>
-              </div>
-            )}
-            {Object.keys(uploads).length > 0 && (
-              <Alert kind="info">
-                {Object.keys(uploads).length} new file
-                {Object.keys(uploads).length === 1 ? "" : "s"} will be committed
-                with this entry.
-              </Alert>
-            )}
-          </aside>
-        </div>
-      </div>
-      {renameReferences && (
-        <ConfirmDialog
-          title="Rename this entry?"
-          message={
-            <>
-              {renameReferences.length === 1
-                ? "1 other entry refers"
-                : `${renameReferences.length} other entries refer`}{" "}
-              to this one and will be updated in the same commit:
-              <ul className="v-reference-list">
-                {renameReferences.slice(0, 8).map((r) => (
-                  <li key={`${r.kind}:${r.key}:${r.slug}`}>
-                    {r.kind === "collection"
-                      ? `${r.label}: ${r.title}`
-                      : r.label}
-                  </li>
-                ))}
-                {renameReferences.length > 8 && (
-                  <li>and {renameReferences.length - 8} more</li>
-                )}
-              </ul>
-            </>
-          }
-          confirmLabel="Rename and update"
-          busy={save.isPending}
-          onCancel={() => setRenameReferences(null)}
-          onConfirm={() => {
-            setRenameReferences(null);
-            save.mutate();
-          }}
-        />
+      {unsaved && (
+        <span className="v-unsaved">
+          <TriangleExclamationPoint size={13} /> Unsaved changes
+        </span>
       )}
-      {confirmDelete && (
-        <ConfirmDialog
-          title={`Delete “${titleValue}”?`}
-          message="The file will be removed from the repository in a new commit."
-          confirmLabel="Delete"
-          danger
-          busy={remove.isPending}
-          onCancel={() => setConfirmDelete(false)}
-          onConfirm={() => remove.mutate()}
-        />
+      {previewHref && (
+        <a
+          className="v-btn"
+          href={previewHref}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <ExternalLink /> View
+        </a>
       )}
+      {canDelete && (
+        <Button variant="danger" icon title="Delete" onClick={onDelete}>
+          <Trash />
+        </Button>
+      )}
+      <Button variant="primary" onClick={onSave} disabled={saveDisabled}>
+        {saving ? <Spinner /> : <Save />} {isNew ? "Create" : "Save"}
+        <span className="v-kbd">⌘S</span>
+      </Button>
     </>
+  );
+}
+
+function ErrorList({ errors }: { errors: ValidationError[] }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <Alert kind="error">
+        <strong>Please fix the following:</strong>
+        <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+          {errors.map((e) => (
+            <li key={e.path}>{e.message}</li>
+          ))}
+        </ul>
+      </Alert>
+    </div>
+  );
+}
+
+function TitleCard({
+  value,
+  placeholder,
+  onChange,
+  autoFocus,
+  error,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  autoFocus: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="v-card">
+      <div className="v-card__body" style={{ padding: "14px 18px" }}>
+        <input
+          className="v-title-input"
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          autoFocus={autoFocus}
+        />
+        {error && <div className="v-field__error">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+function PublishCard({
+  isPublished,
+  onPublish,
+  children,
+}: {
+  isPublished: boolean | null;
+  /** Publishes or unpublishes; null without a status field. */
+  onPublish: ((on: boolean) => void) | null;
+  children: ReactNode;
+}) {
+  return (
+    <div className="v-card">
+      <div className="v-card__header">
+        <h3 className="v-card__title">Publish</h3>
+        {isPublished !== null && (
+          <span style={{ marginLeft: "auto" }}>
+            <Badge status={statusOf(isPublished)} />
+          </span>
+        )}
+      </div>
+      <div className="v-card__body v-stack">
+        {onPublish && (
+          <Toggle
+            checked={isPublished ?? false}
+            label={isPublished ? "Published" : "Draft"}
+            onChange={onPublish}
+          />
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SlugField({
+  pattern,
+  slug,
+  box,
+  onChange,
+  error,
+  hint,
+}: {
+  pattern: PathPattern;
+  slug: string;
+  box: { value: string; prefix: string };
+  onChange: (value: string) => void;
+  error: string | null;
+  hint: string | null;
+}) {
+  return (
+    <div>
+      <label className="v-field__label">Slug</label>
+      {pattern.single ? (
+        <input className="v-input v-input--mono" readOnly value={slug} />
+      ) : (
+        <div className="v-slug">
+          {box.prefix && (
+            <span
+              className="v-slug__prefix v-mono"
+              title="Set by the date field"
+            >
+              {box.prefix}
+            </span>
+          )}
+          <input
+            className="v-input v-input--mono"
+            value={box.value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="auto"
+            aria-invalid={error ? true : undefined}
+          />
+        </div>
+      )}
+      {error && <div className="v-field__error">{error}</div>}
+      {hint && (
+        <div className="v-field__hint v-mono" style={{ fontSize: 11.5 }}>
+          {hint}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The entry's file, and the times its auto-updated fields hold. */
+function EntryMeta({
+  path,
+  col,
+  data,
+}: {
+  path: string;
+  col: Entry;
+  data: Record<string, unknown>;
+}) {
+  return (
+    <dl className="v-meta">
+      <dt>File</dt>
+      <dd title={path}>{path}</dd>
+      {Object.entries(col.schema)
+        .filter(([, f]) => f.type === "datetime" && f.autoUpdate)
+        .map(([k]) => (
+          <span key={k} style={{ display: "contents" }}>
+            <dt>{fieldLabel(k, col.schema[k])}</dt>
+            <dd>{data[k] ? formatDate(data[k]) : "—"}</dd>
+          </span>
+        ))}
+    </dl>
+  );
+}
+
+function RenameDialog({
+  references,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  references: EntryReference[];
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <ConfirmDialog
+      title="Rename this entry?"
+      message={
+        <>
+          {references.length === 1
+            ? "1 other entry refers"
+            : `${references.length} other entries refer`}{" "}
+          to this one and will be updated in the same commit:
+          <ul className="v-reference-list">
+            {references.slice(0, 8).map((r) => (
+              <li key={`${r.kind}:${r.key}:${r.slug}`}>
+                {r.kind === "collection" ? `${r.label}: ${r.title}` : r.label}
+              </li>
+            ))}
+            {references.length > 8 && <li>and {references.length - 8} more</li>}
+          </ul>
+        </>
+      }
+      confirmLabel="Rename and update"
+      busy={busy}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
   );
 }

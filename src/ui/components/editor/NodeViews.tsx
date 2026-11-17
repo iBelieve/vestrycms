@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Field, Schema } from "../../../config/types.js";
 import { isRawExpression } from "../../../mdx/types.js";
-import { cx, fieldLabel, summarize } from "../../lib/utils.js";
+import { cx, fieldLabel, summarizeProps } from "../../lib/utils.js";
 import { Icon } from "../Icon.js";
 import { Button, Modal } from "../ui.js";
 import { CodeInput } from "../fields/CodeInput.js";
@@ -131,22 +131,6 @@ function PropsForm({
   );
 }
 
-function summaryOf(props: Record<string, unknown>): string {
-  const parts: string[] = [];
-  for (const [k, v] of Object.entries(props)) {
-    if (v === undefined || v === null || v === "") continue;
-    if (isRawExpression(v)) parts.push(`${k}={…}`);
-    else if (typeof v === "string")
-      parts.push(`${k}="${v.length > 40 ? `${v.slice(0, 40)}…` : v}"`);
-    else if (Array.isArray(v))
-      parts.push(`${k}: ${v.length} item${v.length === 1 ? "" : "s"}`);
-    else if (typeof v === "object")
-      parts.push(`${k}: ${summarize(v) || "{…}"}`);
-    else parts.push(`${k}=${String(v)}`);
-  }
-  return parts.join(" · ");
-}
-
 export function ComponentNodeView({
   node,
   updateAttributes,
@@ -162,16 +146,7 @@ export function ComponentNodeView({
   const config = env.components[name];
   const props = (node.attrs.props ?? {}) as Record<string, unknown>;
   const schema = config?.props ?? {};
-  const [open, setOpen] = useState(
-    () =>
-      Object.keys(schema).length > 0 &&
-      Object.values(schema).every(
-        (f) => f.type !== "array" && f.type !== "object",
-      ),
-  );
-  const thumbnail = Object.entries(schema).find(
-    ([k, f]) => f.type === "image" && typeof props[k] === "string" && props[k],
-  );
+  const [open, setOpen] = useState(() => opensAtFirst(schema));
   const acceptsChildren = config
     ? Boolean(config.children)
     : node.childCount > 0 || Boolean(node.attrs.hasChildren);
@@ -195,25 +170,9 @@ export function ComponentNodeView({
           <Icon name={config?.icon ?? "box"} />
         </span>
         <span className="v-block__name">{config?.label ?? name}</span>
-        {thumbnail && (
-          <img
-            className="v-thumb"
-            style={{ width: 36, height: 26 }}
-            src={
-              env.resolveImage?.(
-                env.toDocPath(
-                  assetPath(
-                    schema[thumbnail[0]] as { directory: string },
-                    String(props[thumbnail[0]]),
-                  ),
-                ),
-              ) ?? ""
-            }
-            alt=""
-          />
-        )}
+        <Thumbnail schema={schema} props={props} />
         <span className="v-block__summary">
-          {!open ? summaryOf(props) : config?.description}
+          {!open ? summarizeProps(props) : config?.description}
         </span>
         <div className="v-block__actions">
           {hasProps && (
@@ -252,6 +211,40 @@ export function ComponentNodeView({
         <div className="v-block__empty">Unknown component with no props.</div>
       )}
     </NodeViewWrapper>
+  );
+}
+
+/** A block's settings start open when there are a few simple ones. */
+function opensAtFirst(schema: Schema): boolean {
+  const fields = Object.values(schema);
+  return (
+    fields.length > 0 &&
+    fields.every((f) => f.type !== "array" && f.type !== "object")
+  );
+}
+
+/** The first image the block's props hold, small, beside its name. */
+function Thumbnail({
+  schema,
+  props,
+}: {
+  schema: Schema;
+  props: Record<string, unknown>;
+}) {
+  const env = useEditorEnv();
+  const image = Object.entries(schema).find(
+    ([k, f]) => f.type === "image" && typeof props[k] === "string" && props[k],
+  );
+  if (!image) return null;
+  const [key, field] = image as [string, { directory: string }];
+  const src = env.toDocPath(assetPath(field, String(props[key])));
+  return (
+    <img
+      className="v-thumb"
+      style={{ width: 36, height: 26 }}
+      src={env.resolveImage?.(src) ?? ""}
+      alt=""
+    />
   );
 }
 

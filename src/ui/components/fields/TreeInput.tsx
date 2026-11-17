@@ -12,7 +12,6 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -40,136 +39,23 @@ import { Button } from "../ui.js";
 // recursion at render time, not at module initialization.
 // fallow-ignore-next-line circular-dependency
 import { FieldSet, type FieldContext } from "./FieldRenderer.js";
-
-const INDENT = 28;
-let nextId = 0;
-const newId = () => `node-${++nextId}`;
-
-type NodeData = Record<string, unknown>;
-
-/** Internal tree with stable ids; the stored value has none. */
-interface TreeNode {
-  id: string;
-  data: NodeData;
-  children: TreeNode[];
-}
-
-interface FlatNode {
-  id: string;
-  data: NodeData;
-  depth: number;
-  parentId: string | null;
-  childCount: number;
-}
-
-function annotate(value: unknown, key: string): TreeNode[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((raw) => {
-    const node = raw && typeof raw === "object" ? (raw as NodeData) : {};
-    const { [key]: children, ...data } = node;
-    return { id: newId(), data, children: annotate(children, key) };
-  });
-}
-
-function strip(nodes: TreeNode[], key: string): NodeData[] {
-  return nodes.map((n) =>
-    n.children.length
-      ? { ...n.data, [key]: strip(n.children, key) }
-      : { ...n.data },
-  );
-}
-
-function flatten(
-  nodes: TreeNode[],
-  collapsed: Set<string>,
-  parentId: string | null = null,
-  depth = 0,
-): FlatNode[] {
-  return nodes.flatMap((n) => [
-    { id: n.id, data: n.data, depth, parentId, childCount: n.children.length },
-    ...(collapsed.has(n.id)
-      ? []
-      : flatten(n.children, collapsed, n.id, depth + 1)),
-  ]);
-}
-
-function findNode(nodes: TreeNode[], id: string): TreeNode | null {
-  for (const n of nodes) {
-    if (n.id === id) return n;
-    const inner = findNode(n.children, id);
-    if (inner) return inner;
-  }
-  return null;
-}
-
-function mapTree(nodes: TreeNode[], fn: (n: TreeNode) => TreeNode): TreeNode[] {
-  return nodes.map((n) => fn({ ...n, children: mapTree(n.children, fn) }));
-}
-
-function removeNode(nodes: TreeNode[], id: string): TreeNode[] {
-  return nodes
-    .filter((n) => n.id !== id)
-    .map((n) => ({ ...n, children: removeNode(n.children, id) }));
-}
-
-function insertNode(
-  nodes: TreeNode[],
-  parentId: string | null,
-  index: number,
-  node: TreeNode,
-): TreeNode[] {
-  if (parentId === null) {
-    const next = [...nodes];
-    next.splice(index, 0, node);
-    return next;
-  }
-  return nodes.map((n) =>
-    n.id === parentId
-      ? { ...n, children: insertNode(n.children, null, index, node) }
-      : { ...n, children: insertNode(n.children, parentId, index, node) },
-  );
-}
-
-function descendantIds(node: TreeNode): string[] {
-  return node.children.flatMap((c) => [c.id, ...descendantIds(c)]);
-}
-
-const clamp = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, v));
-
-/** Where the dragged item would land: depth and parent, from its horizontal offset. */
-function getProjection(
-  items: FlatNode[],
-  activeId: string,
-  overId: string,
-  offsetX: number,
-  maxDepth: number,
-) {
-  const overIndex = items.findIndex((i) => i.id === overId);
-  const activeIndex = items.findIndex((i) => i.id === activeId);
-  const active = items[activeIndex];
-  if (!active || overIndex === -1) return null;
-  const moved = arrayMove(items, activeIndex, overIndex);
-  const previous = moved[overIndex - 1];
-  const next = moved[overIndex + 1];
-  const projected = active.depth + Math.round(offsetX / INDENT);
-  const upper = Math.min(previous ? previous.depth + 1 : 0, maxDepth - 1);
-  const lower = next ? next.depth : 0;
-  const depth = clamp(projected, Math.min(lower, upper), upper);
-  let parentId: string | null = null;
-  if (depth > 0 && previous) {
-    if (depth === previous.depth) parentId = previous.parentId;
-    else if (depth > previous.depth) parentId = previous.id;
-    else {
-      const ancestor = moved
-        .slice(0, overIndex)
-        .reverse()
-        .find((i) => i.depth === depth);
-      parentId = ancestor?.parentId ?? null;
-    }
-  }
-  return { depth, parentId, overIndex, moved };
-}
+import {
+  INDENT,
+  annotate,
+  descendantIds,
+  dropNode,
+  findNode,
+  flatten,
+  getProjection,
+  insertNode,
+  mapTree,
+  newId,
+  removeNode,
+  strip,
+  type NodeData,
+  type FlatNode,
+  type TreeNode,
+} from "./tree.js";
 
 export function TreeInput({
   field,
@@ -234,25 +120,13 @@ export function TreeInput({
   );
 
   const onDragEnd = (e: DragEndEvent) => {
-    const active = String(e.active.id);
     setActiveId(null);
     setOverId(null);
     setOffsetX(0);
-    if (!projection || !e.over) return;
-    const node = findNode(tree, active);
-    if (!node) return;
-    const { parentId, moved, overIndex } = projection;
-    const siblingsBefore = moved
-      .slice(0, overIndex)
-      .filter((i) => i.parentId === parentId && i.id !== active).length;
-    const without = removeNode(tree, active);
-    commit(insertNode(without, parentId, siblingsBefore, node));
-    if (parentId)
-      setCollapsed((c) => {
-        const n = new Set(c);
-        n.delete(parentId);
-        return n;
-      });
+    const next = e.over && dropNode(tree, String(e.active.id), projection);
+    if (!next) return;
+    commit(next);
+    expand(projection!.parentId);
   };
 
   const update = (id: string, data: NodeData) =>
@@ -276,14 +150,17 @@ export function TreeInput({
         node,
       ),
     );
-    if (parentId)
-      setCollapsed((c) => {
-        const n = new Set(c);
-        n.delete(parentId);
-        return n;
-      });
+    expand(parentId);
     setEditing(node.id);
   };
+  /** Shows a node's children. */
+  const expand = (id: string | null) =>
+    id &&
+    setCollapsed((c) => {
+      const n = new Set(c);
+      n.delete(id);
+      return n;
+    });
   const toggle = (id: string) =>
     setCollapsed((c) => {
       const n = new Set(c);

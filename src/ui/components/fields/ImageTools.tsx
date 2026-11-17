@@ -11,18 +11,19 @@ import { useVestry } from "../../context.js";
 import { cx } from "../../lib/utils.js";
 import type { PendingUpload } from "../AssetPicker.js";
 import { Button } from "../ui.js";
-
-export interface CropRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface FocalPoint {
-  x: number;
-  y: number;
-}
+import {
+  clamp,
+  defaultCrop,
+  dragCrop,
+  formatAspect,
+  HANDLES,
+  isCropRect,
+  isFocalPoint,
+  normalizeCrop,
+  type CropRect,
+  type FocalPoint,
+  type Handle,
+} from "./crop.js";
 
 /** Resolve the sibling image field's value to a URL the browser can load. */
 function useImageSource(
@@ -93,53 +94,6 @@ function useFittedImage(src: string | null, maxHeight: number) {
 /** Dragging a handle must not start a text selection elsewhere on the page. */
 const preventSelection = (e: React.MouseEvent) => e.preventDefault();
 
-const clamp = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, v));
-
-/** Largest rectangle of the given aspect that fits the image, centred. */
-function defaultCrop(
-  natural: { width: number; height: number },
-  aspect?: number,
-): CropRect {
-  if (!aspect)
-    return { x: 0, y: 0, width: natural.width, height: natural.height };
-  let width = natural.width;
-  let height = Math.round(width / aspect);
-  if (height > natural.height) {
-    height = natural.height;
-    width = Math.round(height * aspect);
-  }
-  return {
-    x: Math.round((natural.width - width) / 2),
-    y: Math.round((natural.height - height) / 2),
-    width,
-    height,
-  };
-}
-
-function normalizeCrop(
-  rect: CropRect,
-  natural: { width: number; height: number },
-  aspect: number | undefined,
-  minSize: number,
-): CropRect {
-  let width = clamp(Math.round(rect.width), minSize, natural.width);
-  let height = clamp(Math.round(rect.height), minSize, natural.height);
-  if (aspect) {
-    height = Math.round(width / aspect);
-    if (height > natural.height) {
-      height = natural.height;
-      width = Math.round(height * aspect);
-    }
-  }
-  const x = clamp(Math.round(rect.x), 0, natural.width - width);
-  const y = clamp(Math.round(rect.y), 0, natural.height - height);
-  return { x, y, width, height };
-}
-
-type Handle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
-const HANDLES: Handle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
-
 export function CropInput({
   field,
   value,
@@ -201,39 +155,7 @@ export function CropInput({
     if (!d || !fitted) return;
     const dx = (e.clientX - d.start.x) / scale;
     const dy = (e.clientY - d.start.y) / scale;
-    const o = d.origin;
-    let next: CropRect;
-    if (d.mode === "move") {
-      next = { ...o, x: o.x + dx, y: o.y + dy };
-    } else {
-      let { x, y, width, height } = o;
-      if (d.mode.includes("e")) width = o.width + dx;
-      if (d.mode.includes("s")) height = o.height + dy;
-      if (d.mode.includes("w")) {
-        width = o.width - dx;
-        x = o.x + dx;
-      }
-      if (d.mode.includes("n")) {
-        height = o.height - dy;
-        y = o.y + dy;
-      }
-      if (aspect) {
-        // Drive the locked dimension from whichever one the handle moves most.
-        const horizontal = d.mode === "e" || d.mode === "w";
-        const vertical = d.mode === "n" || d.mode === "s";
-        if (vertical || (!horizontal && Math.abs(dy) > Math.abs(dx)))
-          width = height * aspect;
-        else height = width / aspect;
-        if (d.mode.includes("w")) x = o.x + o.width - width;
-        if (d.mode.includes("n")) y = o.y + o.height - height;
-      }
-      next = {
-        x,
-        y,
-        width: Math.max(minSize, width),
-        height: Math.max(minSize, height),
-      };
-    }
+    const next = dragCrop(d.mode, d.origin, dx, dy, aspect, minSize);
     onChange(normalizeCrop(next, fitted.natural, aspect, minSize));
   };
 
@@ -396,34 +318,6 @@ export function CropInput({
   );
 }
 
-function isCropRect(v: unknown): v is CropRect {
-  return (
-    typeof v === "object" &&
-    v !== null &&
-    ["x", "y", "width", "height"].every(
-      (k) => typeof (v as Record<string, unknown>)[k] === "number",
-    )
-  );
-}
-
-function formatAspect(aspect: number): string {
-  for (const [w, h] of [
-    [1, 1],
-    [4, 3],
-    [3, 4],
-    [3, 2],
-    [2, 3],
-    [16, 9],
-    [9, 16],
-    [8, 9],
-    [21, 9],
-    [1.91, 1],
-  ]) {
-    if (Math.abs(w / h - aspect) < 0.005) return `${w}:${h}`;
-  }
-  return `${aspect.toFixed(3)}:1`;
-}
-
 export function FocalPointInput({
   field,
   value,
@@ -545,14 +439,5 @@ export function FocalPointInput({
         </Button>
       </div>
     </div>
-  );
-}
-
-function isFocalPoint(v: unknown): v is FocalPoint {
-  return (
-    typeof v === "object" &&
-    v !== null &&
-    typeof (v as FocalPoint).x === "number" &&
-    typeof (v as FocalPoint).y === "number"
   );
 }

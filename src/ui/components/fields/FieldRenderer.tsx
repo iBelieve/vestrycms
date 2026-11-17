@@ -10,7 +10,7 @@ import {
   Trash,
   X,
 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext,
@@ -156,322 +156,331 @@ export function FieldRenderer(props: FieldProps) {
   );
 }
 
-function FieldInput(props: FieldProps & { id: string; label: string }) {
-  const { field, value, onChange, id, label, ctx } = props;
+type InputProps<T extends Field["type"] = Field["type"]> = FieldProps<
+  Extract<Field, { type: T }>
+> & { id: string; label: string };
+
+/** Each type of field's input. */
+const INPUTS: { [T in Field["type"]]: (props: InputProps<T>) => ReactNode } = {
+  text: ({ field, value, onChange, id }) => (
+    <input
+      id={id}
+      className="v-input"
+      value={asText(value)}
+      placeholder={field.placeholder}
+      maxLength={field.maxLength}
+      readOnly={field.readOnly}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+  slug: ({ field, value, onChange, id, ctx }) => (
+    <SlugInput
+      id={id}
+      value={asText(value)}
+      onChange={onChange}
+      from={field.from}
+      ctx={ctx}
+      readOnly={field.readOnly}
+    />
+  ),
+  textarea: ({ field, value, onChange, id }) => (
+    <textarea
+      id={id}
+      className="v-textarea"
+      rows={field.rows ?? 4}
+      value={asText(value)}
+      placeholder={field.placeholder}
+      maxLength={field.maxLength}
+      readOnly={field.readOnly}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+  number: ({ field, value, onChange, id }) => (
+    <input
+      id={id}
+      type="number"
+      className="v-input"
+      value={value === null || value === undefined ? "" : String(value)}
+      min={field.min}
+      max={field.max}
+      step={field.step ?? "any"}
+      readOnly={field.readOnly}
+      onChange={(e) =>
+        onChange(e.target.value === "" ? null : Number(e.target.value))
+      }
+    />
+  ),
+  boolean: ({ field, value, onChange, label }) => (
+    <Toggle
+      checked={Boolean(value)}
+      onChange={onChange}
+      label={label}
+      disabled={field.readOnly}
+    />
+  ),
+  date: (props) => <DateInput {...props} />,
+  datetime: ({ field, value, onChange, id }) =>
+    field.autoUpdate ? (
+      <input
+        id={id}
+        className="v-input"
+        readOnly
+        value={value ? new Date(String(value)).toLocaleString() : "Set on save"}
+      />
+    ) : (
+      <DatetimeInput
+        id={id}
+        value={value}
+        storage={field.storage ?? "local"}
+        onChange={onChange}
+        readOnly={field.readOnly}
+      />
+    ),
+  select: (props) => <SelectInput {...props} />,
+  multiselect: (props) => <MultiselectInput {...props} />,
+  color: ({ field, value, onChange, id }) => (
+    <div className="v-input-group">
+      <input
+        type="color"
+        value={(value as string) || "#000000"}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={field.readOnly}
+        style={{ width: 44, height: 36, padding: 2 }}
+      />
+      <input
+        id={id}
+        className="v-input v-input--mono"
+        value={asText(value)}
+        onChange={(e) => onChange(e.target.value)}
+        readOnly={field.readOnly}
+      />
+    </div>
+  ),
+  image: (props) => <AssetInput {...props} />,
+  file: (props) => <AssetInput {...props} />,
+  reference: ({ field, value, onChange, id }) => (
+    <ReferenceInput
+      id={id}
+      collection={field.collection}
+      value={asText(value)}
+      onChange={onChange}
+      readOnly={field.readOnly}
+    />
+  ),
+  object: (props) => <ObjectInput {...props} />,
+  array: (props) => <ArrayInput {...props} />,
+  markdown: ({ field, value, onChange }) => (
+    <MarkdownField
+      value={asText(value)}
+      onChange={onChange}
+      components={field.components}
+      placeholder={field.description}
+    />
+  ),
+  code: ({ field, value, onChange }) => (
+    <CodeInput
+      value={asText(value)}
+      onChange={onChange}
+      language={field.language ?? "text"}
+      rows={field.rows}
+      readOnly={field.readOnly}
+    />
+  ),
+  json: ({ field, value, onChange }) => (
+    <JsonInput value={value} onChange={onChange} readOnly={field.readOnly} />
+  ),
+  crop: ({ field, value, onChange, ctx }) => (
+    <CropInput
+      field={field}
+      value={value}
+      onChange={onChange}
+      siblings={ctx?.siblings}
+      pendingUploads={ctx?.pendingUploads}
+    />
+  ),
+  focalPoint: ({ field, value, onChange, ctx }) => (
+    <FocalPointInput
+      field={field}
+      value={value}
+      onChange={onChange}
+      siblings={ctx?.siblings}
+      pendingUploads={ctx?.pendingUploads}
+    />
+  ),
+  tree: ({ field, value, onChange, errors, ctx, path }) => (
+    <TreeInput
+      field={field}
+      value={value}
+      onChange={onChange}
+      errors={errors}
+      ctx={ctx}
+      path={path}
+    />
+  ),
+};
+
+/** A string value, or "" for none. */
+const asText = (value: unknown) => (value as string) ?? "";
+
+function FieldInput(props: InputProps) {
+  const type = props.field.type;
+  const Input = Object.hasOwn(INPUTS, type)
+    ? (INPUTS[type] as (props: InputProps) => ReactNode)
+    : null;
+  if (!Input)
+    return (
+      <input className="v-input" readOnly value={String(props.value ?? "")} />
+    );
+  return <Input {...props} />;
+}
+
+/** A date, with a time box beside it for a field that keeps a time. */
+function DateInput({ field, value, onChange, id }: InputProps<"date">) {
+  const str =
+    typeof value === "string"
+      ? value
+      : value instanceof Date
+        ? value.toISOString()
+        : "";
+  const datePart = str.slice(0, 10);
+  const timePart = str.length > 10 ? str.slice(11, 16) : "";
   const readOnly = field.readOnly;
-  switch (field.type) {
-    case "text":
-      return (
-        <input
-          id={id}
-          className="v-input"
-          value={(value as string) ?? ""}
-          placeholder={field.placeholder}
-          maxLength={field.maxLength}
-          readOnly={readOnly}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
-    case "slug":
-      return (
-        <SlugInput
-          id={id}
-          value={(value as string) ?? ""}
-          onChange={onChange}
-          from={field.from}
-          ctx={ctx}
-          readOnly={readOnly}
-        />
-      );
-    case "textarea":
-      return (
-        <textarea
-          id={id}
-          className="v-textarea"
-          rows={field.rows ?? 4}
-          value={(value as string) ?? ""}
-          placeholder={field.placeholder}
-          maxLength={field.maxLength}
-          readOnly={readOnly}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      );
-    case "number":
-      return (
-        <input
-          id={id}
-          type="number"
-          className="v-input"
-          value={value === null || value === undefined ? "" : String(value)}
-          min={field.min}
-          max={field.max}
-          step={field.step ?? "any"}
-          readOnly={readOnly}
-          onChange={(e) =>
-            onChange(e.target.value === "" ? null : Number(e.target.value))
-          }
-        />
-      );
-    case "boolean":
-      return (
-        <Toggle
-          checked={Boolean(value)}
-          onChange={onChange}
-          label={label}
-          disabled={readOnly}
-        />
-      );
-    case "date": {
-      const str =
-        typeof value === "string"
-          ? value
-          : value instanceof Date
-            ? value.toISOString()
-            : "";
-      const datePart = str.slice(0, 10);
-      const timePart = str.length > 10 ? str.slice(11, 16) : "";
-      if (!field.time) {
-        return (
-          <input
-            id={id}
-            type="date"
-            className="v-input"
-            value={datePart}
-            readOnly={readOnly}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        );
-      }
-      return (
-        <div className="v-input-group">
-          <input
-            id={id}
-            type="date"
-            className="v-input"
-            value={datePart}
-            readOnly={readOnly}
-            onChange={(e) =>
-              onChange(
-                timePart && e.target.value
-                  ? `${e.target.value}T${timePart}`
-                  : e.target.value,
-              )
-            }
-          />
-          <input
-            type="time"
-            className="v-input"
-            style={{ flex: "0 0 130px" }}
-            value={timePart}
-            readOnly={readOnly}
-            title={field.timeHint}
-            onChange={(e) =>
-              onChange(
-                e.target.value && datePart
-                  ? `${datePart}T${e.target.value}`
-                  : datePart,
-              )
-            }
-          />
-        </div>
-      );
-    }
-    case "datetime": {
-      if (field.autoUpdate) {
-        return (
-          <input
-            id={id}
-            className="v-input"
-            readOnly
-            value={
-              value ? new Date(String(value)).toLocaleString() : "Set on save"
-            }
-          />
-        );
-      }
-      return (
-        <DatetimeInput
-          id={id}
-          value={value}
-          storage={field.storage ?? "local"}
-          onChange={onChange}
-          readOnly={readOnly}
-        />
-      );
-    }
-    case "select":
-      return (
-        <div className="v-row">
-          {field.options.find((o) => o.value === value)?.color && (
-            <span
-              className="v-swatch"
-              style={{
-                background: field.options.find((o) => o.value === value)!.color,
-              }}
-            />
-          )}
-          <select
-            id={id}
-            className="v-select"
-            value={(value as string) ?? ""}
-            disabled={readOnly}
-            onChange={(e) => onChange(e.target.value || undefined)}
-          >
-            {(field.clearable || value === undefined || value === "") && (
-              <option value="">—</option>
-            )}
-            {field.options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      );
-    case "multiselect": {
-      const selected = Array.isArray(value) ? (value as string[]) : [];
-      return (
-        <div className="v-chips">
-          {field.options.map((o) => {
-            const on = selected.includes(o.value);
-            return (
-              <button
-                key={o.value}
-                type="button"
-                className={cx("v-chip", on && "is-on")}
-                onClick={() =>
-                  onChange(
-                    on
-                      ? selected.filter((v) => v !== o.value)
-                      : [...selected, o.value],
-                  )
-                }
-                disabled={readOnly}
-              >
-                {o.color && (
-                  <span className="v-swatch" style={{ background: o.color }} />
-                )}
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
-      );
-    }
-    case "color":
-      return (
-        <div className="v-input-group">
-          <input
-            type="color"
-            value={(value as string) || "#000000"}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={readOnly}
-            style={{ width: 44, height: 36, padding: 2 }}
-          />
-          <input
-            id={id}
-            className="v-input v-input--mono"
-            value={(value as string) ?? ""}
-            onChange={(e) => onChange(e.target.value)}
-            readOnly={readOnly}
-          />
-        </div>
-      );
-    case "image":
-    case "file":
-      return <AssetInput {...props} />;
-    case "reference":
-      return (
-        <ReferenceInput
-          id={id}
-          collection={field.collection}
-          value={(value as string) ?? ""}
-          onChange={onChange}
-          readOnly={readOnly}
-        />
-      );
-    case "object": {
-      const obj = (value && typeof value === "object" ? value : {}) as Record<
-        string,
-        unknown
-      >;
-      const body = (
-        <FieldSet
-          schema={field.fields}
-          values={obj}
-          onChange={onChange}
-          errors={props.errors}
-          ctx={ctx}
-          pathPrefix={props.path}
-        />
-      );
-      return field.inline ? (
-        body
-      ) : (
-        <div className="v-group">
-          <div className="v-group__body">{body}</div>
-        </div>
-      );
-    }
-    case "array":
-      return <ArrayInput {...props} field={field} />;
-    case "markdown":
-      return (
-        <MarkdownField
-          value={(value as string) ?? ""}
-          onChange={onChange}
-          components={field.components}
-          placeholder={field.description}
-        />
-      );
-    case "code":
-      return (
-        <CodeInput
-          value={(value as string) ?? ""}
-          onChange={onChange}
-          language={field.language ?? "text"}
-          rows={field.rows}
-          readOnly={readOnly}
-        />
-      );
-    case "json":
-      return (
-        <JsonInput value={value} onChange={onChange} readOnly={readOnly} />
-      );
-    case "crop":
-      return (
-        <CropInput
-          field={field}
-          value={value}
-          onChange={onChange}
-          siblings={ctx?.siblings}
-          pendingUploads={ctx?.pendingUploads}
-        />
-      );
-    case "focalPoint":
-      return (
-        <FocalPointInput
-          field={field}
-          value={value}
-          onChange={onChange}
-          siblings={ctx?.siblings}
-          pendingUploads={ctx?.pendingUploads}
-        />
-      );
-    case "tree":
-      return (
-        <TreeInput
-          field={field}
-          value={value}
-          onChange={onChange}
-          errors={props.errors}
-          ctx={ctx}
-          path={props.path}
-        />
-      );
-    default:
-      return <input className="v-input" readOnly value={String(value ?? "")} />;
+  if (!field.time) {
+    return (
+      <input
+        id={id}
+        type="date"
+        className="v-input"
+        value={datePart}
+        readOnly={readOnly}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
   }
+  return (
+    <div className="v-input-group">
+      <input
+        id={id}
+        type="date"
+        className="v-input"
+        value={datePart}
+        readOnly={readOnly}
+        onChange={(e) =>
+          onChange(
+            timePart && e.target.value
+              ? `${e.target.value}T${timePart}`
+              : e.target.value,
+          )
+        }
+      />
+      <input
+        type="time"
+        className="v-input"
+        style={{ flex: "0 0 130px" }}
+        value={timePart}
+        readOnly={readOnly}
+        title={field.timeHint}
+        onChange={(e) =>
+          onChange(
+            e.target.value && datePart
+              ? `${datePart}T${e.target.value}`
+              : datePart,
+          )
+        }
+      />
+    </div>
+  );
+}
+
+function SelectInput({ field, value, onChange, id }: InputProps<"select">) {
+  const color = field.options.find((o) => o.value === value)?.color;
+  return (
+    <div className="v-row">
+      {color && <span className="v-swatch" style={{ background: color }} />}
+      <select
+        id={id}
+        className="v-select"
+        value={asText(value)}
+        disabled={field.readOnly}
+        onChange={(e) => onChange(e.target.value || undefined)}
+      >
+        {(field.clearable || value === undefined || value === "") && (
+          <option value="">—</option>
+        )}
+        {field.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function MultiselectInput({
+  field,
+  value,
+  onChange,
+}: InputProps<"multiselect">) {
+  const selected = Array.isArray(value) ? (value as string[]) : [];
+  return (
+    <div className="v-chips">
+      {field.options.map((o) => {
+        const on = selected.includes(o.value);
+        return (
+          <button
+            key={o.value}
+            type="button"
+            className={cx("v-chip", on && "is-on")}
+            onClick={() =>
+              onChange(
+                on
+                  ? selected.filter((v) => v !== o.value)
+                  : [...selected, o.value],
+              )
+            }
+            disabled={field.readOnly}
+          >
+            {o.color && (
+              <span className="v-swatch" style={{ background: o.color }} />
+            )}
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ObjectInput({
+  field,
+  value,
+  onChange,
+  errors,
+  ctx,
+  path,
+}: InputProps<"object">) {
+  const obj = (value && typeof value === "object" ? value : {}) as Record<
+    string,
+    unknown
+  >;
+  const body = (
+    <FieldSet
+      schema={field.fields}
+      values={obj}
+      onChange={onChange}
+      errors={errors}
+      ctx={ctx}
+      pathPrefix={path}
+    />
+  );
+  return field.inline ? (
+    body
+  ) : (
+    <div className="v-group">
+      <div className="v-group__body">{body}</div>
+    </div>
+  );
 }
 
 function SlugInput({
