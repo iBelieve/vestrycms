@@ -1,36 +1,6 @@
 {
   "kind": "health",
   "finding_counts": {
-    "src/mdx/expressions.ts": {
-      "complexity_high": {
-        "count": 1
-      },
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/mdx/parse.ts": {
-      "complexity_moderate": {
-        "count": 2
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts": {
-      "complexity_high": {
-        "count": 1
-      },
-      "complexity_moderate": {
-        "count": 2
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
     "src/ui/App.tsx": {
       "crap_high": {
         "count": 2
@@ -231,50 +201,6 @@
     }
   },
   "identity_finding_counts": {
-    "src/mdx/expressions.ts\u0000literal": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/mdx/expressions.ts\u0000valueToSource": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/parse.ts\u0000block": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/parse.ts\u0000inlineNode": {
-      "complexity_moderate": {
-        "count": 1
-      },
-      "crap_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts\u0000block": {
-      "complexity_high": {
-        "count": 1
-      },
-      "crap_high": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts\u0000leaf": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
-    "src/mdx/serialize.ts\u0000needsBlankLine": {
-      "complexity_moderate": {
-        "count": 1
-      }
-    },
     "src/ui/App.tsx\u0000Root": {
       "crap_high": {
         "count": 1

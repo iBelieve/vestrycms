@@ -63,6 +63,9 @@ describe("normalization to the canonical style", () => {
       "[docs][d]\n\n[d]: https://example.org\n",
       "[docs](https://example.org)\n",
     ],
+    ["![a picture][p]\n\n[p]: a.png\n", "![a picture](a.png)\n"],
+    // CommonMark uses the first definition of a label.
+    ["[docs][d]\n\n[d]: /first\n[d]: /second\n", "[docs](/first)\n"],
     ["<Box>\n  Child text\n</Box>\n", "<Box>\n\nChild text\n\n</Box>\n"],
     // Marks on the same text nest in one order.
     ["<u>**both**</u>\n", "**<u>both</u>**\n"],
@@ -102,6 +105,27 @@ describe("bare addresses", () => {
   it("keeps an escaped URL as text", () => {
     expect(roundTrip("Visit www\\.example.com today.\n")).toBe(
       "Visit www\\.example.com today.\n",
+    );
+  });
+});
+
+describe("expressions", () => {
+  it.each([
+    "{props.title}\n",
+    "<Box value={count} />\n",
+    "<Box label={`Hello, ${name}`} />\n",
+    // Values that JSON cannot hold stay as written.
+    "<Box n={10n} />\n",
+    "<Box pattern={/a+/g} />\n",
+    // A key named `__proto__` is a key, not the object's prototype.
+    '<Box\n  style={{\n    __proto__: { color: "red" },\n  }}\n/>\n',
+  ])("keeps %j", (source) => {
+    expect(roundTrip(source)).toBe(source);
+  });
+
+  it("reads a template literal without placeholders as a string", () => {
+    expect(roundTrip("<Box label={`Hello`} />\n")).toBe(
+      '<Box label="Hello" />\n',
     );
   });
 });
@@ -329,6 +353,12 @@ describe("inline marks", () => {
       text("d ", textClass("lead big")),
       text("e", textClass("lead big"), "bold"),
     ]);
+  });
+
+  it("gives each document marks of its own", () => {
+    const [first] = inline("*one* **two** ~~three~~\n") ?? [];
+    first.marks![0].attrs = { changed: true };
+    expect(inline("*one*\n")).toEqual([text("one", "italic")]);
   });
 
   it("marks everything inside the element, not only text", () => {
