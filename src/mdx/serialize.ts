@@ -252,24 +252,31 @@ function tightJoin(
 function needsBlankLine(parent: Md.List | Md.ListItem, state: State): boolean {
   const children = parent.children as Md.Nodes[];
   for (let i = 1; i < children.length; i++) {
-    let index = state.join.length;
-    let lines: number | undefined;
-    while (index--) {
-      const result = state.join[index](
-        children[i - 1] as never,
-        children[i] as never,
-        parent as never,
-        state,
-      );
-      if (result === true || result === 1) break;
-      if (typeof result === "number" || result === false) {
-        lines = result === false ? 1 : result;
-        break;
-      }
-    }
-    if (lines !== 0) return true;
+    if (linesBetween(children[i - 1], children[i], parent, state) !== 0)
+      return true;
   }
   return false;
+}
+
+/** The blank lines the first join with an opinion puts between two nodes. */
+function linesBetween(
+  left: Md.Nodes,
+  right: Md.Nodes,
+  parent: Md.List | Md.ListItem,
+  state: State,
+): number | undefined {
+  for (let index = state.join.length - 1; index >= 0; index--) {
+    const result = state.join[index](
+      left as never,
+      right as never,
+      parent as never,
+      state,
+    );
+    if (result === true || result === 1) return undefined;
+    if (result === false) return 1;
+    if (typeof result === "number") return result;
+  }
+  return undefined;
 }
 
 function importStatements(used: Uses, options: SerializeOptions): string[] {
@@ -325,80 +332,80 @@ function blocks(nodes: PMNode[], used: Uses): AnyNode[] {
 }
 
 function block(node: PMNode, used: Uses): AnyNode | null {
-  switch (node.type) {
-    case "paragraph":
-      return paragraph(node.content ?? [], used);
-    case "heading":
-      return {
-        type: "heading",
-        depth: clampDepth(Number(node.attrs?.level ?? 1)),
-        children: htmlBreaks(
-          inlines(node.content ?? [], used),
-          used,
-        ) as Md.PhrasingContent[],
-      };
-    case "horizontalRule":
-      return { type: "thematicBreak" };
-    case "blockquote":
-      return {
-        type: "blockquote",
-        children: blocks(node.content ?? [], used) as Md.BlockContent[],
-      };
-    case "bulletList":
-    case "orderedList": {
-      const ordered = node.type === "orderedList";
-      // Lists that must be loose to keep their content apart are loosened
-      // while serializing; see listHandler.
-      const spread = node.attrs?.spread === true;
-      const items = (node.content ?? []).map((item): Md.ListItem => {
-        const checked = item.attrs?.checked;
-        return {
-          type: "listItem",
-          spread,
-          checked: typeof checked === "boolean" ? checked : null,
-          children: blocks(item.content ?? [], used) as Md.BlockContent[],
-        };
-      });
-      return {
-        type: "list",
-        ordered,
-        start: ordered ? Number(node.attrs?.start ?? 1) : null,
-        spread,
-        children: items,
-      };
-    }
-    case "codeBlock":
-      return {
-        type: "code",
-        lang: (node.attrs?.language as string | null) ?? null,
-        meta: (node.attrs?.meta as string | null) ?? null,
-        value: (node.content ?? []).map((t) => t.text ?? "").join(""),
-      };
-    case "rawHtml":
-      return { type: "html", value: String(node.attrs?.value ?? "") };
-    case "table":
-      return table(node, used);
-    case "mdxComponent":
-      return jsxElement(node, used, false) as MdxJsxFlowElement;
-    case "footnoteDefinition":
-      return {
-        type: "footnoteDefinition",
-        ...footnoteLabel(node),
-        children: blocks(node.content ?? [], used) as Md.BlockContent[],
-      };
-    case "mdxExpression": {
-      const value = String(node.attrs?.value ?? "");
-      scan(value, used);
-      return { type: "mdxFlowExpression", value };
-    }
-    case "mdxEsm": {
-      const value = String(node.attrs?.value ?? "");
-      scan(value, used);
-      return { type: "mdxjsEsm", value };
-    }
-    default:
-      return paragraph([node], used);
-  }
+  const convert = Object.hasOwn(BLOCKS, node.type)
+    ? BLOCKS[node.type]
+    : undefined;
+  return convert ? convert(node, used) : paragraph([node], used);
+}
+
+/** How each kind of block is written, by its type in the editor. */
+const BLOCKS: Record<string, (node: PMNode, used: Uses) => AnyNode | null> = {
+  paragraph: (node, used) => paragraph(node.content ?? [], used),
+  heading: (node, used) => ({
+    type: "heading",
+    depth: clampDepth(Number(node.attrs?.level ?? 1)),
+    children: htmlBreaks(
+      inlines(node.content ?? [], used),
+      used,
+    ) as Md.PhrasingContent[],
+  }),
+  horizontalRule: () => ({ type: "thematicBreak" }),
+  blockquote: (node, used) => ({
+    type: "blockquote",
+    children: blocks(node.content ?? [], used) as Md.BlockContent[],
+  }),
+  bulletList: (node, used) => list(node, used),
+  orderedList: (node, used) => list(node, used),
+  codeBlock: (node) => ({
+    type: "code",
+    lang: (node.attrs?.language as string | null) ?? null,
+    meta: (node.attrs?.meta as string | null) ?? null,
+    value: (node.content ?? []).map((t) => t.text ?? "").join(""),
+  }),
+  rawHtml: (node) => ({ type: "html", value: String(node.attrs?.value ?? "") }),
+  table: (node, used) => table(node, used),
+  mdxComponent: (node, used) =>
+    jsxElement(node, used, false) as MdxJsxFlowElement,
+  footnoteDefinition: (node, used) => ({
+    type: "footnoteDefinition",
+    ...footnoteLabel(node),
+    children: blocks(node.content ?? [], used) as Md.BlockContent[],
+  }),
+  mdxExpression: (node, used) => ({
+    type: "mdxFlowExpression",
+    value: scanned(node, used),
+  }),
+  mdxEsm: (node, used) => ({ type: "mdxjsEsm", value: scanned(node, used) }),
+};
+
+/** A node's `value` attribute, with the identifiers it uses recorded. */
+function scanned(node: PMNode, used: Uses): string {
+  const value = String(node.attrs?.value ?? "");
+  scan(value, used);
+  return value;
+}
+
+function list(node: PMNode, used: Uses): Md.List {
+  const ordered = node.type === "orderedList";
+  // Lists that must be loose to keep their content apart are loosened
+  // while serializing; see listHandler.
+  const spread = node.attrs?.spread === true;
+  const items = (node.content ?? []).map((item): Md.ListItem => {
+    const checked = item.attrs?.checked;
+    return {
+      type: "listItem",
+      spread,
+      checked: typeof checked === "boolean" ? checked : null,
+      children: blocks(item.content ?? [], used) as Md.BlockContent[],
+    };
+  });
+  return {
+    type: "list",
+    ordered,
+    start: ordered ? Number(node.attrs?.start ?? 1) : null,
+    spread,
+    children: items,
+  };
 }
 
 /**
@@ -773,34 +780,34 @@ function escapeAttribute(value: string): string {
 }
 
 function leaf(node: PMNode, used: Uses): AnyNode[] {
-  switch (node.type) {
-    case "text":
-      return node.text ? [{ type: "text", value: node.text }] : [];
-    case "hardBreak":
-      return [{ type: "break" }];
-    case "image":
-      return [
-        {
-          type: "image",
-          url: String(node.attrs?.src ?? ""),
-          alt: (node.attrs?.alt as string | null) ?? null,
-          title: (node.attrs?.title as string | null) ?? null,
-        },
-      ];
-    case "rawInlineHtml":
-      return [{ type: "html", value: String(node.attrs?.value ?? "") }];
-    case "mdxInlineComponent":
-      return [jsxElement(node, used, true)];
-    case "mdxInlineExpression": {
-      const value = String(node.attrs?.value ?? "");
-      scan(value, used);
-      return [{ type: "mdxTextExpression", value }];
-    }
-    case "footnoteReference":
-      return [{ type: "footnoteReference", ...footnoteLabel(node) }];
-    case "mdxComponent":
-      return [jsxElement(node, used, true)];
-    default:
-      return node.content ? (inlines(node.content, used) as AnyNode[]) : [];
-  }
+  const convert = Object.hasOwn(LEAVES, node.type)
+    ? LEAVES[node.type]
+    : undefined;
+  if (convert) return convert(node, used);
+  return node.content ? (inlines(node.content, used) as AnyNode[]) : [];
 }
+
+/** How each kind of inline node is written, by its type in the editor. */
+const LEAVES: Record<string, (node: PMNode, used: Uses) => AnyNode[]> = {
+  text: (node) => (node.text ? [{ type: "text", value: node.text }] : []),
+  hardBreak: () => [{ type: "break" }],
+  image: (node) => [
+    {
+      type: "image",
+      url: String(node.attrs?.src ?? ""),
+      alt: (node.attrs?.alt as string | null) ?? null,
+      title: (node.attrs?.title as string | null) ?? null,
+    },
+  ],
+  rawInlineHtml: (node) => [
+    { type: "html", value: String(node.attrs?.value ?? "") },
+  ],
+  mdxInlineComponent: (node, used) => [jsxElement(node, used, true)],
+  mdxInlineExpression: (node, used) => [
+    { type: "mdxTextExpression", value: scanned(node, used) },
+  ],
+  footnoteReference: (node) => [
+    { type: "footnoteReference", ...footnoteLabel(node) },
+  ],
+  mdxComponent: (node, used) => [jsxElement(node, used, true)],
+};

@@ -109,72 +109,74 @@ function blocks(nodes: AnyNode[], ctx: Ctx): PMNode[] {
   return out;
 }
 
+/** A handler for each kind of node, by its `type`. */
+type ByType<Args extends unknown[], R> = {
+  [T in AnyNode["type"]]?: (
+    node: Extract<AnyNode, { type: T }>,
+    ...args: Args
+  ) => R;
+};
+
 function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
-  switch (node.type) {
-    case "paragraph":
-      return {
-        type: "paragraph",
-        content: inlines(node.children as AnyNode[], ctx),
-      };
-    case "heading":
-      return {
-        type: "heading",
-        attrs: { level: node.depth },
-        content: lineInlines(node.children as AnyNode[], ctx),
-      };
-    case "thematicBreak":
-      return { type: "horizontalRule" };
-    case "blockquote":
-      return {
-        type: "blockquote",
-        content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
-      };
-    case "list": {
-      const items = node.children.map((item) => listItem(item, ctx));
-      // CommonMark makes a list loose when its items are apart or when any
-      // item holds blocks apart; mdast keeps the second on the item.
-      const spread =
-        Boolean(node.spread) || node.children.some((item) => item.spread);
-      return node.ordered
-        ? {
-            type: "orderedList",
-            attrs: { start: node.start ?? 1, spread },
-            content: items,
-          }
-        : { type: "bulletList", attrs: { spread }, content: items };
-    }
-    case "code":
-      return {
-        type: "codeBlock",
-        attrs: { language: node.lang ?? null, meta: node.meta ?? null },
-        content: node.value ? [{ type: "text", text: node.value }] : [],
-      };
-    case "html":
-      return { type: "rawHtml", attrs: { value: node.value } };
-    case "table":
-      return table(node, ctx);
-    case "definition":
-      return null;
-    case "footnoteDefinition":
-      return {
-        type: "footnoteDefinition",
-        attrs: footnoteAttrs(node),
-        content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
-      };
-    case "mdxJsxFlowElement":
-      return jsxBlock(node, ctx);
-    case "mdxFlowExpression":
-      return { type: "mdxExpression", attrs: { value: node.value } };
-    case "mdxjsEsm":
-      return esm(node, ctx);
-    case "yaml":
-      return null;
-    default: {
-      // Inline content at block level (shouldn't happen) – wrap in a paragraph.
-      const inline = inlineNode(node, ctx, []);
-      return inline.length ? { type: "paragraph", content: inline } : null;
-    }
-  }
+  const convert = BLOCKS[node.type] as
+    ((node: AnyNode, ctx: Ctx) => PMNode | PMNode[] | null) | undefined;
+  if (convert) return convert(node, ctx);
+  // Inline content at block level (shouldn't happen) – wrap in a paragraph.
+  const inline = inlineNode(node, ctx, []);
+  return inline.length ? { type: "paragraph", content: inline } : null;
+}
+
+const BLOCKS: ByType<[ctx: Ctx], PMNode | PMNode[] | null> = {
+  paragraph: (node, ctx) => ({
+    type: "paragraph",
+    content: inlines(node.children as AnyNode[], ctx),
+  }),
+  heading: (node, ctx) => ({
+    type: "heading",
+    attrs: { level: node.depth },
+    content: lineInlines(node.children as AnyNode[], ctx),
+  }),
+  thematicBreak: () => ({ type: "horizontalRule" }),
+  blockquote: (node, ctx) => ({
+    type: "blockquote",
+    content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
+  }),
+  list: (node, ctx) => list(node, ctx),
+  code: (node) => ({
+    type: "codeBlock",
+    attrs: { language: node.lang ?? null, meta: node.meta ?? null },
+    content: node.value ? [{ type: "text", text: node.value }] : [],
+  }),
+  html: (node) => ({ type: "rawHtml", attrs: { value: node.value } }),
+  table: (node, ctx) => table(node, ctx),
+  definition: () => null,
+  footnoteDefinition: (node, ctx) => ({
+    type: "footnoteDefinition",
+    attrs: footnoteAttrs(node),
+    content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
+  }),
+  mdxJsxFlowElement: (node, ctx) => jsxBlock(node, ctx),
+  mdxFlowExpression: (node) => ({
+    type: "mdxExpression",
+    attrs: { value: node.value },
+  }),
+  mdxjsEsm: (node, ctx) => esm(node, ctx),
+  yaml: () => null,
+};
+
+function list(node: Md.List, ctx: Ctx): PMNode {
+  const items = node.children.map((item) => listItem(item, ctx));
+  // CommonMark makes a list loose when its items are apart or when any
+  // item holds blocks apart; mdast keeps the second on the item.
+  const spread =
+    Boolean(node.spread) || node.children.some((item) => item.spread);
+  return node.ordered
+    ? {
+        type: "orderedList",
+        attrs: { start: node.start ?? 1, spread },
+        content: items,
+      }
+    : { type: "bulletList", attrs: { spread }, content: items };
 }
 
 function ensureBlocks(content: PMNode[]): PMNode[] {
@@ -411,113 +413,93 @@ function withMarks(node: PMNode, marks: PMMark[]): PMNode {
 }
 
 function inlineNode(node: AnyNode, ctx: Ctx, marks: PMMark[]): PMNode[] {
-  switch (node.type) {
-    case "text":
-      return node.value
-        ? [withMarks({ type: "text", text: node.value }, marks)]
-        : [];
-    case "emphasis":
-      return inlines(node.children as AnyNode[], ctx, [
-        ...marks,
-        { type: "italic" },
-      ]);
-    case "strong":
-      return inlines(node.children as AnyNode[], ctx, [
-        ...marks,
-        { type: "bold" },
-      ]);
-    case "delete":
-      return inlines(node.children as AnyNode[], ctx, [
-        ...marks,
-        { type: "strike" },
-      ]);
-    case "inlineCode":
-      return [
-        withMarks({ type: "text", text: node.value }, [
-          ...marks,
-          { type: "code" },
-        ]),
-      ];
-    case "link":
-      return inlines(node.children as AnyNode[], ctx, [
-        ...marks,
-        { type: "link", attrs: { href: node.url, title: node.title ?? null } },
-      ]);
-    case "linkReference": {
-      const def = ctx.definitions.get(node.identifier.toLowerCase());
-      if (!def) return inlines(node.children as AnyNode[], ctx, marks);
-      return inlines(node.children as AnyNode[], ctx, [
-        ...marks,
-        { type: "link", attrs: { href: def.url, title: def.title ?? null } },
-      ]);
-    }
-    case "image":
-      return [
-        withMarks(
-          {
-            type: "image",
-            attrs: {
-              src: node.url,
-              alt: node.alt ?? null,
-              title: node.title ?? null,
-            },
-          },
-          marks,
-        ),
-      ];
-    case "imageReference": {
-      const def = ctx.definitions.get(node.identifier.toLowerCase());
-      return def
-        ? [
-            withMarks(
-              {
-                type: "image",
-                attrs: {
-                  src: def.url,
-                  alt: node.alt ?? null,
-                  title: def.title ?? null,
-                },
-              },
-              marks,
-            ),
-          ]
-        : [];
-    }
-    case "break":
-      return [withMarks({ type: "hardBreak" }, marks)];
-    case "html":
-      if (ctx.htmlBreaks && HTML_BREAK.test(node.value))
-        return [withMarks({ type: "hardBreak" }, marks)];
-      return [
-        withMarks(
-          { type: "rawInlineHtml", attrs: { value: node.value } },
-          marks,
-        ),
-      ];
-    case "footnoteReference":
-      return [
-        withMarks(
-          { type: "footnoteReference", attrs: footnoteAttrs(node) },
-          marks,
-        ),
-      ];
-    case "mdxJsxTextElement":
-    case "mdxJsxFlowElement":
-      return jsxInline(node, ctx, marks);
-    case "mdxTextExpression":
-      return [
-        withMarks(
-          { type: "mdxInlineExpression", attrs: { value: node.value } },
-          marks,
-        ),
-      ];
-    default: {
-      // Block content inside inline context: flatten to text.
-      const children = (node as Md.Parent).children as AnyNode[] | undefined;
-      return children ? inlines(children, ctx, marks) : [];
-    }
-  }
+  const convert = INLINES[node.type] as
+    ((node: AnyNode, ctx: Ctx, marks: PMMark[]) => PMNode[]) | undefined;
+  if (convert) return convert(node, ctx, marks);
+  // Block content inside inline context: flatten to text.
+  const children = (node as Md.Parent).children as AnyNode[] | undefined;
+  return children ? inlines(children, ctx, marks) : [];
 }
+
+/** The children of a node, with one more mark. */
+const marked =
+  (mark: PMMark) =>
+  (node: { children: unknown[] }, ctx: Ctx, marks: PMMark[]) =>
+    inlines(node.children as AnyNode[], ctx, [...marks, mark]);
+
+const INLINES: ByType<[ctx: Ctx, marks: PMMark[]], PMNode[]> = {
+  text: (node, _ctx, marks) =>
+    node.value ? [withMarks({ type: "text", text: node.value }, marks)] : [],
+  emphasis: marked({ type: "italic" }),
+  strong: marked({ type: "bold" }),
+  delete: marked({ type: "strike" }),
+  inlineCode: (node, _ctx, marks) => [
+    withMarks({ type: "text", text: node.value }, [...marks, { type: "code" }]),
+  ],
+  link: (node, ctx, marks) =>
+    marked({
+      type: "link",
+      attrs: { href: node.url, title: node.title ?? null },
+    })(node, ctx, marks),
+  linkReference: (node, ctx, marks) => {
+    const def = ctx.definitions.get(node.identifier.toLowerCase());
+    if (!def) return inlines(node.children as AnyNode[], ctx, marks);
+    return marked({
+      type: "link",
+      attrs: { href: def.url, title: def.title ?? null },
+    })(node, ctx, marks);
+  },
+  image: (node, _ctx, marks) => [
+    withMarks(
+      {
+        type: "image",
+        attrs: {
+          src: node.url,
+          alt: node.alt ?? null,
+          title: node.title ?? null,
+        },
+      },
+      marks,
+    ),
+  ],
+  imageReference: (node, ctx, marks) => {
+    const def = ctx.definitions.get(node.identifier.toLowerCase());
+    if (!def) return [];
+    return [
+      withMarks(
+        {
+          type: "image",
+          attrs: {
+            src: def.url,
+            alt: node.alt ?? null,
+            title: def.title ?? null,
+          },
+        },
+        marks,
+      ),
+    ];
+  },
+  break: (_node, _ctx, marks) => [withMarks({ type: "hardBreak" }, marks)],
+  html: (node, ctx, marks) => [
+    withMarks(
+      ctx.htmlBreaks && HTML_BREAK.test(node.value)
+        ? { type: "hardBreak" }
+        : { type: "rawInlineHtml", attrs: { value: node.value } },
+      marks,
+    ),
+  ],
+  footnoteReference: (node, _ctx, marks) => [
+    withMarks({ type: "footnoteReference", attrs: footnoteAttrs(node) }, marks),
+  ],
+  mdxJsxTextElement: (node, ctx, marks) => jsxInline(node, ctx, marks),
+  mdxJsxFlowElement: (node, ctx, marks) => jsxInline(node, ctx, marks),
+  mdxTextExpression: (node, _ctx, marks) => [
+    withMarks(
+      { type: "mdxInlineExpression", attrs: { value: node.value } },
+      marks,
+    ),
+  ],
+};
 
 function mergeText(nodes: PMNode[]): PMNode[] {
   const out: PMNode[] = [];
