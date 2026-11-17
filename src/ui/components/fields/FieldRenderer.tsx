@@ -10,7 +10,7 @@ import {
   Trash,
   X,
 } from "lucide-react";
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext,

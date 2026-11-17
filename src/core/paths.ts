@@ -145,6 +145,24 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * An uploaded file's name as it is stored: no directory, ASCII letters,
+ * digits, `.`, `_` and `-`, lower case. The control panel names deferred
+ * uploads with it too, so both paths agree.
+ */
+export function safeFileName(name: string): string {
+  const base = basename(name.replace(/\\/g, "/"));
+  const ext = extname(base);
+  const stem = base.slice(0, ext ? base.length - ext.length - 1 : undefined);
+  const cleanStem = stem
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+  return ext ? `${cleanStem || "file"}.${ext}` : cleanStem || "file";
+}
+
 const SLUG_DATE = /^(\d{4}-\d{2}-\d{2})-(?=.)/;
 
 /** Split a slug into its directory part (with trailing slash) and file name. */

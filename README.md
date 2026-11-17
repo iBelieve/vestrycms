@@ -498,7 +498,7 @@ pnpm build       # src/ → dist/ (tsc, plus admin.astro, styles.css, env.d.ts)
 pnpm typecheck
 pnpm test
 pnpm format:check
-pnpm fallow     # unused files, exports and dependencies; import cycles
+pnpm fallow      # unused files, exports and dependencies; import cycles
 ```
 
 The package is published as compiled JavaScript in `dist/`; `src/` is not
@@ -510,7 +510,7 @@ integration pre-bundles those through Vite's optimizer: an installed Astro
 integration is excluded from it, and dev would otherwise serve CommonJS
 dependencies such as `react/jsx-runtime` raw.
 
-`pnpm fallow` runs [Fallow](https://docs.fallow.tools)'s dead-code check,
+`pnpm fallow` runs [Fallow](https://fallow.tools/docs/)'s dead-code check,
 which CI enforces; `.fallowrc.json` holds its exceptions. `npx fallow dupes`
 and `npx fallow health` report duplication and complexity, and are not
 enforced.

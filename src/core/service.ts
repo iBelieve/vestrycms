@@ -36,6 +36,7 @@ import {
   joinPath,
   normalizePath,
   parsePathPattern,
+  safeFileName,
   slugFromPath,
   slugify,
 } from "./paths.js";
@@ -865,19 +866,6 @@ function uploadChanges(uploads: Upload[] | undefined): FileChange[] {
       throw new SourceError(`Invalid upload path "${u.path}"`, 400, "bad_path");
     return { path: normalizePath(u.path), content: base64Decode(u.base64) };
   });
-}
-
-export function safeFileName(name: string): string {
-  const base = basename(name.replace(/\\/g, "/"));
-  const ext = extname(base);
-  const stem = base.slice(0, ext ? base.length - ext.length - 1 : undefined);
-  const cleanStem = stem
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-  return ext ? `${cleanStem || "file"}.${ext}` : cleanStem || "file";
 }
 
 export { splitFrontmatter };
