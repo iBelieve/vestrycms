@@ -42,7 +42,7 @@ type IconComponent = React.ComponentType<LucideProps>;
  * Icons available by name in config (`icon: "book-open"`). A curated set
  * keeps the control panel bundle small; unknown names fall back to a file.
  */
-export const ICONS: Record<string, IconComponent> = {
+const ICONS: Record<string, IconComponent> = {
   "app-window": AppWindow,
   "book-open": BookOpen,
   box: Box,

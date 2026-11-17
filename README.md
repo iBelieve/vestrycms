@@ -498,6 +498,9 @@ pnpm build       # src/ → dist/ (tsc, plus admin.astro, styles.css, env.d.ts)
 pnpm typecheck
 pnpm test
 pnpm format:check
+pnpm fallow      # unused files, exports and dependencies; import cycles
+pnpm test:coverage
+pnpm health      # CRAP scores from that coverage, against the baseline
 ```
 
 The package is published as compiled JavaScript in `dist/`; `src/` is not
@@ -508,6 +511,20 @@ exactly the packages the control panel imports in the browser. The
 integration pre-bundles those through Vite's optimizer: an installed Astro
 integration is excluded from it, and dev would otherwise serve CommonJS
 dependencies such as `react/jsx-runtime` raw.
+
+`pnpm fallow` runs [Fallow](https://fallow.tools/docs/)'s dead-code check,
+which CI enforces; `.fallowrc.json` holds its exceptions.
+
+`pnpm health` gates on CRAP scores (complexity weighed against test
+coverage), so it needs the coverage that `pnpm test:coverage` writes to
+`coverage/`. A function scoring 30 or more fails unless
+`fallow-health-baseline.json` lists it at that severity. The baseline holds
+the functions that were over the line when the gate was added; after
+renaming one of them, or when a change knowingly makes one riskier, run
+`pnpm health:baseline` (it runs the tests with coverage first) and commit
+the result. High cyclomatic and cognitive complexity are reported but don't
+fail.
+`npx fallow dupes` reports duplication and is not enforced.
 
 To work on Vestry against a site, run `pnpm dev` here (an initial build, then
 `tsc --watch`) and link the package from the site:

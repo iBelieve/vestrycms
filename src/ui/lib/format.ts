@@ -8,10 +8,7 @@ import { keepDocument } from "../../mdx/index.js";
  * Prettier is loaded lazily on first save so it stays out of the initial bundle.
  * Files matched by the project's `.prettierignore` are returned as written.
  */
-export async function formatSource(
-  text: string,
-  filepath: string,
-): Promise<string> {
+async function formatSource(text: string, filepath: string): Promise<string> {
   const mod = await import("virtual:vestry/formatter");
   if (!mod.available) return text;
   // The ignore file cannot change while the page is open.

@@ -36,6 +36,9 @@ import {
   type ValidationError,
 } from "../../lib/utils.js";
 import { Button } from "../ui.js";
+// Tree items render their fields with FieldSet, which renders TreeInput:
+// recursion at render time, not at module initialization.
+// fallow-ignore-next-line circular-dependency
 import { FieldSet, type FieldContext } from "./FieldRenderer.js";
 
 const INDENT = 28;

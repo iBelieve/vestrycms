@@ -19,7 +19,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
+      - run: pnpm fallow
       - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm test:coverage
+      # CRAP scores from the coverage above; fails on functions not in
+      # fallow-health-baseline.json.
+      - run: pnpm health
       - run: pnpm build
       - run: npm pack --dry-run

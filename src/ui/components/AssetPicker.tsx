@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, File as FileIcon, Folder, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import type { AssetFieldOptions } from "../../config/types.js";
+import { safeFileName } from "../../core/paths.js";
 import { fileToBase64 } from "../api.js";
 import { useVestry } from "../context.js";
 import { cx, formatBytes } from "../lib/utils.js";
@@ -73,7 +73,7 @@ export function AssetPicker({
       if (deferUploads) {
         const f = list[0];
         const base64 = await fileToBase64(f);
-        const name = safeName(f.name);
+        const name = safeFileName(f.name);
         const path = `${[containerDir, dir].filter(Boolean).join("/")}/${name}`;
         onPick(path, { path, base64, previewUrl: URL.createObjectURL(f) });
         return;
@@ -258,21 +258,8 @@ export function AssetPicker({
   );
 }
 
-export function safeName(name: string): string {
-  const i = name.lastIndexOf(".");
-  const ext = i === -1 ? "" : name.slice(i + 1).toLowerCase();
-  const stem = (i === -1 ? name : name.slice(0, i))
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-  return ext ? `${stem || "file"}.${ext}` : stem || "file";
-}
-
 export type PendingUpload = {
   path: string;
   base64: string;
   previewUrl: string;
 };
-export type AssetOptions = AssetFieldOptions;

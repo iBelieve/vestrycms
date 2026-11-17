@@ -97,7 +97,7 @@ const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
 
 /** Largest rectangle of the given aspect that fits the image, centred. */
-export function defaultCrop(
+function defaultCrop(
   natural: { width: number; height: number },
   aspect?: number,
 ): CropRect {

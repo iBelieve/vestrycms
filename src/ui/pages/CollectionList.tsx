@@ -256,7 +256,7 @@ export function CollectionListPage() {
   );
 }
 
-export function CellValue({ field, value }: { field?: Field; value: unknown }) {
+function CellValue({ field, value }: { field?: Field; value: unknown }) {
   const { api } = useVestry();
   if (value === undefined || value === null || value === "")
     return <span className="v-faint">—</span>;

@@ -21,8 +21,21 @@ main consumer; keep it free of site-specific code.
   `src/integration/client-deps.ts` against the compiled UI's bare imports.
 - `pnpm dev` – build, then `tsc --watch` (for a site linked with
   `pnpm link`).
-- `pnpm typecheck`, `pnpm test`, `pnpm format:check` – what CI
-  (`.github/workflows/ci.yml`) runs, plus `pnpm build` and `npm pack --dry-run`.
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `pnpm fallow` – what
+  CI (`.github/workflows/ci.yml`) runs, plus `pnpm build` and
+  `npm pack --dry-run`. CI runs the tests as `pnpm test:coverage` and then
+  `pnpm health`.
+- `pnpm health` (Fallow's `health --complexity`, reading `coverage/` from
+  `pnpm test:coverage`) fails on a function with a CRAP score of 30 or more
+  that `fallow-health-baseline.json` doesn't list at that severity. Fix a new
+  finding with tests or a simpler function; re-save the baseline
+  (`pnpm health:baseline`, which runs the tests with coverage first) only
+  when renaming a listed function or when the maintainer accepts the risk.
+- `pnpm fallow` (Fallow's `dead-code`) fails on unused files, exports and
+  dependencies, and on import cycles. Remove what is really unused, or record a
+  deliberate exception in `.fallowrc.json` or with a
+  `// fallow-ignore-next-line <rule>` comment that says why (see the
+  recursive field rendering in `TreeInput.tsx`).
 - `pnpm test` runs Vitest over `test/**/*.test.ts`; `pnpm test:watch`
   re-runs on change, `pnpm test -u` updates snapshots. `pnpm typecheck`
   covers everything under `test/`.
