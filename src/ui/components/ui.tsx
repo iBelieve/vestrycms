@@ -501,7 +501,7 @@ export function Menu({
         createPortal(
           <div
             ref={panelRef}
-            className="v-menu__panel"
+            className="v-menu__panel v-portal"
             style={{ top: pos.top, left: pos.left, right: pos.right }}
           >
             {children(close)}

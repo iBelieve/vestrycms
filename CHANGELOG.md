@@ -5,8 +5,52 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ## Unreleased
 
+### Added
+
+- **Entry lists can show a tree.** A collection kept in nested folders can
+  set `tree: true` (a Tree/List toggle, opening on the tree) or
+  `tree: "only"` to nest its entries by folder, with collapsible rows and
+  each child's title shortened by what it repeats from its parent's.
+
+### Changed
+
+- **Vestry has a logo.** The control panel's top bar shows it when the site
+  sets no `logo`, the browser tab uses it as the favicon, and the README
+  carries it. `assets/` holds the light (`logo.svg`, brown-grey `#2d2622`
+  with an orange `#ff791b` sparkle), dark-background (`logo-reverse.svg`)
+  and square (`icon.svg`) versions.
+- **The panel takes its colours from the logo.** The top bar, the tile
+  behind the site logo on the sign-in page, and toasts move from navy slate
+  (`#0f172a` and `#1e293b`) to a warm brown-grey on the sparkle's hue
+  (`#2d2622`), and the page backgrounds and hover greys warm to match.
+  Buttons, links, the selected sidebar item, the active editor tools, focus
+  rings and the invitation email's button turn from blue to burnt orange
+  (`#c2410c`, the logo's orange darkened until white text on it passes WCAG
+  AA). Info alerts stay blue. Drafts, warnings and raw MDX blocks move from
+  amber to a yellower gold (`#a16207`) so they don't read as actions; draft
+  text contrast rises from 3.1:1 to 4.8:1.
+
 ### Fixed
 
+- **Menus use the control panel's font.** Row and account menus (and the
+  preview dragged in a list or tree) render outside the panel's root, so
+  they fell back to the browser's serif font. They now share its base
+  styles.
+- **Entry lists keep their titles readable.** Naming the title field in a
+  collection's `columns` now places the title column (labelled as that
+  column or field is) instead of adding a second copy of the title, which
+  took most of the width and squeezed the real title to a word per line.
+  The same goes for a collection without `columns` sorted by its title
+  field (its list showed the title, then the same name again).
+  The title column also keeps at least 260px, scrolling the table sideways
+  when needed, and other columns cut a long value short instead of
+  crowding it. In a collection whose `titleField` is not `title`, a column
+  for a field named `title` now sorts by its own value, not the title's.
+- **List columns show what a list holds.** A list of references shows the
+  titles it refers to and a list of values shows the values, instead of
+  "1 items": option labels, formatted dates, Yes or No, and file names. A
+  `multiselect` column shows its option labels, and a list of objects
+  counts them in proper English.
 - **Sorting a collection by its Status column works.** It sorted by a
   `status` value the entries don't have, so the order never changed.
 - **Uploading the same file again after a failed upload works.** The

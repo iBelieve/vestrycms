@@ -23,4 +23,16 @@ describe("the dashboard", () => {
     });
     expect(await screen.findAllByText("Posts")).not.toHaveLength(0);
   });
+
+  it("shows Vestry's mark beside the name when the site sets no logo", async () => {
+    await openPanel(config);
+    expect(await screen.findByText("Test Site")).toBeTruthy();
+    expect(document.querySelector(".v-chrome__mark")).not.toBeNull();
+  });
+
+  it("shows the site's logo in place of Vestry's mark when one is set", async () => {
+    await openPanel({ ...config, logo: "https://example.org/logo.svg" });
+    expect(await screen.findByRole("img", { name: "Test Site" })).toBeTruthy();
+    expect(document.querySelector(".v-chrome__mark")).toBeNull();
+  });
 });

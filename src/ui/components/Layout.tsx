@@ -17,6 +17,7 @@ import { useVestry } from "../context.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./ui.js";
 import { logoSrc } from "../lib/logo.js";
+import { VestryMark } from "./VestryMark.js";
 import { cx, initials } from "../lib/utils.js";
 import type { ClientConfig, PublicUser } from "../api.js";
 import type { NavigationGroup, VestryConfig } from "../../config/types.js";
@@ -81,7 +82,7 @@ function Brand({ logo, name }: { logo: string | null; name: string }) {
         <img className="v-chrome__logo" src={logo} alt={name} />
       ) : (
         <>
-          <span className="v-chrome__mark">V</span>
+          <VestryMark className="v-chrome__mark" />
           <span className="v-chrome__name">{name}</span>
         </>
       )}

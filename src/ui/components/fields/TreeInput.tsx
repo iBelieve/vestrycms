@@ -174,7 +174,7 @@ export function TreeInput({
           ))}
         </SortableContext>
         {createPortal(
-          <DragOverlay dropAnimation={null}>
+          <DragOverlay className="v-portal" dropAnimation={null}>
             {drag.activeId && (
               <DragGhost
                 node={findNode(tree, drag.activeId)}
