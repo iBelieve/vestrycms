@@ -5,6 +5,18 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ## Unreleased
 
+### Changed
+
+- **Vestry has a logo.** The control panel's top bar shows it when the site
+  sets no `logo`, the browser tab uses it as the favicon, and the README
+  carries it. `assets/` holds the light (`logo.svg`), dark-background
+  (`logo-reverse.svg`) and square (`icon.svg`) versions.
+- **The panel's dark colour is the logo's ink, `#292638`.** The top bar, the
+  tile behind the site logo on the sign-in page, and toasts move from navy
+  slate (`#0f172a` and `#1e293b`) to this violet slate, and the top bar's
+  greys take the same hue. A site logo designed for the old bar still reads:
+  the new colour is as dark as the old sign-in tile.
+
 ### Fixed
 
 - **The logo shows before the GitHub App is set up.** A logo kept in the

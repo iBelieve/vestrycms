@@ -35,9 +35,12 @@
   --v-shadow-lg: 0 20px 40px -12px rgba(16, 24, 40, 0.25);
   --v-sidebar-width: 248px;
   --v-topbar-height: 56px;
-  --v-chrome: #0f172a;
-  --v-chrome-text: #e2e8f0;
-  --v-chrome-muted: #94a3b8;
+  /* Vestry's ink (the logo's #292638); the chrome greys share its hue. */
+  --v-chrome: #292638;
+  --v-chrome-text: #e6e4ee;
+  --v-chrome-muted: #a19eb4;
+  --v-chrome-faint: #5c5873;
+  --v-chrome-raised: #3e3a52;
   --v-chrome-height: 52px;
   --v-frame-inset: 8px;
 }
@@ -141,15 +144,10 @@ body {
   min-width: 0;
 }
 .v-chrome__mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  background: var(--v-primary);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 14px;
+  display: block;
+  width: 24px;
+  height: 26px;
+  color: #f4f3f8;
   flex: none;
 }
 .v-chrome__logo {
@@ -176,7 +174,7 @@ body {
   white-space: nowrap;
 }
 .v-chrome__sep {
-  color: #475569;
+  color: var(--v-chrome-faint);
 }
 #vestry-root a:where(.v-chrome__crumb a) {
   color: var(--v-chrome-text);
@@ -230,7 +228,7 @@ a.v-chrome__chip:hover {
   height: 32px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.15);
-  background: #334155;
+  background: var(--v-chrome-raised);
   color: #fff;
   padding: 0;
   margin-left: 6px;
@@ -1065,7 +1063,7 @@ a.v-chrome__chip:hover {
   z-index: 100;
 }
 .v-toast {
-  background: #111827;
+  background: var(--v-chrome);
   color: #fff;
   padding: 10px 14px;
   border-radius: var(--v-radius-sm);
@@ -2182,7 +2180,7 @@ a.v-chrome__chip:hover {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: #1e293b;
+  background: var(--v-chrome);
   color: #fff;
   display: grid;
   place-items: center;
@@ -2205,7 +2203,7 @@ a.v-chrome__chip:hover {
 .v-login__logo {
   display: inline-grid;
   place-items: center;
-  background: #1e293b;
+  background: var(--v-chrome);
   border-radius: 12px;
   padding: 12px 18px;
   margin: 0 auto 16px;

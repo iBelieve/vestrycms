@@ -23,4 +23,10 @@ describe("the dashboard", () => {
     });
     expect(await screen.findAllByText("Posts")).not.toHaveLength(0);
   });
+
+  it("shows Vestry's mark beside the name when the site sets no logo", async () => {
+    await openPanel(config);
+    expect(await screen.findByRole("img", { name: "Vestry" })).toBeTruthy();
+    expect(screen.getByText("Test Site")).toBeTruthy();
+  });
 });
