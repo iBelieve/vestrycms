@@ -153,6 +153,7 @@ export function slugError({
   collection,
   pattern,
   finalSlug,
+  data,
   fixed,
   changing,
 }: {
@@ -160,6 +161,8 @@ export function slugError({
   collection: CollectionConfig | null;
   pattern: PathPattern;
   finalSlug: string;
+  /** The entry's form data, whose id field a list entry is saved under. */
+  data: Record<string, unknown>;
   /** Why the current slug can't change, if it can't. */
   fixed: string | null;
   /** The entry is new, or saving it renames it. */
@@ -167,8 +170,13 @@ export function slugError({
 }): string | null {
   if (!changing) return slugProblem(kind, pattern, finalSlug);
   if (fixed) return fixed;
-  if (collection && finalSlug && isReservedSlug(collection, finalSlug))
-    return `"${finalSlug}" is reserved for one of the site's own pages.`;
+  // A new list entry has no slug yet: it takes the id its form holds.
+  const taken =
+    collection && pattern.single
+      ? listId(collection, data) || finalSlug
+      : finalSlug;
+  if (collection && taken && isReservedSlug(collection, taken))
+    return `"${taken}" is a reserved slug.`;
   return slugProblem(kind, pattern, finalSlug);
 }
 

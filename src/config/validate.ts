@@ -153,7 +153,11 @@ function checkCollection(
     fail(`${what} sets tree, which needs a "**" wildcard in its path`);
   }
   checkTemplate(`${what} commitMessage`, col.commitMessage);
-  const unsafe = col.reservedSlugs?.find((slug) => !isSafeSlug(slug));
+  if (col.reservedSlugs !== undefined && !Array.isArray(col.reservedSlugs))
+    fail(`${what} reservedSlugs must be a list of slugs`);
+  const unsafe = col.reservedSlugs?.find(
+    (slug) => typeof slug !== "string" || !isSafeSlug(slug),
+  );
   if (unsafe !== undefined)
     fail(`${what} reservedSlugs has "${unsafe}", which is not a slug`);
 }

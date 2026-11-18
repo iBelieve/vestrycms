@@ -80,6 +80,7 @@ const config = defineConfig({
     links: collection({
       label: "Links",
       path: "src/data/links.yaml",
+      reservedSlugs: ["contact"],
       schema: {
         id: fields.text(),
         title: fields.text(),
@@ -583,9 +584,16 @@ describe("a fixed slug", () => {
     await openPanel(config, { url: "/collections/pages/new", files });
     await screen.findByText("New page");
     await user.type(slugInput(), "404");
-    expect(
-      screen.getByText('"404" is reserved for one of the site\'s own pages.'),
-    ).toBeTruthy();
+    expect(screen.getByText('"404" is a reserved slug.')).toBeTruthy();
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("can't be taken by a new list entry's id", async () => {
+    await openPanel(config, { url: "/collections/links/new", files });
+    fireEvent.change(await screen.findByLabelText("Id"), {
+      target: { value: "contact" },
+    });
+    expect(screen.getByText('"contact" is a reserved slug.')).toBeTruthy();
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 

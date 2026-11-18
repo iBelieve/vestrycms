@@ -319,7 +319,7 @@ pages: collection({
 
 An entry at a reserved slug can't be renamed or deleted (its Slug box is
 read-only and it has no Delete button), and no other entry can be created at
-or renamed to one. The API refuses the same.
+or renamed to one, in any letter case. The API refuses the same.
 
 A date field can live in the file name instead of the frontmatter:
 
@@ -488,6 +488,8 @@ Entries, and siblings in the tree, follow the collection's `sort`. Entries
 without a value for the sort field come last, and entries with the same
 value (or none) go by title. Sorting pages by an `order` field that only
 some of them set lists those first, in order, then the rest alphabetically.
+A collection kept as a list in one file lists its entries in the file's
+order.
 
 ## Dashboard
 

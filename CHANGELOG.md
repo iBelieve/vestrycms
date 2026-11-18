@@ -10,15 +10,16 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - **`reservedSlugs`** on a collection names slugs the site depends on, such
   as `["index", "404"]` for pages at fixed routes, or the names of its other
   routes. An entry at one can't be renamed or deleted, and no other entry
-  can be created at or renamed to one.
+  can be created at or renamed to one, in any letter case.
 
 ### Changed
 
 - **`create: false` stops renames too.** Since 0.3 the Slug box renamed
   entries even in a collection that didn't allow creating them, which could
   move a site's home or 404 page off its route. The Slug box is now
-  read-only there, and the API refuses a rename or a new entry. (The API
-  used to accept a new entry; only the panel hid the button.)
+  read-only there, and the API refuses a rename or a new entry, including
+  a save to a slug that has no entry yet. (The API used to accept a new
+  entry; only the panel hid the button.)
 - **Entries without a sort value come last,** and entries with the same
   value go by title. A collection sorted by `order` used to list the entries
   without one first, ties in slug order.

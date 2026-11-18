@@ -319,12 +319,7 @@ export class ContentService {
         keepWallClock: true,
       }),
     };
-    if (slug === null && col.create === false)
-      throw new SourceError(
-        "Creating entries is disabled for this collection",
-        403,
-        "forbidden",
-      );
+    if (slug === null) refuseCreate(col);
     return save.pattern.single
       ? this.saveListEntry(save)
       : this.saveFileEntry(save);
@@ -340,8 +335,11 @@ export class ContentService {
     // A changed id renames the entry: every reference to the old one, in
     // this list and in other files, follows it in the same commit.
     const renamedFrom = !isNew && index !== -1 && id !== slug ? slug : null;
+    // An id the list doesn't hold yet adds an entry, even under a slug.
+    const adding = index === -1;
+    if (adding) refuseCreate(col);
     if (renamedFrom) refuseRename(col, renamedFrom);
-    if (isNew || renamedFrom) refuseReserved(col, id);
+    if (adding || renamedFrom) refuseReserved(col, id);
     const text = serializeEntryList(
       format,
       renamedFrom
@@ -440,7 +438,12 @@ export class ContentService {
       !isNew && finalSlug !== slug ? entryPath(pattern, slug) : null;
     if (renamedFrom) refuseRename(col, slug!);
     if (isNew || renamedFrom) refuseReserved(col, finalSlug);
-    await this.checkSaveTarget(save, path, renamedFrom);
+    const exists = await this.checkSaveTarget(save, path, renamedFrom);
+    // Saved under a slug that has no file yet, the entry is created there.
+    if (!isNew && !exists) {
+      refuseCreate(col);
+      refuseReserved(col, finalSlug);
+    }
     // An entry that refers to itself follows its own rename. (A file composed
     // by the client, `raw`, has had the same done to it there.)
     const data = renamedFrom
@@ -515,13 +518,14 @@ export class ContentService {
 
   /**
    * Refuses to overwrite another entry, and to save over a version newer
-   * than the one the editor opened.
+   * than the one the editor opened. Returns whether the entry being saved
+   * already has a file.
    */
   private async checkSaveTarget(
     { slug, input }: EntrySave,
     path: string,
     renamedFrom: string | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const isNew = slug === null;
     const target = await this.source.read(path);
     if ((isNew || renamedFrom) && target) {
@@ -545,6 +549,7 @@ export class ContentService {
         "conflict",
       );
     }
+    return Boolean(existing);
   }
 
   /**
@@ -947,7 +952,16 @@ export class ContentService {
   }
 }
 
-/** A list's entries with every reference to entry `from` of `key` moved to `to`. */
+/** Refuses a new entry where the collection doesn't allow creating them. */
+function refuseCreate(col: CollectionConfig): void {
+  if (col.create === false)
+    throw new SourceError(
+      "Creating entries is disabled for this collection",
+      403,
+      "forbidden",
+    );
+}
+
 /** Refuses to rename entry `slug` when its slug is fixed. */
 function refuseRename(col: CollectionConfig, slug: string): void {
   if (!canRename(col))
@@ -967,13 +981,10 @@ function refuseRename(col: CollectionConfig, slug: string): void {
 /** Refuses to put an entry at a reserved slug. */
 function refuseReserved(col: CollectionConfig, slug: string): void {
   if (isReservedSlug(col, slug))
-    throw new SourceError(
-      `"${slug}" is reserved for one of the site's own pages`,
-      409,
-      "exists",
-    );
+    throw new SourceError(`"${slug}" is a reserved slug`, 409, "exists");
 }
 
+/** A list's entries with every reference to entry `from` of `key` moved to `to`. */
 function renameInList(
   schema: Schema,
   items: Record<string, unknown>[],

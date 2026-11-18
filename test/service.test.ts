@@ -210,7 +210,7 @@ describe("fixed and reserved slugs", () => {
       menus: collection({
         label: "Menus",
         path: "src/data/menus.yaml",
-        reservedSlugs: ["main"],
+        reservedSlugs: ["main", "footer"],
         schema: { id: fields.text(), title: fields.text() },
       }),
     },
@@ -283,6 +283,38 @@ describe("fixed and reserved slugs", () => {
     await expect(
       pages.saveEntry("menus", null, { data: { id: "main", title: "Again" } }),
     ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      pages.saveEntry("menus", null, { data: { id: "footer", title: "F" } }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+  });
+
+  it("refuses a reserved slug in any letter case", async () => {
+    await expect(
+      pages.saveEntry("pages", null, {
+        data: { title: "Sermons" },
+        slug: "Sermons",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    await expect(pages.deleteEntry("pages", "INDEX")).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("treats a save under a slug with no entry as creating it", async () => {
+    await expect(
+      pages.saveEntry("pages", "sermons", { data: { title: "Sermons" } }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    await expect(
+      pages.saveEntry("menus", "footer", {
+        data: { id: "footer", title: "F" },
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    await expect(
+      pages.saveEntry("fixed", "two", { data: { title: "Two" } }),
+    ).rejects.toMatchObject({ status: 403, code: "forbidden" });
+    expect(await pages.getEntry("pages", "sermons")).toBe(null);
+    expect(await pages.getEntry("fixed", "two")).toBe(null);
+    expect(await pages.getEntry("menus", "footer")).toBe(null);
   });
 
   it("refuses to create or rename entries where creating is off", async () => {
@@ -313,10 +345,13 @@ describe("sorting", () => {
   });
   let sortRoot: string;
 
+  beforeAll(async () => {
+    sortRoot = await mkdtemp(path.join(tmpdir(), "vestry-sort-"));
+  });
+
   afterAll(() => rm(sortRoot, { recursive: true, force: true }));
 
   it("puts entries without a value last, and ties in title order", async () => {
-    sortRoot = await mkdtemp(path.join(tmpdir(), "vestry-sort-"));
     const pages = new ContentService(sortConfig, new LocalSource(sortRoot), {
       builtAt: "",
       files: {},

@@ -146,9 +146,14 @@ export function canRename(c: CollectionConfig): boolean {
   return c.create !== false;
 }
 
-/** Whether `slug` is one of the collection's `reservedSlugs`. */
+/**
+ * Whether `slug` is one of the collection's `reservedSlugs`, ignoring case:
+ * `Index.mdx` is the same file as `index.mdx` on a case-insensitive disk,
+ * and Astro lowercases content ids.
+ */
 export function isReservedSlug(c: CollectionConfig, slug: string): boolean {
-  return c.reservedSlugs?.includes(slug) ?? false;
+  const s = slug.toLowerCase();
+  return c.reservedSlugs?.some((r) => r.toLowerCase() === s) ?? false;
 }
 
 export function slugify(input: string): string {

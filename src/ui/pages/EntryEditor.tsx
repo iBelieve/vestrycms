@@ -729,7 +729,7 @@ function useSlug({
     finalSlug,
     /** Why the slug box is read-only, if it is. */
     fixed,
-    deletable: !isNew && canDelete(collection, slug),
+    deletable: canDelete(collection, slug),
     dateKey,
     setTyped,
     latestTyped: () => latestTyped.current,
@@ -739,6 +739,7 @@ function useSlug({
       collection,
       pattern,
       finalSlug,
+      data: state.data,
       fixed,
       changing: isNew || renaming,
     }),
@@ -1160,7 +1161,8 @@ function SlugField({
           className="v-input v-input--mono"
           readOnly
           value={slug}
-          aria-describedby={fixed ? "v-slug-fixed" : undefined}
+          // The error and the reason it is fixed never show together.
+          aria-describedby={error || fixed ? "v-slug-note" : undefined}
         />
       ) : (
         <div className="v-slug">
@@ -1181,9 +1183,13 @@ function SlugField({
           />
         </div>
       )}
-      {error && <div className="v-field__error">{error}</div>}
+      {error && (
+        <div id="v-slug-note" className="v-field__error">
+          {error}
+        </div>
+      )}
       {fixed && !error && (
-        <div id="v-slug-fixed" className="v-field__hint">
+        <div id="v-slug-note" className="v-field__hint">
           {fixed}
         </div>
       )}
