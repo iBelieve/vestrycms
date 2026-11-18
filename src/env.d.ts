@@ -19,3 +19,9 @@ declare module "virtual:vestry/formatter" {
   export const ignore: string;
   export function formatFile(text: string, filepath: string): Promise<string>;
 }
+
+declare module "virtual:vestry/logo" {
+  /** The configured logo as a build asset, or null to load it through the API. */
+  const url: string | null;
+  export default url;
+}

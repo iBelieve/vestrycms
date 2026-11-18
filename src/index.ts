@@ -10,6 +10,7 @@ import { createApi } from "./core/api.js";
 import type { BuildIndex } from "./core/index-types.js";
 import { buildIndex } from "./integration/build-index.js";
 import { formatterModule } from "./integration/formatter.js";
+import { logoModule } from "./integration/logo.js";
 import { nodeToFetchHandler } from "./integration/dev-middleware.js";
 import { LocalSource } from "./core/sources/local.js";
 import { consoleMailer } from "./core/mail.js";
@@ -45,6 +46,7 @@ const VIRTUAL = {
   index: "virtual:vestry/index",
   runtime: "virtual:vestry/runtime",
   formatter: "virtual:vestry/formatter",
+  logo: "virtual:vestry/logo",
 } as const;
 
 export default function vestry(
@@ -204,6 +206,8 @@ async function virtualModule(
       return `export const basePath = ${JSON.stringify(basePath)};\nexport const name = ${JSON.stringify(config.name ?? "Vestry")};`;
     case VIRTUAL.formatter:
       return formatterModule(root, config.format !== false);
+    case VIRTUAL.logo:
+      return logoModule(root, config.logo);
     case VIRTUAL.index:
       // Dev edits bypass the index (the local source reads disk), so
       // an empty index keeps dev startup instant.
