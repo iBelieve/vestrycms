@@ -1,4 +1,7 @@
-# Vestry CMS
+<h1>
+  <img src="assets/icon.svg" alt="" width="48" align="absmiddle" />
+  Vestry CMS
+</h1>
 
 A git-backed CMS for [Astro](https://astro.build), built as an Astro
 integration. Content, assets and configuration live in your repository;
@@ -91,9 +94,9 @@ the browser), so it cannot contain functions.
 
 `name` titles the control panel; `logo` (a repository path such as
 `src/assets/logo-reverse.svg`, or an absolute URL) replaces it in the dark
-top bar, so a light or reverse variant works best. A repository logo is
-bundled into the build, so the sign-in page shows it even before the GitHub
-App is set up.
+top bar (a warm brown-grey, `#2d2622`), so a light or reverse variant works
+best. A repository logo is bundled into the build, so the sign-in page shows
+it even before the GitHub App is set up.
 
 ### Sign-in and users
 
@@ -443,6 +446,24 @@ node's fields, "add child" and remove actions, and drag-and-drop that both
 reorders and re-parents: drag a node up or down to move it and sideways to
 change its depth, within `maxDepth`. A dashed slot shows where it will land
 and descendants travel with their parent.
+
+## Entry lists
+
+A collection's list shows the title (with its subtitle or excerpt under it)
+and the fields named in `columns`; naming the title field there only sets
+where the title column goes. A collection kept in nested folders (a `**`
+path) can show its entries as a tree instead, nested by the folders in their
+slugs (`cw21/1year` under `cw21`), with a child's title shortened by the
+part it repeats from its parent's:
+
+```ts
+pages: collection({ path: "src/content/pages/**.mdx", tree: true, … }),
+lectionaries: collection({ path: "…/**.yaml", tree: "only", … }),
+```
+
+`tree: true` adds a Tree/List toggle that opens on the tree; `"only"` shows
+the tree with no toggle. Each editor's choice and expanded rows are kept in
+their browser. A search or status filter lists its matches flat.
 
 ## Dashboard
 

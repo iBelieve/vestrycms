@@ -126,6 +126,11 @@ function checkCollection(
       `${what} slug.template contains "/", which needs a "**" wildcard in its path`,
     );
   }
+  // The tree nests entries by the folders in their slugs: a `*` path has
+  // none, and a single file's ids need not be unique paths at all.
+  if (col.tree && !parsePathPattern(col.path).deep) {
+    fail(`${what} sets tree, which needs a "**" wildcard in its path`);
+  }
   checkTemplate(`${what} commitMessage`, col.commitMessage);
 }
 

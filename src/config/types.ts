@@ -380,6 +380,13 @@ export interface CollectionConfig {
    * field here only sets its place and label. Defaults to the sort field.
    */
   columns?: (string | ListColumn)[];
+  /**
+   * Show the entry list as a tree, nesting entries by the folders in their
+   * slugs (`a/b` under `a`), for a `**` path. `true` adds a Tree/List
+   * toggle that opens on the tree; `"only"` shows the tree with no toggle.
+   * A search or status filter always lists its matches flat.
+   */
+  tree?: boolean | "only";
   /** Fields searched by the list filter. Defaults to the title field. */
   searchFields?: string[];
   /**
