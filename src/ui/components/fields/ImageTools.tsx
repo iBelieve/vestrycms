@@ -125,13 +125,7 @@ export function CropInput({
       return;
     }
     const fixed = normalizeCrop(rect, fitted.natural, aspect, minSize);
-    if (
-      fixed.x !== rect.x ||
-      fixed.y !== rect.y ||
-      fixed.width !== rect.width ||
-      fixed.height !== rect.height
-    )
-      onChange(fixed);
+    if (!sameRect(fixed, rect)) onChange(fixed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitted?.natural.width, fitted?.natural.height]);
 
@@ -229,64 +223,11 @@ export function CropInput({
               }}
             />
             {disp && (
-              <>
-                <div
-                  className="v-crop__shade"
-                  style={{ top: 0, left: 0, right: 0, height: disp.top }}
-                />
-                <div
-                  className="v-crop__shade"
-                  style={{
-                    top: disp.top + disp.height,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                  }}
-                />
-                <div
-                  className="v-crop__shade"
-                  style={{
-                    top: disp.top,
-                    left: 0,
-                    width: disp.left,
-                    height: disp.height,
-                  }}
-                />
-                <div
-                  className="v-crop__shade"
-                  style={{
-                    top: disp.top,
-                    left: disp.left + disp.width,
-                    right: 0,
-                    height: disp.height,
-                  }}
-                />
-                <div
-                  className="v-crop__box"
-                  style={{
-                    left: disp.left,
-                    top: disp.top,
-                    width: disp.width,
-                    height: disp.height,
-                  }}
-                  tabIndex={0}
-                  role="slider"
-                  aria-label="Crop area"
-                  onPointerDown={onPointerDown("move")}
-                  onMouseDown={preventSelection}
-                  onKeyDown={onKeyDown}
-                >
-                  <div className="v-crop__grid" />
-                  {HANDLES.map((h) => (
-                    <div
-                      key={h}
-                      className={cx("v-crop__handle", `v-crop__handle--${h}`)}
-                      onPointerDown={onPointerDown(h)}
-                      onMouseDown={preventSelection}
-                    />
-                  ))}
-                </div>
-              </>
+              <CropBox
+                box={disp}
+                onPointerDown={onPointerDown}
+                onKeyDown={onKeyDown}
+              />
             )}
           </div>
         )}
@@ -294,12 +235,7 @@ export function CropInput({
       </div>
       <div className="v-image-tool__bar">
         <span className="v-mono v-muted">
-          {rect
-            ? `${rect.width} × ${rect.height} px at ${rect.x}, ${rect.y}`
-            : "—"}
-          {fitted &&
-            ` · image ${fitted.natural.width} × ${fitted.natural.height}`}
-          {aspect && ` · ${formatAspect(aspect)}`}
+          {cropSummary(rect, fitted?.natural, aspect)}
         </span>
         <span className="v-grow" />
         <Button
@@ -314,6 +250,83 @@ export function CropInput({
         </Button>
       </div>
     </div>
+  );
+}
+
+const sameRect = (a: CropRect, b: CropRect) =>
+  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
+/** The crop's size and position, the image's size and the aspect ratio. */
+function cropSummary(
+  rect: CropRect | null,
+  natural: { width: number; height: number } | undefined,
+  aspect: number | undefined,
+): string {
+  const parts = [
+    rect ? `${rect.width} × ${rect.height} px at ${rect.x}, ${rect.y}` : "—",
+  ];
+  if (natural) parts.push(`image ${natural.width} × ${natural.height}`);
+  if (aspect) parts.push(formatAspect(aspect));
+  return parts.join(" · ");
+}
+
+/**
+ * The crop rectangle in display pixels: shading over the parts cropped away,
+ * and a box with a handle at each edge and corner.
+ */
+function CropBox({
+  box,
+  onPointerDown,
+  onKeyDown,
+}: {
+  box: { left: number; top: number; width: number; height: number };
+  onPointerDown: (mode: "move" | Handle) => (e: React.PointerEvent) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+}) {
+  return (
+    <>
+      <div
+        className="v-crop__shade"
+        style={{ top: 0, left: 0, right: 0, height: box.top }}
+      />
+      <div
+        className="v-crop__shade"
+        style={{ top: box.top + box.height, left: 0, right: 0, bottom: 0 }}
+      />
+      <div
+        className="v-crop__shade"
+        style={{ top: box.top, left: 0, width: box.left, height: box.height }}
+      />
+      <div
+        className="v-crop__shade"
+        style={{
+          top: box.top,
+          left: box.left + box.width,
+          right: 0,
+          height: box.height,
+        }}
+      />
+      <div
+        className="v-crop__box"
+        style={box}
+        tabIndex={0}
+        role="slider"
+        aria-label="Crop area"
+        onPointerDown={onPointerDown("move")}
+        onMouseDown={preventSelection}
+        onKeyDown={onKeyDown}
+      >
+        <div className="v-crop__grid" />
+        {HANDLES.map((h) => (
+          <div
+            key={h}
+            className={cx("v-crop__handle", `v-crop__handle--${h}`)}
+            onPointerDown={onPointerDown(h)}
+            onMouseDown={preventSelection}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 

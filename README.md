@@ -507,7 +507,7 @@ pnpm test
 pnpm format:check
 pnpm fallow      # unused files, exports and dependencies; import cycles
 pnpm test:coverage
-pnpm health      # CRAP scores from that coverage, against the baseline
+pnpm health      # complexity, and CRAP scores from that coverage
 ```
 
 The package is published as compiled JavaScript in `dist/`; `src/` is not
@@ -522,15 +522,12 @@ dependencies such as `react/jsx-runtime` raw.
 `pnpm fallow` runs [Fallow](https://fallow.tools/docs/)'s dead-code check,
 which CI enforces; `.fallowrc.json` holds its exceptions.
 
-`pnpm health` gates on CRAP scores (complexity weighed against test
-coverage), so it needs the coverage that `pnpm test:coverage` writes to
-`coverage/`. A function scoring 30 or more fails unless
-`fallow-health-baseline.json` lists it at that severity. The baseline holds
-the functions that were over the line when the gate was added; after
-renaming one of them, or when a change knowingly makes one riskier, run
-`pnpm health:baseline` (it runs the tests with coverage first) and commit
-the result. High cyclomatic and cognitive complexity are reported but don't
-fail.
+`pnpm health` fails on any function over Fallow's complexity limits:
+cyclomatic complexity 20, cognitive complexity 15, or a CRAP score
+(complexity weighed against test coverage) of 30. The CRAP score needs the
+coverage that `pnpm test:coverage` writes to `coverage/`. There is no
+baseline: fix a finding by splitting the function (in the control panel,
+usually into smaller components or hooks) or, for CRAP, by testing it.
 `npx fallow dupes` reports duplication and is not enforced.
 
 To work on Vestry against a site, run `pnpm dev` here (an initial build, then

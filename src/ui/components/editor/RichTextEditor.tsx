@@ -2,6 +2,7 @@ import {
   EditorContent,
   useEditor,
   useEditorState,
+  type ChainedCommands,
   type Editor,
 } from "@tiptap/react";
 import {
@@ -32,8 +33,19 @@ import {
   Undo2,
   Unlink,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { parseMdx, serializeMdx } from "../../../mdx/index.js";
+import type {
+  ComponentConfig,
+  TextStyleConfig,
+} from "../../../config/types.js";
 import type {
   ComponentRegistry,
   ImportSpec,
@@ -82,24 +94,128 @@ export function RichTextEditor(props: RichTextEditorProps) {
   );
 }
 
-function EditorInner({
-  value,
-  onChange,
-  components,
-  env,
-  format = "mdx",
-  placeholder,
-  compact,
-  flush,
-  onUpload,
-}: RichTextEditorProps) {
+function EditorInner(props: RichTextEditorProps) {
+  const { value, format = "mdx", components, env } = props;
   const [mode, setMode] = useState<"visual" | "source">("visual");
+  const mdx = useMdxEditor(props, mode === "visual");
+  const { editor } = mdx;
+
+  const switchMode = (next: "visual" | "source") => {
+    if (next === mode || !editor) return;
+    if (next === "source") {
+      mdx.flush();
+      setMode("source");
+    } else if (mdx.load(editor, value)) {
+      setMode("visual");
+    }
+  };
+
+  return (
+    <div
+      className={cx(
+        "v-rte",
+        props.compact && "v-rte--compact",
+        props.flush && "v-rte--flush",
+      )}
+    >
+      {editor && (
+        <Toolbar
+          editor={editor}
+          mode={mode}
+          onMode={switchMode}
+          components={components ?? Object.keys(env.components)}
+          onUpload={props.onUpload}
+          format={format}
+        />
+      )}
+      {mode === "visual" ? (
+        <EditorContent editor={editor} />
+      ) : (
+        <div className="v-source-editor">
+          {mdx.parseError && (
+            <div className="v-alert v-alert--error" style={{ margin: 10 }}>
+              Could not parse MDX: {mdx.parseError}
+            </div>
+          )}
+          <CodeInput
+            value={value}
+            language="markdown"
+            minHeight="320px"
+            onChange={mdx.emit}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The Tiptap editor over `value`: edits are reported (debounced) through
+ * `onChange`, and while `visual` a new `value` from outside is loaded.
+ */
+function useMdxEditor(
+  {
+    value,
+    onChange,
+    env,
+    format = "mdx",
+    placeholder,
+  }: Pick<
+    RichTextEditorProps,
+    "value" | "onChange" | "env" | "format" | "placeholder"
+  >,
+  visual: boolean,
+) {
+  const { parse, serialize, parseError } = useMdxCodec(format, env.components);
+  const out = useEmitter(onChange, value);
+  const initialDoc = useMemo(() => parse(value), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const extensions = useMemo(
+    () =>
+      editorExtensions({
+        resolveSrc: (src) => env.resolveImage?.(src) ?? src,
+        placeholder,
+        textStyles: env.textStyles,
+      }),
+    [env, placeholder],
+  );
+  const editor = useEditor({
+    extensions,
+    content: initialDoc ?? { type: "doc", content: [{ type: "paragraph" }] },
+    editorProps: { attributes: { class: "v-prose", spellcheck: "true" } },
+    onUpdate: ({ editor }) =>
+      out.schedule(() => serialize(editor.getJSON() as PMNode)),
+  });
+
+  /** Shows `mdx` in the visual editor; false when it does not parse. */
+  const load = (editor: Editor, mdx: string) => {
+    const doc = parse(mdx);
+    if (!doc) return false;
+    out.last.current = mdx;
+    editor.commands.setContent(doc, { emitUpdate: false });
+    return true;
+  };
+
+  // External value changes (e.g. after a reload) → re-parse.
+  useEffect(() => {
+    if (editor && visual && value !== out.last.current) load(editor, value);
+  }, [value, editor, visual, parse]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { editor, parseError, load, emit: out.emit, flush: out.flush };
+}
+
+/**
+ * Parses MDX into an editor document, remembering its imports and the last
+ * parse error, and serializes a document back with those imports.
+ */
+function useMdxCodec(
+  format: "md" | "mdx",
+  components: Record<string, ComponentConfig>,
+) {
   const [parseError, setParseError] = useState<string | null>(null);
   const importsRef = useRef<Record<string, ImportSpec>>({});
-  const lastEmitted = useRef(value);
   const registry = useMemo<ComponentRegistry>(() => {
     const out: ComponentRegistry = {};
-    for (const [name, c] of Object.entries(env.components)) {
+    for (const [name, c] of Object.entries(components)) {
       out[name] = {
         import: c.import,
         namedImport: c.namedImport,
@@ -108,7 +224,7 @@ function EditorInner({
       };
     }
     return out;
-  }, [env.components]);
+  }, [components]);
 
   const parse = useCallback(
     (mdx: string): PMNode | null => {
@@ -135,111 +251,42 @@ function EditorInner({
     [format, registry],
   );
 
-  const initialDoc = useMemo(() => parse(value), []); // eslint-disable-line react-hooks/exhaustive-deps
+  return { parse, serialize, parseError };
+}
 
-  const extensions = useMemo(
-    () =>
-      editorExtensions({
-        resolveSrc: (src) => env.resolveImage?.(src) ?? src,
-        placeholder,
-        textStyles: env.textStyles,
-      }),
-    [env, placeholder],
-  );
-
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const editor = useEditor({
-    extensions,
-    content: initialDoc ?? { type: "doc", content: [{ type: "paragraph" }] },
-    editorProps: { attributes: { class: "v-prose", spellcheck: "true" } },
-    onUpdate: ({ editor }) => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => {
-        const mdx = serialize(editor.getJSON() as PMNode);
-        lastEmitted.current = mdx;
-        onChange(mdx);
-      }, 250);
-    },
-  });
-
-  // External value changes (e.g. after a reload) → re-parse.
-  useEffect(() => {
-    if (!editor || mode !== "visual") return;
-    if (value === lastEmitted.current) return;
-    const doc = parse(value);
-    if (doc) {
-      lastEmitted.current = value;
-      editor.commands.setContent(doc, { emitUpdate: false });
-    }
-  }, [value, editor, mode, parse]);
-
+/**
+ * Reports MDX through `onChange`, remembering the last value reported so an
+ * echo of it isn't loaded again. `schedule` reports edits after a 250 ms
+ * pause; `flush` reports a scheduled one at once.
+ */
+function useEmitter(onChange: (mdx: string) => void, initial: string) {
+  const last = useRef(initial);
+  const pending = useRef<{
+    timer: ReturnType<typeof setTimeout>;
+    read: () => string;
+  } | null>(null);
   useEffect(
     () => () => {
-      if (timer.current) clearTimeout(timer.current);
+      if (pending.current) clearTimeout(pending.current.timer);
     },
     [],
   );
-
-  const switchMode = (next: "visual" | "source") => {
-    if (next === mode || !editor) return;
-    if (next === "source") {
-      if (timer.current) {
-        clearTimeout(timer.current);
-        timer.current = null;
-        const mdx = serialize(editor.getJSON() as PMNode);
-        lastEmitted.current = mdx;
-        onChange(mdx);
-      }
-      setMode("source");
-    } else {
-      const doc = parse(value);
-      if (!doc) return;
-      lastEmitted.current = value;
-      editor.commands.setContent(doc, { emitUpdate: false });
-      setMode("visual");
-    }
+  const emit = (mdx: string) => {
+    last.current = mdx;
+    onChange(mdx);
   };
-
-  return (
-    <div
-      className={cx(
-        "v-rte",
-        compact && "v-rte--compact",
-        flush && "v-rte--flush",
-      )}
-    >
-      {editor && (
-        <Toolbar
-          editor={editor}
-          mode={mode}
-          onMode={switchMode}
-          components={components ?? Object.keys(env.components)}
-          onUpload={onUpload}
-          format={format}
-        />
-      )}
-      {mode === "visual" ? (
-        <EditorContent editor={editor} />
-      ) : (
-        <div className="v-source-editor">
-          {parseError && (
-            <div className="v-alert v-alert--error" style={{ margin: 10 }}>
-              Could not parse MDX: {parseError}
-            </div>
-          )}
-          <CodeInput
-            value={value}
-            language="markdown"
-            minHeight="320px"
-            onChange={(v) => {
-              lastEmitted.current = v;
-              onChange(v);
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
+  const flush = () => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    emit(p.read());
+  };
+  const schedule = (read: () => string) => {
+    if (pending.current) clearTimeout(pending.current.timer);
+    pending.current = { read, timer: setTimeout(flush, 250) };
+  };
+  return { last, emit, flush, schedule };
 }
 
 function Toolbar({
@@ -262,80 +309,30 @@ function Toolbar({
     () => Object.entries(env.textStyles ?? {}),
     [env.textStyles],
   );
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [imageOpen, setImageOpen] = useState(false);
   const state = useEditorState({
     editor,
-    selector: ({ editor }) => ({
-      bold: editor.isActive("bold"),
-      italic: editor.isActive("italic"),
-      strike: editor.isActive("strike"),
-      underline: editor.isActive("underline"),
-      small: editor.isActive("small"),
-      // The classes of the configured styles that the selection carries.
-      styles: textStyles
-        .map(([, style]) => style.class)
-        .filter((c) => editor.isActive("textClass", { class: c })),
-      code: editor.isActive("code"),
-      sup: editor.isActive("superscript"),
-      sub: editor.isActive("subscript"),
-      link: editor.isActive("link"),
-      h1: editor.isActive("heading", { level: 1 }),
-      h2: editor.isActive("heading", { level: 2 }),
-      h3: editor.isActive("heading", { level: 3 }),
-      bullet: editor.isActive("bulletList"),
-      ordered: editor.isActive("orderedList"),
-      quote: editor.isActive("blockquote"),
-      codeBlock: editor.isActive("codeBlock"),
-      table: editor.isActive("table"),
-      canUndo: editor.can().undo(),
-      canRedo: editor.can().redo(),
-    }),
+    selector: ({ editor }) => toolbarState(editor, textStyles),
   });
   const disabled = mode === "source";
-
+  const mdx = format === "mdx";
+  const run = (command: (chain: ChainedCommands) => ChainedCommands) => () =>
+    command(editor.chain().focus()).run();
   const tool = (
     label: string,
-    active: boolean | undefined,
-    icon: React.ReactNode,
-    run: () => void,
+    active: boolean,
+    icon: ReactNode,
+    onRun: () => void,
     isDisabled = false,
   ) => (
-    <button
-      type="button"
-      className={cx("v-rte__tool", active && "is-active")}
-      title={label}
-      aria-label={label}
+    <Tool
+      label={label}
+      active={active}
+      onRun={onRun}
       disabled={disabled || isDisabled}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={run}
     >
       {icon}
-    </button>
+    </Tool>
   );
-
-  const insertComponent = (name: string) => {
-    const cfg = env.components[name];
-    const props = defaultValues(cfg?.props ?? {});
-    if (cfg?.inline) {
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          type: "mdxInlineComponent",
-          attrs: { name, props, hasChildren: Boolean(cfg.children) },
-          content: cfg.children ? [{ type: "text", text: "text" }] : [],
-        })
-        .run();
-      return;
-    }
-    const node: PMNode = {
-      type: "mdxComponent",
-      attrs: { name, props, hasChildren: Boolean(cfg?.children) },
-      content: cfg?.children ? [{ type: "paragraph" }] : [],
-    };
-    editor.chain().focus().insertContent(node).run();
-  };
 
   return (
     <div className="v-rte__toolbar">
@@ -343,285 +340,272 @@ function Toolbar({
         "Undo",
         false,
         <Undo2 />,
-        () => editor.chain().focus().undo().run(),
+        run((c) => c.undo()),
         !state.canUndo,
       )}
       {tool(
         "Redo",
         false,
         <Redo2 />,
-        () => editor.chain().focus().redo().run(),
+        run((c) => c.redo()),
         !state.canRedo,
       )}
       <span className="v-rte__sep" />
-      {tool("Heading 1", state.h1, <Heading1 />, () =>
-        editor.chain().focus().toggleHeading({ level: 1 }).run(),
-      )}
-      {tool("Heading 2", state.h2, <Heading2 />, () =>
-        editor.chain().focus().toggleHeading({ level: 2 }).run(),
-      )}
-      {tool("Heading 3", state.h3, <Heading3 />, () =>
-        editor.chain().focus().toggleHeading({ level: 3 }).run(),
-      )}
+      {([1, 2, 3] as const).map((level) => {
+        const HeadingIcon = HEADING_ICONS[level];
+        return (
+          <Tool
+            key={level}
+            label={`Heading ${level}`}
+            active={state.headings[level - 1]}
+            disabled={disabled}
+            onRun={run((c) => c.toggleHeading({ level }))}
+          >
+            <HeadingIcon />
+          </Tool>
+        );
+      })}
       <span className="v-rte__sep" />
-      {tool("Bold", state.bold, <LetterB />, () =>
-        editor.chain().focus().toggleBold().run(),
-      )}
-      {tool("Italic", state.italic, <Italic />, () =>
-        editor.chain().focus().toggleItalic().run(),
-      )}
-      {tool("Strikethrough", state.strike, <Strikethrough />, () =>
-        editor.chain().focus().toggleStrike().run(),
-      )}
-      {format === "mdx" &&
-        tool("Underline", state.underline, <UnderlineIcon />, () =>
-          editor.chain().focus().toggleUnderline().run(),
-        )}
-      {format === "mdx" &&
-        tool("Small text", state.small, <ALargeSmall />, () =>
-          editor.chain().focus().toggleSmall().run(),
-        )}
-      {tool("Inline code", state.code, <Code />, () =>
-        editor.chain().focus().toggleCode().run(),
-      )}
-      {format === "mdx" &&
-        tool("Superscript", state.sup, <SupIcon />, () =>
-          editor.chain().focus().toggleSuperscript().run(),
-        )}
-      {format === "mdx" &&
-        tool("Subscript", state.sub, <SubIcon />, () =>
-          editor.chain().focus().toggleSubscript().run(),
-        )}
-      {state.link
-        ? tool("Remove link", true, <Unlink />, () =>
-            editor.chain().focus().unsetLink().run(),
-          )
-        : tool("Link", false, <LinkIcon />, () => setLinkOpen(true))}
-      {format === "mdx" && textStyles.length > 0 && (
-        <Menu
-          trigger={({ toggle }) => (
-            <button
-              type="button"
-              className={cx(
-                "v-rte__styles",
-                state.styles.length > 0 && "is-active",
-              )}
-              title="Text styles"
-              disabled={disabled}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={toggle}
-            >
-              Styles <ChevronDown />
-            </button>
-          )}
-        >
-          {(close) => (
-            <>
-              <div className="v-menu__heading">Text styles</div>
-              {textStyles.map(([key, style]) => {
-                const active = state.styles.includes(style.class);
-                return (
-                  <button
-                    key={key}
-                    className="v-menu__item"
-                    role="menuitemcheckbox"
-                    aria-checked={active}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      editor.chain().focus().toggleTextClass(style.class).run();
-                      close();
-                    }}
-                  >
-                    <Check
-                      style={{ visibility: active ? "visible" : "hidden" }}
-                    />
-                    <span style={cssToStyle(style.css)}>{style.label}</span>
-                  </button>
-                );
-              })}
-            </>
-          )}
-        </Menu>
-      )}
-      <span className="v-rte__sep" />
-      {tool("Bullet list", state.bullet, <List />, () =>
-        editor.chain().focus().toggleBulletList().run(),
-      )}
-      {tool("Numbered list", state.ordered, <ListOrdered />, () =>
-        editor.chain().focus().toggleOrderedList().run(),
-      )}
-      {tool("Quote", state.quote, <Quote />, () =>
-        editor.chain().focus().toggleBlockquote().run(),
-      )}
-      {tool("Code block", state.codeBlock, <CodeXml />, () =>
-        editor.chain().focus().toggleCodeBlock().run(),
-      )}
-      {tool("Divider", false, <Minus />, () =>
-        editor.chain().focus().setHorizontalRule().run(),
+      {tool(
+        "Bold",
+        state.bold,
+        <LetterB />,
+        run((c) => c.toggleBold()),
       )}
       {tool(
-        "Image",
-        false,
-        <ImageIcon />,
-        () => setImageOpen(true),
-        !env.imageDirectory,
+        "Italic",
+        state.italic,
+        <Italic />,
+        run((c) => c.toggleItalic()),
       )}
-      <Menu
-        trigger={({ toggle }) => (
-          <button
-            type="button"
-            className={cx("v-rte__tool", state.table && "is-active")}
-            title="Table"
-            disabled={disabled}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={toggle}
-          >
-            <TableIcon />
-          </button>
-        )}
-      >
-        {(close) => (
-          <>
-            <button
-              className="v-menu__item"
-              onClick={() => {
-                editor
-                  .chain()
-                  .focus()
-                  .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-                  .run();
-                close();
-              }}
-            >
-              Insert table
-            </button>
-            {state.table && (
-              <>
-                <button
-                  className="v-menu__item"
-                  onClick={() => {
-                    editor.chain().focus().addRowAfter().run();
-                    close();
-                  }}
-                >
-                  Add row below
-                </button>
-                <button
-                  className="v-menu__item"
-                  onClick={() => {
-                    editor.chain().focus().addColumnAfter().run();
-                    close();
-                  }}
-                >
-                  Add column after
-                </button>
-                <button
-                  className="v-menu__item"
-                  onClick={() => {
-                    editor.chain().focus().deleteRow().run();
-                    close();
-                  }}
-                >
-                  Delete row
-                </button>
-                <button
-                  className="v-menu__item"
-                  onClick={() => {
-                    editor.chain().focus().deleteColumn().run();
-                    close();
-                  }}
-                >
-                  Delete column
-                </button>
-                <button
-                  className="v-menu__item is-danger"
-                  onClick={() => {
-                    editor.chain().focus().deleteTable().run();
-                    close();
-                  }}
-                >
-                  Delete table
-                </button>
-              </>
-            )}
-          </>
-        )}
-      </Menu>
-      {format === "mdx" && components.length > 0 && (
+      {tool(
+        "Strikethrough",
+        state.strike,
+        <Strikethrough />,
+        run((c) => c.toggleStrike()),
+      )}
+      {mdx && (
         <>
-          <span className="v-rte__sep" />
-          <Menu
-            trigger={({ toggle }) => (
-              <button
-                type="button"
-                className="v-rte__insert"
-                disabled={disabled}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={toggle}
-              >
-                <Plus /> Insert
-              </button>
-            )}
-          >
-            {(close) => (
-              <>
-                <div className="v-menu__heading">Components</div>
-                {components.map((name) => {
-                  const c = env.components[name];
-                  return (
-                    <button
-                      key={name}
-                      className="v-menu__item"
-                      onClick={() => {
-                        insertComponent(name);
-                        close();
-                      }}
-                    >
-                      <Icon name={c?.icon ?? "box"} />
-                      <span>
-                        {c?.label ?? name}
-                        {c?.description && <small>{c.description}</small>}
-                      </span>
-                    </button>
-                  );
-                })}
-              </>
-            )}
-          </Menu>
+          {tool(
+            "Underline",
+            state.underline,
+            <UnderlineIcon />,
+            run((c) => c.toggleUnderline()),
+          )}
+          {tool(
+            "Small text",
+            state.small,
+            <ALargeSmall />,
+            run((c) => c.toggleSmall()),
+          )}
         </>
       )}
-      <span className="v-rte__spacer" />
-      <div className="v-segment" style={{ height: 30 }}>
-        <button
-          type="button"
-          className={cx(mode === "visual" && "is-active")}
-          style={{ height: 28 }}
-          onClick={() => onMode("visual")}
-          title="Visual editor"
-        >
-          <Eye size={14} style={{ marginRight: 4, verticalAlign: -2 }} /> Visual
-        </button>
-        <button
-          type="button"
-          className={cx(mode === "source" && "is-active")}
-          style={{ height: 28 }}
-          onClick={() => onMode("source")}
-          title="Edit MDX source"
-        >
-          <CodeXml size={14} style={{ marginRight: 4, verticalAlign: -2 }} />{" "}
-          Source
-        </button>
-      </div>
-      {linkOpen && (
-        <LinkDialog editor={editor} onClose={() => setLinkOpen(false)} />
+      {tool(
+        "Inline code",
+        state.code,
+        <Code />,
+        run((c) => c.toggleCode()),
       )}
-      {imageOpen && env.imageDirectory && (
+      {mdx && (
+        <>
+          {tool(
+            "Superscript",
+            state.sup,
+            <SupIcon />,
+            run((c) => c.toggleSuperscript()),
+          )}
+          {tool(
+            "Subscript",
+            state.sub,
+            <SubIcon />,
+            run((c) => c.toggleSubscript()),
+          )}
+        </>
+      )}
+      <LinkTool editor={editor} active={state.link} disabled={disabled} />
+      {mdx && (
+        <StylesMenu
+          editor={editor}
+          textStyles={textStyles}
+          active={state.styles}
+          disabled={disabled}
+        />
+      )}
+      <span className="v-rte__sep" />
+      {tool(
+        "Bullet list",
+        state.bullet,
+        <List />,
+        run((c) => c.toggleBulletList()),
+      )}
+      {tool(
+        "Numbered list",
+        state.ordered,
+        <ListOrdered />,
+        run((c) => c.toggleOrderedList()),
+      )}
+      {tool(
+        "Quote",
+        state.quote,
+        <Quote />,
+        run((c) => c.toggleBlockquote()),
+      )}
+      {tool(
+        "Code block",
+        state.codeBlock,
+        <CodeXml />,
+        run((c) => c.toggleCodeBlock()),
+      )}
+      {tool(
+        "Divider",
+        false,
+        <Minus />,
+        run((c) => c.setHorizontalRule()),
+      )}
+      <ImageTool editor={editor} onUpload={onUpload} disabled={disabled} />
+      <TableMenu editor={editor} inTable={state.table} disabled={disabled} />
+      {mdx && (
+        <InsertMenu
+          editor={editor}
+          components={components}
+          disabled={disabled}
+        />
+      )}
+      <span className="v-rte__spacer" />
+      <ModeSwitch mode={mode} onMode={onMode} />
+    </div>
+  );
+}
+
+const HEADING_ICONS = { 1: Heading1, 2: Heading2, 3: Heading3 };
+
+/** Which marks and blocks the selection has, and whether undo and redo can run. */
+function toolbarState(
+  editor: Editor,
+  textStyles: [string, { class: string }][],
+) {
+  return {
+    bold: editor.isActive("bold"),
+    italic: editor.isActive("italic"),
+    strike: editor.isActive("strike"),
+    underline: editor.isActive("underline"),
+    small: editor.isActive("small"),
+    // The classes of the configured styles that the selection carries.
+    styles: textStyles
+      .map(([, style]) => style.class)
+      .filter((c) => editor.isActive("textClass", { class: c })),
+    code: editor.isActive("code"),
+    sup: editor.isActive("superscript"),
+    sub: editor.isActive("subscript"),
+    link: editor.isActive("link"),
+    headings: [1, 2, 3].map((level) => editor.isActive("heading", { level })),
+    bullet: editor.isActive("bulletList"),
+    ordered: editor.isActive("orderedList"),
+    quote: editor.isActive("blockquote"),
+    codeBlock: editor.isActive("codeBlock"),
+    table: editor.isActive("table"),
+    canUndo: editor.can().undo(),
+    canRedo: editor.can().redo(),
+  };
+}
+
+/** Keeps the editor's selection when a toolbar button is pressed. */
+const keepSelection = (e: React.MouseEvent) => e.preventDefault();
+
+function Tool({
+  label,
+  active,
+  disabled,
+  onRun,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  onRun: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={cx("v-rte__tool", active && "is-active")}
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onMouseDown={keepSelection}
+      onClick={onRun}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** "Link", opening the link dialog, or "Remove link" inside one. */
+function LinkTool({
+  editor,
+  active,
+  disabled,
+}: {
+  editor: Editor;
+  active: boolean;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {active ? (
+        <Tool
+          label="Remove link"
+          active
+          disabled={disabled}
+          onRun={() => editor.chain().focus().unsetLink().run()}
+        >
+          <Unlink />
+        </Tool>
+      ) : (
+        <Tool
+          label="Link"
+          active={false}
+          disabled={disabled}
+          onRun={() => setOpen(true)}
+        >
+          <LinkIcon />
+        </Tool>
+      )}
+      {open && <LinkDialog editor={editor} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+/** Opens the asset picker and inserts the chosen image. */
+function ImageTool({
+  editor,
+  onUpload,
+  disabled,
+}: {
+  editor: Editor;
+  onUpload?: RichTextEditorProps["onUpload"];
+  disabled: boolean;
+}) {
+  const env = useEditorEnv();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Tool
+        label="Image"
+        active={false}
+        disabled={disabled || !env.imageDirectory}
+        onRun={() => setOpen(true)}
+      >
+        <ImageIcon />
+      </Tool>
+      {open && env.imageDirectory && (
         <AssetPicker
           directory={env.imageDirectory}
           accept={["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"]}
           title="Insert image"
           deferUploads={Boolean(onUpload)}
-          onClose={() => setImageOpen(false)}
+          onClose={() => setOpen(false)}
           onPick={(path, upload) => {
             if (upload) onUpload?.(upload);
             editor
@@ -629,10 +613,242 @@ function Toolbar({
               .focus()
               .setImage({ src: env.toDocPath(path), alt: "" })
               .run();
-            setImageOpen(false);
+            setOpen(false);
           }}
         />
       )}
+    </>
+  );
+}
+
+/** The configured text styles, each toggled on the selection. */
+function StylesMenu({
+  editor,
+  textStyles,
+  active,
+  disabled,
+}: {
+  editor: Editor;
+  textStyles: [string, TextStyleConfig][];
+  /** The classes the selection carries. */
+  active: string[];
+  disabled: boolean;
+}) {
+  if (textStyles.length === 0) return null;
+  return (
+    <Menu
+      trigger={({ toggle }) => (
+        <button
+          type="button"
+          className={cx("v-rte__styles", active.length > 0 && "is-active")}
+          title="Text styles"
+          disabled={disabled}
+          onMouseDown={keepSelection}
+          onClick={toggle}
+        >
+          Styles <ChevronDown />
+        </button>
+      )}
+    >
+      {(close) => (
+        <>
+          <div className="v-menu__heading">Text styles</div>
+          {textStyles.map(([key, style]) => {
+            const on = active.includes(style.class);
+            return (
+              <button
+                key={key}
+                className="v-menu__item"
+                role="menuitemcheckbox"
+                aria-checked={on}
+                onMouseDown={keepSelection}
+                onClick={() => {
+                  editor.chain().focus().toggleTextClass(style.class).run();
+                  close();
+                }}
+              >
+                <Check style={{ visibility: on ? "visible" : "hidden" }} />
+                <span style={cssToStyle(style.css)}>{style.label}</span>
+              </button>
+            );
+          })}
+        </>
+      )}
+    </Menu>
+  );
+}
+
+/** Commands on the table around the selection, offered inside one. */
+const TABLE_COMMANDS: {
+  label: string;
+  run: (c: ChainedCommands) => ChainedCommands;
+  danger?: boolean;
+}[] = [
+  { label: "Add row below", run: (c) => c.addRowAfter() },
+  { label: "Add column after", run: (c) => c.addColumnAfter() },
+  { label: "Delete row", run: (c) => c.deleteRow() },
+  { label: "Delete column", run: (c) => c.deleteColumn() },
+  { label: "Delete table", run: (c) => c.deleteTable(), danger: true },
+];
+
+function TableMenu({
+  editor,
+  inTable,
+  disabled,
+}: {
+  editor: Editor;
+  inTable: boolean;
+  disabled: boolean;
+}) {
+  const commands = [
+    {
+      label: "Insert table",
+      run: (c: ChainedCommands) =>
+        c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }),
+      danger: false,
+    },
+    ...(inTable ? TABLE_COMMANDS : []),
+  ];
+  return (
+    <Menu
+      trigger={({ toggle }) => (
+        <button
+          type="button"
+          className={cx("v-rte__tool", inTable && "is-active")}
+          title="Table"
+          disabled={disabled}
+          onMouseDown={keepSelection}
+          onClick={toggle}
+        >
+          <TableIcon />
+        </button>
+      )}
+    >
+      {(close) =>
+        commands.map((command) => (
+          <button
+            key={command.label}
+            className={cx("v-menu__item", command.danger && "is-danger")}
+            onClick={() => {
+              command.run(editor.chain().focus()).run();
+              close();
+            }}
+          >
+            {command.label}
+          </button>
+        ))
+      }
+    </Menu>
+  );
+}
+
+/** The components this document may use, each inserted with its default props. */
+function InsertMenu({
+  editor,
+  components,
+  disabled,
+}: {
+  editor: Editor;
+  components: string[];
+  disabled: boolean;
+}) {
+  const env = useEditorEnv();
+  if (components.length === 0) return null;
+  return (
+    <>
+      <span className="v-rte__sep" />
+      <Menu
+        trigger={({ toggle }) => (
+          <button
+            type="button"
+            className="v-rte__insert"
+            disabled={disabled}
+            onMouseDown={keepSelection}
+            onClick={toggle}
+          >
+            <Plus /> Insert
+          </button>
+        )}
+      >
+        {(close) => (
+          <>
+            <div className="v-menu__heading">Components</div>
+            {components.map((name) => {
+              const c = env.components[name];
+              return (
+                <button
+                  key={name}
+                  className="v-menu__item"
+                  onClick={() => {
+                    insertComponent(editor, name, c);
+                    close();
+                  }}
+                >
+                  <Icon name={c?.icon ?? "box"} />
+                  <span>
+                    {c?.label ?? name}
+                    {c?.description && <small>{c.description}</small>}
+                  </span>
+                </button>
+              );
+            })}
+          </>
+        )}
+      </Menu>
+    </>
+  );
+}
+
+/** Inserts component `name` at the selection: inline, or as a block. */
+function insertComponent(
+  editor: Editor,
+  name: string,
+  cfg: ComponentConfig | undefined,
+) {
+  const props = defaultValues(cfg?.props ?? {});
+  const hasChildren = Boolean(cfg?.children);
+  const node: PMNode = cfg?.inline
+    ? {
+        type: "mdxInlineComponent",
+        attrs: { name, props, hasChildren },
+        content: hasChildren ? [{ type: "text", text: "text" }] : [],
+      }
+    : {
+        type: "mdxComponent",
+        attrs: { name, props, hasChildren },
+        content: hasChildren ? [{ type: "paragraph" }] : [],
+      };
+  editor.chain().focus().insertContent(node).run();
+}
+
+function ModeSwitch({
+  mode,
+  onMode,
+}: {
+  mode: "visual" | "source";
+  onMode: (m: "visual" | "source") => void;
+}) {
+  return (
+    <div className="v-segment" style={{ height: 30 }}>
+      <button
+        type="button"
+        className={cx(mode === "visual" && "is-active")}
+        style={{ height: 28 }}
+        onClick={() => onMode("visual")}
+        title="Visual editor"
+      >
+        <Eye size={14} style={{ marginRight: 4, verticalAlign: -2 }} /> Visual
+      </button>
+      <button
+        type="button"
+        className={cx(mode === "source" && "is-active")}
+        style={{ height: 28 }}
+        onClick={() => onMode("source")}
+        title="Edit MDX source"
+      >
+        <CodeXml size={14} style={{ marginRight: 4, verticalAlign: -2 }} />{" "}
+        Source
+      </button>
     </div>
   );
 }

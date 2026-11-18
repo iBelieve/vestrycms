@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ChevronRight,
-  Copy,
-  File as FileIcon,
-  Folder,
-  Trash,
-  Upload,
-} from "lucide-react";
+import { Copy, Trash, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
-import { fileToBase64 } from "../api.js";
+import { joinPath } from "../../core/paths.js";
+import type { AssetItem } from "../../core/service.js";
+import {
+  AssetCrumbs,
+  AssetGrid,
+  Dropzone,
+  FolderGrid,
+  uploadedMessage,
+  uploadPayload,
+} from "../components/AssetBrowser.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
 import {
@@ -24,7 +26,7 @@ import {
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { cx, formatBytes } from "../lib/utils.js";
+import { formatBytes } from "../lib/utils.js";
 
 export function AssetsPage() {
   const { container: key = "" } = useParams();
@@ -32,12 +34,7 @@ export function AssetsPage() {
   const container = config.assets?.[key];
   const [params, setParams] = useSearchParams();
   const dir = params.get("dir") ?? "";
-  const toast = useToast();
-  const qc = useQueryClient();
   const [selected, setSelected] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const q = useQuery({
     queryKey: ["assets", key, dir],
@@ -45,40 +42,11 @@ export function AssetsPage() {
     enabled: Boolean(container),
   });
 
-  const upload = useMutation({
-    mutationFn: async (files: File[]) => {
-      const payload = await Promise.all(
-        files.map(async (f) => ({
-          name: f.name,
-          base64: await fileToBase64(f),
-        })),
-      );
-      return api.uploadAssets(key, dir, payload);
-    },
-    onSuccess: (res) => {
-      toast(
-        "success",
-        `Uploaded ${res.paths.length} file${res.paths.length === 1 ? "" : "s"}`,
-      );
-      qc.invalidateQueries({ queryKey: ["assets", key] });
-    },
-    onError: (e) => toast("error", (e as Error).message),
-  });
-
-  const remove = useMutation({
-    mutationFn: (path: string) => api.deleteAsset(key, path),
-    onSuccess: () => {
-      toast("success", "File deleted");
-      setConfirmDelete(null);
-      setSelected(null);
-      qc.invalidateQueries({ queryKey: ["assets", key] });
-    },
-    onError: (e) => toast("error", (e as Error).message),
-  });
+  const upload = useUpload(key, dir);
 
   if (!container)
     return <NotFoundState title={`No asset folder called “${key}”`} />;
-  const crumbs = dir ? dir.split("/") : [];
+  const navigate = (path: string) => setParams(path ? { dir: path } : {});
   const selectedItem = q.data?.items.find((i) => i.path === selected);
 
   return (
@@ -86,198 +54,214 @@ export function AssetsPage() {
       <TopBar
         title={container.label}
         actions={
-          <>
-            <input
-              ref={fileInput}
-              type="file"
-              hidden
-              multiple
-              accept={container.accept?.map((a) => `.${a}`).join(",")}
-              onChange={(e) =>
-                e.target.files && upload.mutate(Array.from(e.target.files))
-              }
-            />
-            <Button
-              variant="primary"
-              onClick={() => fileInput.current?.click()}
-              disabled={upload.isPending}
-            >
-              {upload.isPending ? <Spinner /> : <Upload />} Upload
-            </Button>
-          </>
+          <UploadButton
+            accept={container.accept}
+            busy={upload.isPending}
+            onFiles={(files) => upload.mutate(files)}
+          />
         }
       />
       <div className="v-page">
         <div className="v-toolbar">
-          <div className="v-breadcrumbs">
-            <button type="button" onClick={() => setParams({})}>
-              {container.directory}
-            </button>
-            {crumbs.map((c, i) => (
-              <span key={i} className="v-row" style={{ gap: 6 }}>
-                <ChevronRight size={14} />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setParams({ dir: crumbs.slice(0, i + 1).join("/") })
-                  }
-                >
-                  {c}
-                </button>
-              </span>
-            ))}
-          </div>
+          <AssetCrumbs
+            root={container.directory}
+            path={dir}
+            onNavigate={navigate}
+          />
         </div>
-        <div
-          className={cx("v-dropzone", over && "is-over")}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOver(true);
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setOver(false);
-            if (e.dataTransfer.files.length)
-              upload.mutate(Array.from(e.dataTransfer.files));
-          }}
-        >
+        <Dropzone onFiles={(files) => upload.mutate(files)}>
           Drop files here to upload to{" "}
-          <span className="v-mono">
-            {[container.directory, dir].filter(Boolean).join("/")}
-          </span>
-        </div>
+          <span className="v-mono">{joinPath(container.directory, dir)}</span>
+        </Dropzone>
         {q.isLoading && <Loading />}
         {q.error && <Alert kind="error">{(q.error as Error).message}</Alert>}
         {q.data && (
-          <>
-            {q.data.folders.length > 0 && (
-              <div className="v-asset-grid" style={{ marginBottom: 14 }}>
-                {q.data.folders.map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    className="v-folder"
-                    onClick={() =>
-                      setParams({ dir: [dir, f].filter(Boolean).join("/") })
-                    }
-                  >
-                    <Folder /> {f}
-                  </button>
-                ))}
-              </div>
-            )}
-            {q.data.items.length === 0 && q.data.folders.length === 0 ? (
-              <EmptyState
-                icon={<Icon name={container.icon ?? "image"} />}
-                title="No files here yet"
-              >
-                <p>
-                  Upload files with the button above or drop them onto this
-                  page.
-                </p>
-              </EmptyState>
-            ) : (
-              <div className="v-asset-grid">
-                {q.data.items.map((item) => (
-                  <button
-                    key={item.path}
-                    type="button"
-                    className={cx(
-                      "v-asset",
-                      selected === item.path && "is-selected",
-                    )}
-                    onClick={() => setSelected(item.path)}
-                  >
-                    <div className="v-asset__preview">
-                      {item.kind === "image" ? (
-                        <img
-                          src={api.fileUrl(item.path, item.sha)}
-                          alt=""
-                          loading="lazy"
-                        />
-                      ) : (
-                        <FileIcon />
-                      )}
-                    </div>
-                    <div className="v-asset__name" title={item.name}>
-                      {item.name}
-                    </div>
-                    <div className="v-asset__meta">
-                      {formatBytes(item.size)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
+          <AssetsListing
+            listing={q.data}
+            emptyIcon={container.icon ?? "image"}
+            selected={selected}
+            onSelect={setSelected}
+            onOpenFolder={(f) => navigate(joinPath(dir, f))}
+          />
         )}
       </div>
       {selectedItem && (
-        <Modal
-          title={selectedItem.name}
+        <AssetDetails
+          containerKey={key}
+          item={selectedItem}
+          publicDir={container.directory.startsWith("public/")}
           onClose={() => setSelected(null)}
-          footer={
-            <>
-              <Button
-                variant="danger"
-                onClick={() => setConfirmDelete(selectedItem.path)}
-              >
-                <Trash /> Delete
-              </Button>
-              <Button
-                onClick={() => {
-                  navigator.clipboard.writeText(selectedItem.path);
-                  toast("success", "Path copied");
-                }}
-              >
-                <Copy /> Copy path
-              </Button>
-              <Button variant="primary" onClick={() => setSelected(null)}>
-                Done
-              </Button>
-            </>
-          }
-        >
-          {selectedItem.kind === "image" && (
-            <div style={{ textAlign: "center", marginBottom: 14 }}>
-              <img
-                src={api.fileUrl(selectedItem.path, selectedItem.sha)}
-                alt=""
-                style={{ maxWidth: "100%", maxHeight: 360, borderRadius: 6 }}
-              />
-            </div>
-          )}
-          <dl className="v-meta">
-            <dt>Path</dt>
-            <dd className="v-mono">{selectedItem.path}</dd>
-            <dt>Size</dt>
-            <dd>{formatBytes(selectedItem.size)}</dd>
-            {container.directory.startsWith("public/") && (
-              <>
-                <dt>URL</dt>
-                <dd className="v-mono">
-                  /{selectedItem.path.slice("public/".length)}
-                </dd>
-              </>
-            )}
-          </dl>
-        </Modal>
+        />
       )}
-      {confirmDelete && (
+    </>
+  );
+}
+
+/** Uploads files into `dir` of the container, reporting how it went. */
+function useUpload(key: string, dir: string) {
+  const { api } = useVestry();
+  const toast = useToast();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (files: File[]) =>
+      api.uploadAssets(key, dir, await uploadPayload(files)),
+    onSuccess: (res) => {
+      toast("success", uploadedMessage(res.paths.length));
+      qc.invalidateQueries({ queryKey: ["assets", key] });
+    },
+    onError: (e) => toast("error", (e as Error).message),
+  });
+}
+
+function AssetsListing({
+  listing,
+  emptyIcon,
+  selected,
+  onSelect,
+  onOpenFolder,
+}: {
+  listing: { items: AssetItem[]; folders: string[] };
+  emptyIcon: string;
+  selected: string | null;
+  onSelect: (path: string) => void;
+  onOpenFolder: (folder: string) => void;
+}) {
+  return (
+    <>
+      <FolderGrid folders={listing.folders} onOpen={onOpenFolder} />
+      {listing.items.length === 0 && listing.folders.length === 0 ? (
+        <EmptyState icon={<Icon name={emptyIcon} />} title="No files here yet">
+          <p>Upload files with the button above or drop them onto this page.</p>
+        </EmptyState>
+      ) : (
+        <AssetGrid
+          items={listing.items}
+          selected={selected}
+          onSelect={onSelect}
+        />
+      )}
+    </>
+  );
+}
+
+/** A hidden file input and the button that opens it. */
+function UploadButton({
+  accept,
+  busy,
+  onFiles,
+}: {
+  accept?: string[];
+  busy: boolean;
+  onFiles: (files: File[]) => void;
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={fileInput}
+        type="file"
+        hidden
+        multiple
+        accept={accept?.map((a) => `.${a}`).join(",")}
+        onChange={(e) => e.target.files && onFiles(Array.from(e.target.files))}
+      />
+      <Button
+        variant="primary"
+        onClick={() => fileInput.current?.click()}
+        disabled={busy}
+      >
+        {busy ? <Spinner /> : <Upload />} Upload
+      </Button>
+    </>
+  );
+}
+
+/** The selected file: a preview, its path and URL, and a way to delete it. */
+function AssetDetails({
+  containerKey,
+  item,
+  publicDir,
+  onClose,
+}: {
+  containerKey: string;
+  item: AssetItem;
+  /** Whether the container is under `public/`, so the file has a URL. */
+  publicDir: boolean;
+  onClose: () => void;
+}) {
+  const { api } = useVestry();
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => api.deleteAsset(containerKey, item.path),
+    onSuccess: () => {
+      toast("success", "File deleted");
+      onClose();
+      qc.invalidateQueries({ queryKey: ["assets", containerKey] });
+    },
+    onError: (e) => toast("error", (e as Error).message),
+  });
+  return (
+    <>
+      <Modal
+        title={item.name}
+        onClose={onClose}
+        footer={
+          <>
+            <Button variant="danger" onClick={() => setConfirming(true)}>
+              <Trash /> Delete
+            </Button>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(item.path);
+                toast("success", "Path copied");
+              }}
+            >
+              <Copy /> Copy path
+            </Button>
+            <Button variant="primary" onClick={onClose}>
+              Done
+            </Button>
+          </>
+        }
+      >
+        {item.kind === "image" && (
+          <div style={{ textAlign: "center", marginBottom: 14 }}>
+            <img
+              src={api.fileUrl(item.path, item.sha)}
+              alt=""
+              style={{ maxWidth: "100%", maxHeight: 360, borderRadius: 6 }}
+            />
+          </div>
+        )}
+        <dl className="v-meta">
+          <dt>Path</dt>
+          <dd className="v-mono">{item.path}</dd>
+          <dt>Size</dt>
+          <dd>{formatBytes(item.size)}</dd>
+          {publicDir && (
+            <>
+              <dt>URL</dt>
+              <dd className="v-mono">/{item.path.slice("public/".length)}</dd>
+            </>
+          )}
+        </dl>
+      </Modal>
+      {confirming && (
         <ConfirmDialog
           title="Delete file?"
           message={
             <>
-              <span className="v-mono">{confirmDelete}</span> will be removed
-              from the repository. Pages that reference it will break.
+              <span className="v-mono">{item.path}</span> will be removed from
+              the repository. Pages that reference it will break.
             </>
           }
           confirmLabel="Delete"
           danger
           busy={remove.isPending}
-          onCancel={() => setConfirmDelete(null)}
-          onConfirm={() => remove.mutate(confirmDelete)}
+          onCancel={() => setConfirming(false)}
+          onConfirm={() => remove.mutate()}
         />
       )}
     </>

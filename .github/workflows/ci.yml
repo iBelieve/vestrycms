@@ -22,8 +22,8 @@ jobs:
       - run: pnpm fallow
       - run: pnpm typecheck
       - run: pnpm test:coverage
-      # CRAP scores from the coverage above; fails on functions not in
-      # fallow-health-baseline.json.
+      # Complexity and CRAP scores (from the coverage above); fails on any
+      # function over the limits.
       - run: pnpm health
       - run: pnpm build
       - run: npm pack --dry-run

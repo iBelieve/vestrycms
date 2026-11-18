@@ -18,7 +18,7 @@ import {
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { formatDate, initials } from "../lib/utils.js";
+import { cx, formatDate, initials } from "../lib/utils.js";
 
 export function UsersPage() {
   const { api, client, refresh } = useVestry();
@@ -55,7 +55,6 @@ export function UsersPage() {
   if (me.role !== "admin") return <Navigate to="/" replace />;
 
   const crumbs = [{ label: "Users" }];
-  const users = q.data?.users ?? [];
 
   return (
     <>
@@ -71,138 +70,14 @@ export function UsersPage() {
         }
       />
       <div className="v-page">
-        {!client.auth ? (
-          <Alert kind="info">
-            Sign-in is off in local mode, so there are no users to manage. Start
-            the dev server with <code>VESTRY_MODE=auth</code> to work on sign-in
-            and users locally.
-          </Alert>
-        ) : q.isLoading ? (
-          <Loading label="Loading users…" />
-        ) : q.error ? (
-          <Alert kind="error">{message(q.error)}</Alert>
-        ) : users.length === 0 ? (
-          <div className="v-card">
-            <EmptyState icon={<UserCog />} title="No users yet">
-              <p>Invite the people who should be able to edit the site.</p>
-            </EmptyState>
-          </div>
-        ) : (
-          <div className="v-card">
-            <div className="v-table-wrap">
-              <table className="v-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Last sign-in</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td className="v-table__main">
-                        <span className="v-user">
-                          <span className="v-avatar" aria-hidden>
-                            {initials(u.name || u.email)}
-                          </span>
-                          <span className="v-user__text">
-                            <span className="v-table__title">
-                              {u.name}
-                              {u.id === me.id && (
-                                <span className="v-muted"> (you)</span>
-                              )}
-                            </span>
-                            <span className="v-table__sub">{u.email}</span>
-                          </span>
-                        </span>
-                      </td>
-                      <td style={{ whiteSpace: "nowrap" }}>
-                        {roleLabel(u.role)}
-                        {u.origin === "config" && (
-                          <span
-                            className="v-muted"
-                            title="Listed in auth.admins in vestry.config"
-                          >
-                            {" "}
-                            · config
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {u.status === "active" ? (
-                          <Badge status="published">Active</Badge>
-                        ) : (
-                          <Badge status="draft">Invited</Badge>
-                        )}
-                      </td>
-                      <td className="v-muted" style={{ whiteSpace: "nowrap" }}>
-                        {u.lastLoginAt ? formatDate(u.lastLoginAt) : "—"}
-                      </td>
-                      <td className="v-table__actions">
-                        <Menu
-                          align="right"
-                          trigger={({ toggle }) => (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              icon
-                              title="Actions"
-                              onClick={toggle}
-                            >
-                              <Ellipsis />
-                            </Button>
-                          )}
-                        >
-                          {(close) => (
-                            <>
-                              <button
-                                className="v-menu__item"
-                                onClick={() => {
-                                  close();
-                                  setEditing(u);
-                                }}
-                              >
-                                <UserCog />
-                                <span>Edit name and role</span>
-                              </button>
-                              {u.status === "invited" && (
-                                <button
-                                  className="v-menu__item"
-                                  onClick={() => {
-                                    close();
-                                    resend.mutate(u);
-                                  }}
-                                >
-                                  <Mail />
-                                  <span>Re-send invitation</span>
-                                </button>
-                              )}
-                              {u.id !== me.id && u.origin !== "config" && (
-                                <button
-                                  className="v-menu__item v-menu__item--danger"
-                                  onClick={() => {
-                                    close();
-                                    setRemoving(u);
-                                  }}
-                                >
-                                  <Trash />
-                                  <span>Remove</span>
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </Menu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        <UsersBody
+          auth={client.auth}
+          query={q}
+          meId={me.id}
+          onEdit={setEditing}
+          onResend={(u) => resend.mutate(u)}
+          onRemove={setRemoving}
+        />
       </div>
 
       {inviting && (
@@ -280,7 +155,6 @@ function UserForm({
   const [role, setRole] = useState<Role>(user?.role ?? "editor");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const roleLocked = user?.origin === "config";
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -317,24 +191,7 @@ function UserForm({
       }
     >
       <form id="v-user-form" onSubmit={submit} className="v-fields">
-        {!user && (
-          <label className="v-field">
-            <span className="v-field__label">Email</span>
-            <input
-              className="v-input"
-              type="email"
-              autoFocus
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="colleague@example.org"
-            />
-            <span className="v-field__hint">
-              They'll get an email with a link to sign in. No password needed:
-              we email a code each time.
-            </span>
-          </label>
-        )}
+        {!user && <EmailField email={email} onEmail={setEmail} />}
         <label className="v-field">
           <span className="v-field__label">Name</span>
           <input
@@ -346,39 +203,263 @@ function UserForm({
             placeholder={user ? undefined : "Optional"}
           />
         </label>
-        <div className="v-field">
-          <span className="v-field__label">Role</span>
-          <div className="v-radio-cards">
-            {ROLES.map((r) => (
-              <label
-                key={r.value}
-                className={`v-radio-card${role === r.value ? " is-selected" : ""}${roleLocked ? " is-disabled" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="role"
-                  value={r.value}
-                  checked={role === r.value}
-                  disabled={roleLocked}
-                  onChange={() => setRole(r.value)}
-                />
-                <span className="v-radio-card__body">
-                  <span className="v-radio-card__label">{r.label}</span>
-                  <span className="v-radio-card__desc">{r.description}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-          {roleLocked && (
-            <span className="v-field__hint">
-              This address is listed in <code>auth.admins</code> in the Vestry
-              config, so it is always an admin.
-            </span>
-          )}
-        </div>
+        <RoleField
+          role={role}
+          onRole={setRole}
+          locked={user?.origin === "config"}
+        />
         {error && <Alert kind="error">{error}</Alert>}
       </form>
     </Modal>
+  );
+}
+
+type UserActions = {
+  onEdit: (u: PublicUser) => void;
+  onResend: (u: PublicUser) => void;
+  onRemove: (u: PublicUser) => void;
+};
+
+/** The page body: the user table, or why there isn't one. */
+function UsersBody({
+  auth,
+  query,
+  meId,
+  ...actions
+}: {
+  auth: boolean;
+  query: { isLoading: boolean; error: unknown; data?: { users: PublicUser[] } };
+  meId: string;
+} & UserActions) {
+  if (!auth) {
+    return (
+      <Alert kind="info">
+        Sign-in is off in local mode, so there are no users to manage. Start the
+        dev server with <code>VESTRY_MODE=auth</code> to work on sign-in and
+        users locally.
+      </Alert>
+    );
+  }
+  if (query.isLoading) return <Loading label="Loading users…" />;
+  if (query.error) return <Alert kind="error">{message(query.error)}</Alert>;
+  const users = query.data?.users ?? [];
+  if (users.length === 0) {
+    return (
+      <div className="v-card">
+        <EmptyState icon={<UserCog />} title="No users yet">
+          <p>Invite the people who should be able to edit the site.</p>
+        </EmptyState>
+      </div>
+    );
+  }
+  return (
+    <div className="v-card">
+      <div className="v-table-wrap">
+        <table className="v-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Last sign-in</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <UserRow key={u.id} user={u} isMe={u.id === meId} {...actions} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function UserRow({
+  user: u,
+  isMe,
+  ...actions
+}: { user: PublicUser; isMe: boolean } & UserActions) {
+  return (
+    <tr>
+      <td className="v-table__main">
+        <span className="v-user">
+          <span className="v-avatar" aria-hidden>
+            {initials(u.name || u.email)}
+          </span>
+          <span className="v-user__text">
+            <span className="v-table__title">
+              {u.name}
+              {isMe && <span className="v-muted"> (you)</span>}
+            </span>
+            <span className="v-table__sub">{u.email}</span>
+          </span>
+        </span>
+      </td>
+      <td style={{ whiteSpace: "nowrap" }}>
+        {roleLabel(u.role)}
+        {u.origin === "config" && (
+          <span
+            className="v-muted"
+            title="Listed in auth.admins in vestry.config"
+          >
+            {" "}
+            · config
+          </span>
+        )}
+      </td>
+      <td>
+        {u.status === "active" ? (
+          <Badge status="published">Active</Badge>
+        ) : (
+          <Badge status="draft">Invited</Badge>
+        )}
+      </td>
+      <td className="v-muted" style={{ whiteSpace: "nowrap" }}>
+        {u.lastLoginAt ? formatDate(u.lastLoginAt) : "—"}
+      </td>
+      <td className="v-table__actions">
+        <UserMenu
+          user={u}
+          canRemove={!isMe && u.origin !== "config"}
+          {...actions}
+        />
+      </td>
+    </tr>
+  );
+}
+
+function UserMenu({
+  user: u,
+  canRemove,
+  onEdit,
+  onResend,
+  onRemove,
+}: { user: PublicUser; canRemove: boolean } & UserActions) {
+  return (
+    <Menu
+      align="right"
+      trigger={({ toggle }) => (
+        <Button variant="ghost" size="xs" icon title="Actions" onClick={toggle}>
+          <Ellipsis />
+        </Button>
+      )}
+    >
+      {(close) => (
+        <>
+          <button
+            className="v-menu__item"
+            onClick={() => {
+              close();
+              onEdit(u);
+            }}
+          >
+            <UserCog />
+            <span>Edit name and role</span>
+          </button>
+          {u.status === "invited" && (
+            <button
+              className="v-menu__item"
+              onClick={() => {
+                close();
+                onResend(u);
+              }}
+            >
+              <Mail />
+              <span>Re-send invitation</span>
+            </button>
+          )}
+          {canRemove && (
+            <button
+              className="v-menu__item v-menu__item--danger"
+              onClick={() => {
+                close();
+                onRemove(u);
+              }}
+            >
+              <Trash />
+              <span>Remove</span>
+            </button>
+          )}
+        </>
+      )}
+    </Menu>
+  );
+}
+
+function EmailField({
+  email,
+  onEmail,
+}: {
+  email: string;
+  onEmail: (email: string) => void;
+}) {
+  return (
+    <label className="v-field">
+      <span className="v-field__label">Email</span>
+      <input
+        className="v-input"
+        type="email"
+        autoFocus
+        required
+        value={email}
+        onChange={(e) => onEmail(e.target.value)}
+        placeholder="colleague@example.org"
+      />
+      <span className="v-field__hint">
+        They'll get an email with a link to sign in. No password needed: we
+        email a code each time.
+      </span>
+    </label>
+  );
+}
+
+/** The role picker; `locked` for a config admin, who is always an admin. */
+function RoleField({
+  role,
+  onRole,
+  locked,
+}: {
+  role: Role;
+  onRole: (role: Role) => void;
+  locked: boolean;
+}) {
+  return (
+    <div className="v-field">
+      <span className="v-field__label">Role</span>
+      <div className="v-radio-cards">
+        {ROLES.map((r) => (
+          <label
+            key={r.value}
+            className={cx(
+              "v-radio-card",
+              role === r.value && "is-selected",
+              locked && "is-disabled",
+            )}
+          >
+            <input
+              type="radio"
+              name="role"
+              value={r.value}
+              checked={role === r.value}
+              disabled={locked}
+              onChange={() => onRole(r.value)}
+            />
+            <span className="v-radio-card__body">
+              <span className="v-radio-card__label">{r.label}</span>
+              <span className="v-radio-card__desc">{r.description}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {locked && (
+        <span className="v-field__hint">
+          This address is listed in <code>auth.admins</code> in the Vestry
+          config, so it is always an admin.
+        </span>
+      )}
+    </div>
   );
 }
 

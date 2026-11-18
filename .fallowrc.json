@@ -5,9 +5,5 @@
   "ignoreDependencies": ["zod"],
   "health": {
     "ignore": ["test/**", "scripts/**"]
-  },
-  "rules": {
-    "complexity-cyclomatic": "warn",
-    "complexity-cognitive": "warn"
   }
 }

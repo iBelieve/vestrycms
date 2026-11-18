@@ -256,22 +256,6 @@ export function ErrorState({
   page?: boolean;
 }) {
   const detail = error === undefined ? null : describeError(error);
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(t);
-  }, [copied]);
-  const copy = async () => {
-    if (!detail) return;
-    const text = [...detail.meta, detail.message].join("\n");
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-    } catch {
-      // Clipboard access can be refused; the text is still selectable.
-    }
-  };
   return (
     <div className={page ? "v-error-page" : "v-error-state"}>
       <div
@@ -284,42 +268,79 @@ export function ErrorState({
         {/* In the panel the card stands in for the page's TopBar and its h1. */}
         <h1 className="v-error-card__title">{title}</h1>
         {children && <div className="v-error-card__text">{children}</div>}
-        {detail && (
-          <div className="v-error-card__detail">
-            <div className="v-error-card__detail-head">
-              <span>Details</span>
-              {detail.meta.map((m) => (
-                <code key={m}>{m}</code>
-              ))}
-              <Button
-                variant="ghost"
-                size="xs"
-                icon
-                className="v-error-card__copy"
-                onClick={copy}
-                aria-label={copied ? "Copied" : "Copy error details"}
-                title={copied ? "Copied" : "Copy error details"}
-              >
-                {copied ? <Check /> : <Copy />}
-              </Button>
-            </div>
-            <p>
-              <Linkify text={detail.message} />
-            </p>
-          </div>
-        )}
-        {(onRetry || actions) && (
-          <div className="v-error-card__actions">
-            {actions}
-            {onRetry && (
-              <Button variant="primary" onClick={onRetry} disabled={retrying}>
-                {retrying ? <Spinner /> : <RotateCw />}
-                {retrying ? "Retrying…" : "Try again"}
-              </Button>
-            )}
-          </div>
-        )}
+        {detail && <ErrorDetail detail={detail} />}
+        <ErrorActions onRetry={onRetry} retrying={retrying}>
+          {actions}
+        </ErrorActions>
       </div>
+    </div>
+  );
+}
+
+/** The error's own message and metadata, with a button to copy them. */
+function ErrorDetail({ detail }: { detail: ReturnType<typeof describeError> }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const copy = async () => {
+    const text = [...detail.meta, detail.message].join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      // Clipboard access can be refused; the text is still selectable.
+    }
+  };
+  const copyLabel = copied ? "Copied" : "Copy error details";
+  return (
+    <div className="v-error-card__detail">
+      <div className="v-error-card__detail-head">
+        <span>Details</span>
+        {detail.meta.map((m) => (
+          <code key={m}>{m}</code>
+        ))}
+        <Button
+          variant="ghost"
+          size="xs"
+          icon
+          className="v-error-card__copy"
+          onClick={copy}
+          aria-label={copyLabel}
+          title={copyLabel}
+        >
+          {copied ? <Check /> : <Copy />}
+        </Button>
+      </div>
+      <p>
+        <Linkify text={detail.message} />
+      </p>
+    </div>
+  );
+}
+
+/** The error card's way out: the caller's `actions`, then "Try again". */
+function ErrorActions({
+  onRetry,
+  retrying,
+  children,
+}: {
+  onRetry?: () => void;
+  retrying?: boolean;
+  children?: ReactNode;
+}) {
+  if (!onRetry && !children) return null;
+  return (
+    <div className="v-error-card__actions">
+      {children}
+      {onRetry && (
+        <Button variant="primary" onClick={onRetry} disabled={retrying}>
+          {retrying ? <Spinner /> : <RotateCw />}
+          {retrying ? "Retrying…" : "Try again"}
+        </Button>
+      )}
     </div>
   );
 }
