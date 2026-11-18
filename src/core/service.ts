@@ -1004,20 +1004,42 @@ function statusOf(
   return bool === publishedWhen ? "published" : "draft";
 }
 
+/**
+ * Entries in the collection's `sort` order. Entries without a value for the
+ * sort field come last, and entries with the same value (or none) are in
+ * title order, then slug order. The tree keeps this order among siblings,
+ * so pages ordered by an `order` field that only some of them set list the
+ * ordered ones first, then the rest alphabetically.
+ */
 function sortEntries(
   col: CollectionConfig,
   entries: EntrySummary[],
 ): EntrySummary[] {
-  const sort = col.sort;
-  const dir = sort?.direction === "asc" ? 1 : -1;
-  const field = sort?.field;
-  return [...entries].sort((a, b) => {
-    const av = field ? sortable(a.data[field]) : a.slug;
-    const bv = field ? sortable(b.data[field]) : b.slug;
-    if (av === bv) return a.slug < b.slug ? -dir : dir;
-    return av < bv ? -dir : dir;
-  });
+  const dir = col.sort?.direction === "asc" ? 1 : -1;
+  const field = col.sort?.field;
+  const bySlug = (a: EntrySummary, b: EntrySummary) =>
+    a.slug < b.slug ? -dir : a.slug > b.slug ? dir : 0;
+  // Without a sort field, entries go by slug (newest first for dated ones).
+  if (!field) return [...entries].sort(bySlug);
+  return [...entries].sort(
+    (a, b) =>
+      compareField(a.data[field], b.data[field], dir) ||
+      a.title.localeCompare(b.title) ||
+      bySlug(a, b),
+  );
 }
+
+/** Compares two sort values in direction `dir`, with missing ones last. */
+function compareField(a: unknown, b: unknown, dir: number): number {
+  const am = isMissing(a);
+  const bm = isMissing(b);
+  if (am || bm) return am === bm ? 0 : am ? 1 : -1;
+  const av = sortable(a);
+  const bv = sortable(b);
+  return av < bv ? -dir : av > bv ? dir : 0;
+}
+
+const isMissing = (v: unknown) => v === undefined || v === null || v === "";
 
 function sortable(v: unknown): string | number {
   if (v instanceof Date) return v.getTime();

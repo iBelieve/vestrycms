@@ -173,7 +173,7 @@ export function slugError({
 }
 
 /** Why a collection entry cannot be saved under `slug`, if it cannot. */
-export function slugProblem(
+function slugProblem(
   kind: Kind,
   pattern: PathPattern | null,
   slug: string,

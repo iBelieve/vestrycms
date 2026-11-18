@@ -299,6 +299,47 @@ describe("fixed and reserved slugs", () => {
   });
 });
 
+describe("sorting", () => {
+  const sortConfig = defineConfig({
+    repo: { owner: "o", name: "r" },
+    collections: {
+      pages: collection({
+        label: "Pages",
+        path: "src/pages/**.md",
+        sort: { field: "order", direction: "asc" },
+        schema: { title: fields.text(), order: fields.number() },
+      }),
+    },
+  });
+  let sortRoot: string;
+
+  afterAll(() => rm(sortRoot, { recursive: true, force: true }));
+
+  it("puts entries without a value last, and ties in title order", async () => {
+    sortRoot = await mkdtemp(path.join(tmpdir(), "vestry-sort-"));
+    const pages = new ContentService(sortConfig, new LocalSource(sortRoot), {
+      builtAt: "",
+      files: {},
+    });
+    for (const [slug, title, order] of [
+      ["zeta", "Zeta", undefined],
+      ["about", "About", undefined],
+      ["second", "Second", 2],
+      ["first-b", "First B", 1],
+      ["first-a", "First A", 1],
+    ] as const)
+      await pages.saveEntry("pages", null, { data: { title, order }, slug });
+    const entries = await pages.listEntries("pages");
+    expect(entries.map((e) => e.slug)).toEqual([
+      "first-a",
+      "first-b",
+      "second",
+      "about",
+      "zeta",
+    ]);
+  });
+});
+
 describe("entries kept as a list in one file", () => {
   const file = () => readFile(path.join(root, "src/data/links.yaml"), "utf8");
 

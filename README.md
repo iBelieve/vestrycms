@@ -302,6 +302,25 @@ In a collection kept as a list in one file, an entry's slug is its id field
 the same way: the editor asks first, and references to it, in the list and
 in other files, are updated in the same commit.
 
+Some slugs can't change. A collection with `create: false` doesn't allow
+renaming either, since a rename puts an entry at a new address (with
+`delete: false` alone, renames are still allowed: they take the references
+along, which a deletion would break). `reservedSlugs` names slugs the site
+depends on, such as pages kept at fixed routes or names its other routes
+already use:
+
+```ts
+pages: collection({
+  path: "src/pages/*.mdx",
+  reservedSlugs: ["index", "404", "sermons"],
+  …
+}),
+```
+
+An entry at a reserved slug can't be renamed or deleted (its Slug box is
+read-only and it has no Delete button), and no other entry can be created at
+or renamed to one. The API refuses the same.
+
 A date field can live in the file name instead of the frontmatter:
 
 ```ts
@@ -464,6 +483,11 @@ lectionaries: collection({ path: "…/**.yaml", tree: "only", … }),
 `tree: true` adds a Tree/List toggle that opens on the tree; `"only"` shows
 the tree with no toggle. Each editor's choice and expanded rows are kept in
 their browser. A search or status filter lists its matches flat.
+
+Entries, and siblings in the tree, follow the collection's `sort`. Entries
+without a value for the sort field come last, and entries with the same
+value (or none) go by title. Sorting pages by an `order` field that only
+some of them set lists those first, in order, then the rest alphabetically.
 
 ## Dashboard
 
