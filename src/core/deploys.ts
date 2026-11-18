@@ -49,8 +49,6 @@ export interface DeployCommit {
   /** Saved by the user asking. */
   mine: boolean;
   state: DeployState;
-  /** The commit the site was last deployed from. */
-  current: boolean;
   /** When its build started and finished, if it has one. */
   buildStartedAt: string | null;
   buildFinishedAt: string | null;
@@ -148,7 +146,6 @@ export function deployStatus(
       author: author.name,
       mine: Boolean(email && author.email?.toLowerCase() === email),
       state,
-      current: i === live,
       buildStartedAt: build?.startedAt ?? null,
       buildFinishedAt: build?.completedAt ?? null,
       buildUrl: safeUrl(build?.url ?? null),

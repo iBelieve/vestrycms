@@ -75,7 +75,6 @@ describe("deployStatus", () => {
       commit(120),
     ]);
     expect(states(s)).toEqual(["live", "live", "live"]);
-    expect(s.commits.map((c) => c.current)).toEqual([true, false, false]);
     expect(s).toMatchObject({ pending: 0, failed: false });
   });
 
@@ -125,7 +124,6 @@ describe("deployStatus", () => {
       commit(11, [run("completed", "success", 10, 4)]),
     ]);
     expect(states(s)).toEqual(["overwritten", "live"]);
-    expect(s.commits[1].current).toBe(true);
     expect(s.pending).toBe(0);
   });
 

@@ -381,9 +381,6 @@ button.v-chrome__chip:hover {
 .v-deploys__row.is-failed .v-deploys__state {
   color: var(--v-danger);
 }
-.v-deploys__row.is-live .v-deploys__state {
-  color: var(--v-success);
-}
 .v-menu__item--static {
   cursor: default;
   color: var(--v-text-muted);
@@ -1296,6 +1293,9 @@ button.v-chrome__chip:hover {
   z-index: 80;
   max-height: 360px;
   overflow: auto;
+  /* Scrolling past the end of a long panel mustn't scroll the page, which
+     would close the menu. */
+  overscroll-behavior: contain;
 }
 .v-menu__item {
   display: flex;

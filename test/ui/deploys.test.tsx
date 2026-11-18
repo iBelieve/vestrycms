@@ -156,7 +156,55 @@ describe("build status", () => {
     expect(await screen.findByText("Couldn't publish")).toBeTruthy();
     await userEvent.setup().click(chip());
     expect(
-      screen.getByText(/latest change couldn.t be published/),
+      screen.getByText(/latest change couldn.t be published, so the site/),
+    ).toBeTruthy();
+  });
+
+  it("shows a change going out with a running build as publishing", async () => {
+    const carried = commit("c2", "Update Site", 1, { status: "completed" });
+    carried.checks = [];
+    const commits = {
+      current: [
+        commit("c3", "Update Sermon: Advent", 0.5, { status: "in_progress" }),
+        carried,
+        commit("c1", "Create Page: About", 30, {
+          status: "completed",
+          ok: true,
+        }),
+      ],
+    };
+    await openPanel(config, {
+      api: { localSource: await sourceWith(commits) },
+    });
+    await userEvent
+      .setup()
+      .click(await screen.findByTitle("Publishing status"));
+    const row = document.querySelector(".v-deploys__row.is-superseded")!;
+    expect(row.closest("section")!.textContent).toContain("Publishing now");
+    expect(row.querySelector(".v-deploys__icon")!.getAttribute("title")).toBe(
+      "Publishing",
+    );
+  });
+
+  it("doesn't point to the site's changes when none are listed", async () => {
+    const commits = {
+      current: [
+        commit("c2", "Update Site", 5, { status: "completed", ok: false }),
+        commit("c1", "Create Page: About", 30, {
+          status: "completed",
+          ok: false,
+        }),
+      ],
+    };
+    await openPanel(config, {
+      api: { localSource: await sourceWith(commits) },
+    });
+    expect(await screen.findByText("Couldn't publish")).toBeTruthy();
+    await userEvent.setup().click(chip());
+    expect(
+      screen.getByText(
+        "The latest change couldn't be published. Open it to see why.",
+      ),
     ).toBeTruthy();
   });
 
@@ -187,9 +235,7 @@ describe("build status", () => {
     ).toBeTruthy();
     expect(screen.getByText("Not live")).toBeTruthy();
     await user.click(chip());
-    expect(
-      screen.getByText(/latest change isn.t on the site yet/),
-    ).toBeTruthy();
+    expect(screen.getByText(/latest change isn.t on the site\./)).toBeTruthy();
   });
 
   it("stays out of the way without builds", async () => {
@@ -209,7 +255,6 @@ describe("build list", () => {
     author: "vestry[bot]",
     mine: false,
     state,
-    current: state === "live",
     buildStartedAt: null,
     buildFinishedAt: null,
     buildUrl: null,
@@ -242,6 +287,19 @@ describe("build list", () => {
     ).toEqual([
       ["waiting", ["c3", "c2"]],
       ["stuck", ["c1"]],
+    ]);
+    // A newer build that is running includes it, past a queued one.
+    expect(
+      sections([
+        row("c4", "building"),
+        row("c3", "queued"),
+        row("c2", "superseded"),
+        row("c1", "live"),
+      ]),
+    ).toEqual([
+      ["waiting", ["c3"]],
+      ["building", ["c4", "c2"]],
+      ["live", ["c1"]],
     ]);
   });
 

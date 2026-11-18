@@ -6,8 +6,9 @@ import type {
 
 /**
  * What each commit's state is called in the list. Waiting for a build,
- * queued and riding along with a newer build all mean the same to an
- * editor: the change goes out with the next build.
+ * queued and riding along with a newer build that hasn't started all mean
+ * the same to an editor: the change goes out with the next build. (One
+ * riding along with a running build is shown as publishing.)
  */
 export const STATE_LABELS: Record<DeployState, string> = {
   live: "Live",
@@ -119,14 +120,14 @@ export function groupCommits(commits: DeployCommit[]): CommitGroup[] {
     stuck: [],
     live: [],
   };
-  // Newest first, so a superseded commit follows the nearest newer build
-  // coming or running: publishing now if that build is already running.
+  // Newest first, so a superseded commit knows whether a newer build is
+  // already running: that build includes it, even with a queued one between.
   let carrier: SectionKey = "waiting";
   for (const commit of commits) {
     const { state } = commit;
     const key: SectionKey =
       state === "superseded" ? carrier : SECTION_OF[state];
-    if (key === "waiting" || key === "building") carrier = key;
+    if (key === "building") carrier = key;
     grouped[key].push(commit);
   }
   return SECTIONS.map(({ key, title }) => ({

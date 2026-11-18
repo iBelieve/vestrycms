@@ -16,6 +16,7 @@ import { useVestry } from "../context.js";
 import {
   aboutDuration,
   buildProgress,
+  type CommitGroup,
   deploySummary,
   groupCommits,
   newestIsLive,
@@ -112,6 +113,7 @@ function DeployList({ status }: { status: Available }) {
               <CommitRow
                 key={c.sha}
                 commit={c}
+                section={group.key}
                 now={now}
                 typicalBuild={status.typicalBuildSeconds}
               />
@@ -132,24 +134,36 @@ function leadText(status: Available): string {
       status.pending === 1 ? "1 change is" : `${status.pending} changes are`;
     return `${changes} on the way to the site.${typical}`;
   }
-  if (status.failed)
-    return "The latest change couldn't be published, so the site still shows the changes under On the site. Open it to see why.";
+  if (status.failed) {
+    // With no live commit in the list there is no On the site section.
+    const onSite = status.commits.some((c) => c.state === "live")
+      ? ", so the site still shows the changes under On the site"
+      : "";
+    return `The latest change couldn't be published${onSite}. Open it to see why.`;
+  }
   if (!newestIsLive(status))
-    return "The latest change isn't on the site yet. Saving again will publish it.";
+    return "The latest change isn't on the site. Open it to see why.";
   return "Every change below is on the site.";
 }
 
 function CommitRow({
   commit,
+  section,
   now,
   typicalBuild,
 }: {
   commit: DeployCommit;
+  section: CommitGroup["key"];
   now: number;
   typicalBuild: number | null;
 }) {
   const link = commit.buildUrl ?? commit.url;
   const building = commit.state === "building";
+  // A change going out with a running build is publishing, like that build.
+  const shown: DeployState =
+    commit.state === "superseded" && section === "building"
+      ? "building"
+      : commit.state;
   const when =
     building && commit.buildStartedAt
       ? `started ${timeAgo(commit.buildStartedAt, now)}`
@@ -157,12 +171,15 @@ function CommitRow({
   const progress = building
     ? buildProgress(commit.buildStartedAt, typicalBuild, now)
     : null;
-  // The section says the state; only a failure is called out on the row.
-  const note = commit.state === "failed" ? STATE_LABELS.failed : null;
+  // The section says the state; a failure or a replaced change says why on the row.
+  const note =
+    commit.state === "failed" || commit.state === "overwritten"
+      ? STATE_LABELS[commit.state]
+      : null;
   return (
     <li className={cx("v-deploys__row", `is-${commit.state}`)}>
-      <span className="v-deploys__icon" title={STATE_LABELS[commit.state]}>
-        {STATE_ICONS[commit.state]}
+      <span className="v-deploys__icon" title={STATE_LABELS[shown]}>
+        {STATE_ICONS[shown]}
       </span>
       <span className="v-deploys__body">
         <span className="v-deploys__title">
