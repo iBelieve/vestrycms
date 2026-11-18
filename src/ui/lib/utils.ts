@@ -311,6 +311,17 @@ function objectSummary(obj: Record<string, unknown>, field?: Field): string {
   return first ? String(first) : "";
 }
 
+/** The image types an image field or the editor's image tool accepts by default. */
+export const IMAGE_EXTENSIONS = [
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "avif",
+  "svg",
+];
+
 export function isImagePath(p: string): boolean {
   return /\.(jpe?g|png|gif|webp|avif|svg)$/i.test(p);
 }

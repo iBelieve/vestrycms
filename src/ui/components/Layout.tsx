@@ -18,7 +18,9 @@ import { Icon } from "./Icon.js";
 import { Menu } from "./ui.js";
 import { logoSrc } from "../lib/logo.js";
 import { VestryMark } from "./VestryMark.js";
-import { initials } from "../lib/utils.js";
+import { cx, initials } from "../lib/utils.js";
+import type { ClientConfig, PublicUser } from "../api.js";
+import type { NavigationGroup, VestryConfig } from "../../config/types.js";
 
 export interface Crumb {
   label: string;
@@ -29,73 +31,12 @@ export interface Crumb {
 const CrumbsContext = createContext<(crumbs: Crumb[]) => void>(() => {});
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { client, config, name, api, authClient, refresh } = useVestry();
-  const logo = logoSrc(config.logo, api);
-  const navigate = useNavigate();
+  const { client, config, name, api } = useVestry();
   const [crumbs, setCrumbs] = useState<Crumb[]>([]);
-  const collections = Object.entries(config.collections ?? {});
-  const singletons = Object.entries(config.singletons ?? {});
-  const assets = Object.entries(config.assets ?? {});
-
-  const groups =
-    config.navigation ??
-    ([
-      collections.length && {
-        label: "Collections",
-        items: collections.map(([k]) => `collections.${k}`),
-      },
-      singletons.length && {
-        label: "Globals",
-        items: singletons.map(([k]) => `singletons.${k}`),
-      },
-      assets.length && {
-        label: "Assets",
-        items: assets.map(([k]) => `assets.${k}`),
-      },
-    ].filter(Boolean) as { label: string; items: string[] }[]);
-
-  const itemFor = (ref: string) => {
-    const [kind, key] = ref.split(".") as [
-      "collections" | "singletons" | "assets",
-      string,
-    ];
-    if (kind === "collections" && config.collections?.[key]) {
-      return {
-        to: `/collections/${key}`,
-        label: config.collections[key].label,
-        icon: config.collections[key].icon ?? "files",
-      };
-    }
-    if (kind === "singletons" && config.singletons?.[key]) {
-      return {
-        to: `/singletons/${key}`,
-        label: config.singletons[key].label,
-        icon: config.singletons[key].icon ?? "settings-2",
-      };
-    }
-    if (kind === "assets" && config.assets?.[key]) {
-      return {
-        to: `/assets/${key}`,
-        label: config.assets[key].label,
-        icon: config.assets[key].icon ?? "image",
-      };
-    }
-    return null;
-  };
-
   return (
     <div className="v-app">
       <header className="v-chrome">
-        <Link to="/" className="v-chrome__brand" title={name}>
-          {logo ? (
-            <img className="v-chrome__logo" src={logo} alt={name} />
-          ) : (
-            <>
-              <VestryMark className="v-chrome__mark" />
-              <span className="v-chrome__name">{name}</span>
-            </>
-          )}
-        </Link>
+        <Brand logo={logoSrc(config.logo, api)} name={name} />
         {crumbs.map((c, i) => (
           <span key={i} className="v-chrome__crumb">
             <span className="v-chrome__sep">/</span>
@@ -103,25 +44,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </span>
         ))}
         <div className="v-chrome__spacer" />
-        {client.source.url ? (
-          <a
-            className="v-chrome__chip"
-            href={client.source.url}
-            target="_blank"
-            rel="noreferrer"
-            title={client.source.label}
-          >
-            <GitBranch />
-            <span>{client.source.branch ?? client.source.label}</span>
-          </a>
-        ) : (
-          <span className="v-chrome__chip" title={client.source.label}>
-            <GitBranch />
-            <span>
-              {client.mode === "local" ? "Local files" : client.source.label}
-            </span>
-          </span>
-        )}
+        <SourceChip client={client} />
         {config.siteUrl && (
           <a
             className="v-chrome__chip"
@@ -134,104 +57,13 @@ export function Shell({ children }: { children: ReactNode }) {
             <span>View site</span>
           </a>
         )}
-        {client.user && (
-          <Menu
-            align="right"
-            trigger={({ toggle }) => (
-              <button
-                type="button"
-                className="v-chrome__avatar"
-                onClick={toggle}
-                title={client.user!.name}
-              >
-                {initials(client.user!.name || client.user!.email || "?")}
-              </button>
-            )}
-          >
-            {(close) => (
-              <>
-                <div className="v-menu__heading">
-                  {client.user!.name}
-                  {client.user!.email && (
-                    <span className="v-menu__sub">{client.user!.email}</span>
-                  )}
-                </div>
-                <div className="v-menu__item v-menu__item--static">
-                  <GitBranch />
-                  <span>
-                    {client.mode === "local"
-                      ? "Editing local files"
-                      : client.source.label}
-                  </span>
-                </div>
-                {client.auth && (
-                  <button
-                    className="v-menu__item"
-                    onClick={async () => {
-                      close();
-                      await authClient.signOut();
-                      await refresh();
-                      navigate("/login");
-                    }}
-                  >
-                    <LogOut />
-                    <span>Sign out</span>
-                  </button>
-                )}
-              </>
-            )}
-          </Menu>
-        )}
+        {client.user && <AccountMenu user={client.user} />}
       </header>
       <div className="v-shell">
-        <aside className="v-sidebar">
-          <nav className="v-nav">
-            <div className="v-nav__group">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `v-nav__link${isActive ? " is-active" : ""}`
-                }
-              >
-                <LayoutDashboard /> Dashboard
-              </NavLink>
-            </div>
-            {groups.map((g) => (
-              <div key={g.label} className="v-nav__group">
-                <h3 className="v-nav__heading">{g.label}</h3>
-                {g.items.map((ref) => {
-                  const item = itemFor(ref);
-                  if (!item) return null;
-                  return (
-                    <NavLink
-                      key={ref}
-                      to={item.to}
-                      className={({ isActive }) =>
-                        `v-nav__link${isActive ? " is-active" : ""}`
-                      }
-                    >
-                      <Icon name={item.icon} /> {item.label}
-                    </NavLink>
-                  );
-                })}
-              </div>
-            ))}
-            {client.auth && client.user?.role === "admin" && (
-              <div className="v-nav__group">
-                <h3 className="v-nav__heading">System</h3>
-                <NavLink
-                  to="/users"
-                  className={({ isActive }) =>
-                    `v-nav__link${isActive ? " is-active" : ""}`
-                  }
-                >
-                  <Users /> Users
-                </NavLink>
-              </div>
-            )}
-          </nav>
-        </aside>
+        <Sidebar
+          config={config}
+          showUsers={client.auth && client.user?.role === "admin"}
+        />
         <div className="v-main">
           <CrumbsContext.Provider value={setCrumbs}>
             {children}
@@ -240,6 +72,181 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+/** The top bar's home link: the site's logo, or Vestry's mark and the name. */
+function Brand({ logo, name }: { logo: string | null; name: string }) {
+  return (
+    <Link to="/" className="v-chrome__brand" title={name}>
+      {logo ? (
+        <img className="v-chrome__logo" src={logo} alt={name} />
+      ) : (
+        <>
+          <VestryMark className="v-chrome__mark" />
+          <span className="v-chrome__name">{name}</span>
+        </>
+      )}
+    </Link>
+  );
+}
+
+/** Where content is saved: a link to the branch, or the local working copy. */
+function SourceChip({ client }: { client: ClientConfig }) {
+  const { source } = client;
+  if (source.url) {
+    return (
+      <a
+        className="v-chrome__chip"
+        href={source.url}
+        target="_blank"
+        rel="noreferrer"
+        title={source.label}
+      >
+        <GitBranch />
+        <span>{source.branch ?? source.label}</span>
+      </a>
+    );
+  }
+  return (
+    <span className="v-chrome__chip" title={source.label}>
+      <GitBranch />
+      <span>{client.mode === "local" ? "Local files" : source.label}</span>
+    </span>
+  );
+}
+
+/** The signed-in user's avatar, opening their name, the source and sign-out. */
+function AccountMenu({ user }: { user: PublicUser }) {
+  const { client, authClient, refresh } = useVestry();
+  const navigate = useNavigate();
+  return (
+    <Menu
+      align="right"
+      trigger={({ toggle }) => (
+        <button
+          type="button"
+          className="v-chrome__avatar"
+          onClick={toggle}
+          title={user.name}
+        >
+          {initials(user.name || user.email || "?")}
+        </button>
+      )}
+    >
+      {(close) => (
+        <>
+          <div className="v-menu__heading">
+            {user.name}
+            {user.email && <span className="v-menu__sub">{user.email}</span>}
+          </div>
+          <div className="v-menu__item v-menu__item--static">
+            <GitBranch />
+            <span>
+              {client.mode === "local"
+                ? "Editing local files"
+                : client.source.label}
+            </span>
+          </div>
+          {client.auth && (
+            <button
+              className="v-menu__item"
+              onClick={async () => {
+                close();
+                await authClient.signOut();
+                await refresh();
+                navigate("/login");
+              }}
+            >
+              <LogOut />
+              <span>Sign out</span>
+            </button>
+          )}
+        </>
+      )}
+    </Menu>
+  );
+}
+
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  cx("v-nav__link", isActive && "is-active");
+
+function Sidebar({
+  config,
+  showUsers,
+}: {
+  config: VestryConfig;
+  showUsers: boolean;
+}) {
+  return (
+    <aside className="v-sidebar">
+      <nav className="v-nav">
+        <div className="v-nav__group">
+          <NavLink to="/" end className={navLinkClass}>
+            <LayoutDashboard /> Dashboard
+          </NavLink>
+        </div>
+        {navGroups(config).map((g) => (
+          <div key={g.label} className="v-nav__group">
+            <h3 className="v-nav__heading">{g.label}</h3>
+            {g.items.map((ref) => {
+              const item = navItem(config, ref);
+              if (!item) return null;
+              return (
+                <NavLink key={ref} to={item.to} className={navLinkClass}>
+                  <Icon name={item.icon} /> {item.label}
+                </NavLink>
+              );
+            })}
+          </div>
+        ))}
+        {showUsers && (
+          <div className="v-nav__group">
+            <h3 className="v-nav__heading">System</h3>
+            <NavLink to="/users" className={navLinkClass}>
+              <Users /> Users
+            </NavLink>
+          </div>
+        )}
+      </nav>
+    </aside>
+  );
+}
+
+type NavKind = "collections" | "singletons" | "assets";
+
+/** The sidebar's sections, in order, with each one's default label and icon. */
+const NAV_KINDS: { kind: NavKind; label: string; icon: string }[] = [
+  { kind: "collections", label: "Collections", icon: "files" },
+  { kind: "singletons", label: "Globals", icon: "settings-2" },
+  { kind: "assets", label: "Assets", icon: "image" },
+];
+
+/**
+ * `config.navigation`, or by default one group per kind of content that the
+ * config has, listing all of it.
+ */
+function navGroups(config: VestryConfig): NavigationGroup[] {
+  if (config.navigation) return config.navigation;
+  return NAV_KINDS.map(({ kind, label }) => ({
+    label,
+    items: Object.keys(config[kind] ?? {}).map((k) => `${kind}.${k}`),
+  })).filter((g) => g.items.length > 0);
+}
+
+/** The link for a `kind.key` navigation item, or null when it names nothing. */
+function navItem(
+  config: VestryConfig,
+  ref: string,
+): { to: string; label: string; icon: string } | null {
+  const [kind, key] = ref.split(".");
+  const meta = NAV_KINDS.find((k) => k.kind === kind);
+  const target = meta && config[meta.kind]?.[key];
+  if (!meta || !target) return null;
+  return {
+    to: `/${meta.kind}/${key}`,
+    label: target.label,
+    icon: target.icon ?? meta.icon,
+  };
 }
 
 export function TopBar({

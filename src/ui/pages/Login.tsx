@@ -18,14 +18,6 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const codeRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (step === "code") codeRef.current?.focus();
-  }, [step]);
-
-  const logo = logoSrc(client.config.logo, api);
-
   /** Asks for a code; resolves true when the request was accepted. */
   async function requestCode(e?: FormEvent): Promise<boolean> {
     e?.preventDefault();
@@ -75,107 +67,175 @@ export function LoginPage() {
   return (
     <div className="v-login">
       <div className="v-card v-login__card">
-        {logo ? (
-          <div className="v-login__logo">
-            <img src={logo} alt={name} />
-          </div>
-        ) : (
-          <div className="v-login__mark">{name.slice(0, 1)}</div>
-        )}
+        <LoginMark logo={logoSrc(client.config.logo, api)} name={name} />
         <h1>{name}</h1>
-
         {client.setupError ? (
           <>
             <p>Vestry isn't configured yet.</p>
             <Alert kind="error">{client.setupError}</Alert>
           </>
         ) : step === "email" ? (
-          <form onSubmit={requestCode} className="v-login__form">
-            <p>
-              Enter your email address and we'll send you a code to sign in.
-            </p>
-            <label className="v-login__field">
-              <span className="v-field__label">Email</span>
-              <input
-                className="v-input"
-                type="email"
-                name="email"
-                autoComplete="email"
-                autoFocus
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.org"
-              />
-            </label>
-            {error && <Alert kind="error">{error}</Alert>}
-            <button
-              className="v-btn v-btn--primary"
-              type="submit"
-              disabled={busy || !email}
-            >
-              {busy ? <Spinner /> : <Mail />} Email me a code
-            </button>
-          </form>
+          <EmailStep
+            email={email}
+            onEmail={setEmail}
+            onSubmit={requestCode}
+            busy={busy}
+            error={error}
+          />
         ) : (
-          <form onSubmit={verify} className="v-login__form">
-            <p>
-              If <strong>{email}</strong> can edit this site, we've emailed it a
-              six-digit code. It expires in 10 minutes.
-            </p>
-            <label className="v-login__field">
-              <span className="v-field__label">Code</span>
-              <input
-                ref={codeRef}
-                className="v-input v-login__code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9 ]*"
-                maxLength={7}
-                required
-                value={code}
-                onChange={(e) =>
-                  setCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))
-                }
-                placeholder="123456"
-              />
-            </label>
-            {error && <Alert kind="error">{error}</Alert>}
-            {notice && <Alert kind="info">{notice}</Alert>}
-            <button
-              className="v-btn v-btn--primary"
-              type="submit"
-              disabled={busy || code.length !== 6}
-            >
-              {busy ? <Spinner /> : <KeyRound />} Sign in
-            </button>
-            <div className="v-login__links">
-              <button
-                type="button"
-                className="v-link"
-                disabled={busy}
-                onClick={() => {
-                  setStep("email");
-                  setError(null);
-                  setNotice(null);
-                }}
-              >
-                <ArrowLeft size={13} /> Use a different email
-              </button>
-              <button
-                type="button"
-                className="v-link"
-                disabled={busy}
-                onClick={async () => {
-                  if (await requestCode()) setNotice("We sent a new code.");
-                }}
-              >
-                Send a new code
-              </button>
-            </div>
-          </form>
+          <CodeStep
+            email={email}
+            code={code}
+            onCode={setCode}
+            onSubmit={verify}
+            onBack={() => {
+              setStep("email");
+              setError(null);
+              setNotice(null);
+            }}
+            onResend={async () => {
+              if (await requestCode()) setNotice("We sent a new code.");
+            }}
+            busy={busy}
+            error={error}
+            notice={notice}
+          />
         )}
       </div>
     </div>
+  );
+}
+
+/** The site's logo, or its initial when it has none. */
+function LoginMark({ logo, name }: { logo: string | null; name: string }) {
+  return logo ? (
+    <div className="v-login__logo">
+      <img src={logo} alt={name} />
+    </div>
+  ) : (
+    <div className="v-login__mark">{name.slice(0, 1)}</div>
+  );
+}
+
+/** Step one: the email address to send a code to. */
+function EmailStep({
+  email,
+  onEmail,
+  onSubmit,
+  busy,
+  error,
+}: {
+  email: string;
+  onEmail: (email: string) => void;
+  onSubmit: (e: FormEvent) => void;
+  busy: boolean;
+  error: string | null;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="v-login__form">
+      <p>Enter your email address and we'll send you a code to sign in.</p>
+      <label className="v-login__field">
+        <span className="v-field__label">Email</span>
+        <input
+          className="v-input"
+          type="email"
+          name="email"
+          autoComplete="email"
+          autoFocus
+          required
+          value={email}
+          onChange={(e) => onEmail(e.target.value)}
+          placeholder="you@example.org"
+        />
+      </label>
+      {error && <Alert kind="error">{error}</Alert>}
+      <button
+        className="v-btn v-btn--primary"
+        type="submit"
+        disabled={busy || !email}
+      >
+        {busy ? <Spinner /> : <Mail />} Email me a code
+      </button>
+    </form>
+  );
+}
+
+/** Step two: the six-digit code we emailed. */
+function CodeStep({
+  email,
+  code,
+  onCode,
+  onSubmit,
+  onBack,
+  onResend,
+  busy,
+  error,
+  notice,
+}: {
+  email: string;
+  code: string;
+  onCode: (code: string) => void;
+  onSubmit: (e: FormEvent) => void;
+  onBack: () => void;
+  onResend: () => void;
+  busy: boolean;
+  error: string | null;
+  notice: string | null;
+}) {
+  const codeRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    codeRef.current?.focus();
+  }, []);
+  return (
+    <form onSubmit={onSubmit} className="v-login__form">
+      <p>
+        If <strong>{email}</strong> can edit this site, we've emailed it a
+        six-digit code. It expires in 10 minutes.
+      </p>
+      <label className="v-login__field">
+        <span className="v-field__label">Code</span>
+        <input
+          ref={codeRef}
+          className="v-input v-login__code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="[0-9 ]*"
+          maxLength={7}
+          required
+          value={code}
+          onChange={(e) =>
+            onCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))
+          }
+          placeholder="123456"
+        />
+      </label>
+      {error && <Alert kind="error">{error}</Alert>}
+      {notice && <Alert kind="info">{notice}</Alert>}
+      <button
+        className="v-btn v-btn--primary"
+        type="submit"
+        disabled={busy || code.length !== 6}
+      >
+        {busy ? <Spinner /> : <KeyRound />} Sign in
+      </button>
+      <div className="v-login__links">
+        <button
+          type="button"
+          className="v-link"
+          disabled={busy}
+          onClick={onBack}
+        >
+          <ArrowLeft size={13} /> Use a different email
+        </button>
+        <button
+          type="button"
+          className="v-link"
+          disabled={busy}
+          onClick={onResend}
+        >
+          Send a new code
+        </button>
+      </div>
+    </form>
   );
 }

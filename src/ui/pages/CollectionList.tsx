@@ -36,33 +36,15 @@ import {
   titleCase,
 } from "../lib/utils.js";
 
+type Status = "all" | "published" | "draft";
+type Sort = { field: string; dir: "asc" | "desc" };
+
 export function CollectionListPage() {
   const { collection: key = "" } = useParams();
   const { config, api } = useVestry();
   const col = config.collections?.[key];
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<"all" | "published" | "draft">("all");
-  const [sort, setSort] = useState<{
-    field: string;
-    dir: "asc" | "desc";
-  } | null>(null);
-
-  const [view, setView] = useStoredState(
-    `vestry:list-view:${key}`,
-    "tree",
-    (v): v is "tree" | "list" => v === "tree" || v === "list",
-  );
-  const [open, setOpen] = useStoredState(
-    `vestry:tree-open:${key}`,
-    NONE_OPEN,
-    (v): v is string[] =>
-      Array.isArray(v) && v.every((p) => typeof p === "string"),
-  );
-  const expanded = useMemo(() => new Set(open), [open]);
-  const toggleOpen = (path: string) =>
-    setOpen((o) =>
-      o.includes(path) ? o.filter((p) => p !== path) : [...o, path],
-    );
+  const { search, setSearch, status, setStatus, sort, setSort, view, setView } =
+    useListFilters(key);
 
   const q = useQuery({
     queryKey: ["entries", key],
@@ -70,61 +52,19 @@ export function CollectionListPage() {
     enabled: Boolean(col),
   });
 
-  const entries = useMemo(() => {
-    let list = q.data?.entries ?? [];
-    if (status !== "all") list = list.filter((e) => e.status === status);
-    if (search.trim()) {
-      const s = search.toLowerCase();
-      const fields = col?.searchFields ?? [col?.titleField ?? "title"];
-      list = list.filter(
-        (e) =>
-          e.title.toLowerCase().includes(s) ||
-          e.slug.toLowerCase().includes(s) ||
-          fields.some((f) =>
-            String(e.data[f] ?? "")
-              .toLowerCase()
-              .includes(s),
-          ),
-      );
-    }
-    if (sort) {
-      const dir = sort.dir === "asc" ? 1 : -1;
-      const titleField = col?.titleField ?? "title";
-      list = [...list].sort((a, b) => {
-        const av = sortValue(a, sort.field, titleField);
-        const bv = sortValue(b, sort.field, titleField);
-        return av < bv ? -dir : av > bv ? dir : 0;
-      });
-    }
-    return list;
-  }, [q.data, status, search, sort, col]);
-
-  if (!col) return <NotFoundState title={`No collection called “${key}”`} />;
-  const columns = listColumns(col);
-  // A search or status filter lists its matches flat, wherever they sit.
-  const tree =
-    Boolean(col.tree) &&
-    (col.tree === "only" || view === "tree") &&
-    !search.trim() &&
-    status === "all";
-
-  const toggleSort = (field: string) =>
-    setSort((s) =>
-      s?.field === field
-        ? { field, dir: s.dir === "asc" ? "desc" : "asc" }
-        : { field, dir: "asc" },
-    );
-
-  const header = (field: string, label: string) => (
-    <th key={field}>
-      <button type="button" onClick={() => toggleSort(field)}>
-        {label}
-        {sort?.field === field &&
-          (sort.dir === "asc" ? <ArrowUp /> : <ArrowDown />)}
-      </button>
-    </th>
+  const entries = useMemo(
+    () =>
+      col && q.data
+        ? sortEntries(
+            filterEntries(q.data.entries, col, status, search),
+            sort,
+            col.titleField ?? "title",
+          )
+        : [],
+    [q.data, status, search, sort, col],
   );
 
+  if (!col) return <NotFoundState title={`No collection called “${key}”`} />;
   return (
     <>
       <TopBar
@@ -152,32 +92,19 @@ export function CollectionListPage() {
             />
           </div>
           {col.status && (
-            <div className="v-segment">
-              {(["all", "published", "draft"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={cx(status === s && "is-active")}
-                  onClick={() => setStatus(s)}
-                >
-                  {titleCase(s)}
-                </button>
-              ))}
-            </div>
+            <Segment
+              options={["all", "published", "draft"] as const}
+              value={status}
+              onChange={setStatus}
+            />
           )}
           {col.tree === true && (
-            <div className="v-segment" aria-label="View">
-              {(["tree", "list"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={cx(view === v && "is-active")}
-                  onClick={() => setView(v)}
-                >
-                  {titleCase(v)}
-                </button>
-              ))}
-            </div>
+            <Segment
+              label="View"
+              options={["tree", "list"] as const}
+              value={view}
+              onChange={setView}
+            />
           )}
         </div>
         <div className="v-card">
@@ -188,72 +115,23 @@ export function CollectionListPage() {
             </div>
           )}
           {q.data && entries.length === 0 && (
-            <EmptyState
-              icon={<Icon name={col.icon ?? "files"} />}
-              title={
-                search ? "No matches" : `No ${col.label.toLowerCase()} yet`
-              }
-            >
-              {!search && col.create !== false && (
-                <p>
-                  <Link to={`/collections/${key}/new`} className="v-btn">
-                    <Plus /> Create the first{" "}
-                    {col.singular?.toLowerCase() ?? "entry"}
-                  </Link>
-                </p>
-              )}
-            </EmptyState>
+            <NoEntries
+              col={col}
+              collectionKey={key}
+              searching={Boolean(search)}
+            />
           )}
           {q.data && entries.length > 0 && (
             <>
-              <div className="v-table-wrap">
-                <table className="v-table">
-                  <thead>
-                    <tr>
-                      {columns.before.map((c) =>
-                        header(c.field, columnLabel(col, c)),
-                      )}
-                      {header(columns.titleField, columns.titleLabel)}
-                      {columns.after.map((c) =>
-                        header(c.field, columnLabel(col, c)),
-                      )}
-                      {columns.extraStatus && <th>Status</th>}
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tree
-                      ? treeRows(entries, expanded).map((row) => (
-                          <EntryRow
-                            key={row.path}
-                            col={col}
-                            colKey={key}
-                            columns={columns}
-                            siteUrl={config.siteUrl}
-                            row={row}
-                            open={expanded.has(row.path)}
-                            onToggle={() => toggleOpen(row.path)}
-                          />
-                        ))
-                      : entries.map((e) => (
-                          <EntryRow
-                            key={e.slug}
-                            col={col}
-                            colKey={key}
-                            columns={columns}
-                            siteUrl={config.siteUrl}
-                            row={{
-                              path: e.slug,
-                              depth: 0,
-                              entry: e,
-                              label: e.title,
-                              children: 0,
-                            }}
-                          />
-                        ))}
-                  </tbody>
-                </table>
-              </div>
+              <EntryTable
+                col={col}
+                colKey={key}
+                siteUrl={config.siteUrl}
+                entries={entries}
+                tree={showsTree(col, view, search, status)}
+                sort={sort}
+                onSort={(field) => setSort((s) => nextSort(s, field))}
+              />
               <div className="v-table__footer">
                 {entries.length} of {q.data.entries.length}{" "}
                 {col.label.toLowerCase()}
@@ -262,6 +140,256 @@ export function CollectionListPage() {
           )}
         </div>
       </div>
+    </>
+  );
+}
+
+/** The list's search, status filter, sort and (remembered) view. */
+function useListFilters(key: string) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<Status>("all");
+  const [sort, setSort] = useState<Sort | null>(null);
+  const [view, setView] = useStoredState(
+    `vestry:list-view:${key}`,
+    "tree",
+    (v): v is "tree" | "list" => v === "tree" || v === "list",
+  );
+  return { search, setSearch, status, setStatus, sort, setSort, view, setView };
+}
+
+/**
+ * Whether the entries show as a tree: in a tree collection's tree view, but
+ * a search or status filter lists its matches flat, wherever they sit.
+ */
+function showsTree(
+  col: CollectionConfig,
+  view: "tree" | "list",
+  search: string,
+  status: Status,
+): boolean {
+  if (!col.tree || search.trim() || status !== "all") return false;
+  return col.tree === "only" || view === "tree";
+}
+
+/** Clicking a column sorts by it, then reverses; a new column starts ascending. */
+function nextSort(sort: Sort | null, field: string): Sort {
+  if (sort?.field !== field) return { field, dir: "asc" };
+  return { field, dir: sort.dir === "asc" ? "desc" : "asc" };
+}
+
+/** The entries with `status` that match `search` in their title, slug or search fields. */
+function filterEntries(
+  entries: EntrySummary[],
+  col: CollectionConfig,
+  status: Status,
+  search: string,
+): EntrySummary[] {
+  let list = entries;
+  if (status !== "all") list = list.filter((e) => e.status === status);
+  if (!search.trim()) return list;
+  const s = search.toLowerCase();
+  const fields = col.searchFields ?? [col.titleField ?? "title"];
+  const matches = (v: unknown) =>
+    String(v ?? "")
+      .toLowerCase()
+      .includes(s);
+  return list.filter(
+    (e) =>
+      matches(e.title) ||
+      matches(e.slug) ||
+      fields.some((f) => matches(e.data[f])),
+  );
+}
+
+function sortEntries(
+  entries: EntrySummary[],
+  sort: Sort | null,
+  titleField: string,
+): EntrySummary[] {
+  if (!sort) return entries;
+  const dir = sort.dir === "asc" ? 1 : -1;
+  return [...entries].sort((a, b) => {
+    const av = sortValue(a, sort.field, titleField);
+    const bv = sortValue(b, sort.field, titleField);
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+}
+
+/** A row of buttons choosing one of `options`, each labelled in title case. */
+function Segment<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (value: T) => void;
+  label?: string;
+}) {
+  return (
+    <div className="v-segment" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          className={cx(value === o && "is-active")}
+          onClick={() => onChange(o)}
+        >
+          {titleCase(o)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function NoEntries({
+  col,
+  collectionKey,
+  searching,
+}: {
+  col: CollectionConfig;
+  collectionKey: string;
+  searching: boolean;
+}) {
+  return (
+    <EmptyState
+      icon={<Icon name={col.icon ?? "files"} />}
+      title={searching ? "No matches" : `No ${col.label.toLowerCase()} yet`}
+    >
+      {!searching && col.create !== false && (
+        <p>
+          <Link to={`/collections/${collectionKey}/new`} className="v-btn">
+            <Plus /> Create the first {col.singular?.toLowerCase() ?? "entry"}
+          </Link>
+        </p>
+      )}
+    </EmptyState>
+  );
+}
+
+function SortHeader({
+  field,
+  label,
+  sort,
+  onSort,
+}: {
+  field: string;
+  label: string;
+  sort: Sort | null;
+  onSort: (field: string) => void;
+}) {
+  return (
+    <th>
+      <button type="button" onClick={() => onSort(field)}>
+        {label}
+        {sort?.field === field &&
+          (sort.dir === "asc" ? <ArrowUp /> : <ArrowDown />)}
+      </button>
+    </th>
+  );
+}
+
+type RowProps = {
+  col: CollectionConfig;
+  colKey: string;
+  columns: Columns;
+  siteUrl?: string;
+};
+
+/** The entries as a table, or in a tree by their folders. */
+function EntryTable({
+  entries,
+  tree,
+  sort,
+  onSort,
+  ...props
+}: Omit<RowProps, "columns"> & {
+  entries: EntrySummary[];
+  tree: boolean;
+  sort: Sort | null;
+  onSort: (field: string) => void;
+}) {
+  const { col } = props;
+  const columns = listColumns(col);
+  const header = (c: ListColumn) => (
+    <SortHeader
+      key={c.field}
+      field={c.field}
+      label={columnLabel(col, c)}
+      sort={sort}
+      onSort={onSort}
+    />
+  );
+  return (
+    <div className="v-table-wrap">
+      <table className="v-table">
+        <thead>
+          <tr>
+            {columns.before.map(header)}
+            <SortHeader
+              field={columns.titleField}
+              label={columns.titleLabel}
+              sort={sort}
+              onSort={onSort}
+            />
+            {columns.after.map(header)}
+            {columns.extraStatus && <th>Status</th>}
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {tree ? (
+            <TreeRows entries={entries} {...props} columns={columns} />
+          ) : (
+            entries.map((e) => (
+              <EntryRow
+                key={e.slug}
+                {...props}
+                columns={columns}
+                row={{
+                  path: e.slug,
+                  depth: 0,
+                  entry: e,
+                  label: e.title,
+                  children: 0,
+                }}
+              />
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** The entries by their folders, each folder remembered open or closed. */
+function TreeRows({
+  entries,
+  ...props
+}: RowProps & { entries: EntrySummary[] }) {
+  const [open, setOpen] = useStoredState(
+    `vestry:tree-open:${props.colKey}`,
+    NONE_OPEN,
+    (v): v is string[] =>
+      Array.isArray(v) && v.every((p) => typeof p === "string"),
+  );
+  const expanded = useMemo(() => new Set(open), [open]);
+  const toggleOpen = (path: string) =>
+    setOpen((o) =>
+      o.includes(path) ? o.filter((p) => p !== path) : [...o, path],
+    );
+  return (
+    <>
+      {treeRows(entries, expanded).map((row) => (
+        <EntryRow
+          key={row.path}
+          {...props}
+          row={row}
+          open={expanded.has(row.path)}
+          onToggle={() => toggleOpen(row.path)}
+        />
+      ))}
     </>
   );
 }
@@ -277,11 +405,7 @@ function EntryRow({
   row,
   open,
   onToggle,
-}: {
-  col: CollectionConfig;
-  colKey: string;
-  columns: Columns;
-  siteUrl?: string;
+}: RowProps & {
   row: TreeRow;
   open?: boolean;
   onToggle?: () => void;
@@ -303,37 +427,13 @@ function EntryRow({
           className={cx(onToggle && "v-table__node")}
           style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
         >
-          {onToggle &&
-            (row.children > 0 ? (
-              <button
-                type="button"
-                className="v-table__toggle"
-                aria-expanded={open}
-                aria-label={`${open ? "Collapse" : "Expand"} ${e?.title ?? row.label}`}
-                onClick={onToggle}
-              >
-                <ChevronRight />
-              </button>
-            ) : (
-              <span className="v-table__toggle" />
-            ))}
-          <div className="v-table__label">
-            {e ? (
-              <Link
-                className="v-table__title"
-                to={entryHref(colKey, e.slug)}
-                title={row.label === e.title ? undefined : e.title}
-              >
-                {row.label}
-              </Link>
-            ) : (
-              <span className="v-table__folder">{row.label}</span>
-            )}
-            {onToggle && row.children > 0 && !open && (
-              <span className="v-table__count"> · {row.children}</span>
-            )}
-            {e && <EntrySubtitle col={col} entry={e} />}
-          </div>
+          {onToggle && <NodeToggle row={row} open={open} onToggle={onToggle} />}
+          <RowLabel
+            col={col}
+            colKey={colKey}
+            row={row}
+            folded={!!onToggle && !open}
+          />
         </div>
       </td>
       {cells(columns.after)}
@@ -352,6 +452,68 @@ function EntryRow({
         )}
       </td>
     </tr>
+  );
+}
+
+/** Opens or closes a tree row with children; a spacer for one without. */
+function NodeToggle({
+  row,
+  open,
+  onToggle,
+}: {
+  row: TreeRow;
+  open?: boolean;
+  onToggle: () => void;
+}) {
+  if (row.children === 0) return <span className="v-table__toggle" />;
+  return (
+    <button
+      type="button"
+      className="v-table__toggle"
+      aria-expanded={open}
+      aria-label={`${open ? "Collapse" : "Expand"} ${row.entry?.title ?? row.label}`}
+      onClick={onToggle}
+    >
+      <ChevronRight />
+    </button>
+  );
+}
+
+/**
+ * The row's link to its entry (or a folder's name), with a closed folder's
+ * count and the entry's subtitle.
+ */
+function RowLabel({
+  col,
+  colKey,
+  row,
+  folded,
+}: {
+  col: CollectionConfig;
+  colKey: string;
+  row: TreeRow;
+  /** A closed tree row, which shows how many rows it hides. */
+  folded: boolean;
+}) {
+  const e = row.entry;
+  return (
+    <div className="v-table__label">
+      {e ? (
+        <Link
+          className="v-table__title"
+          to={entryHref(colKey, e.slug)}
+          title={row.label === e.title ? undefined : e.title}
+        >
+          {row.label}
+        </Link>
+      ) : (
+        <span className="v-table__folder">{row.label}</span>
+      )}
+      {folded && row.children > 0 && (
+        <span className="v-table__count"> · {row.children}</span>
+      )}
+      {e && <EntrySubtitle col={col} entry={e} />}
+    </div>
   );
 }
 
@@ -487,6 +649,9 @@ function sortValue(
 ): string {
   if (field === titleField) return entry.title;
   if (field === "slug") return entry.slug;
+  // The column shows the entry's status, which `data` holds under the
+  // status field's own key, if at all.
+  if (field === "status") return entry.status ?? "";
   return String(entry.data[field] ?? "");
 }
 

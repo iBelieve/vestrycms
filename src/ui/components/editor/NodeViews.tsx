@@ -11,7 +11,7 @@ import {
   Trash,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Field, Schema } from "../../../config/types.js";
+import type { ComponentConfig, Field, Schema } from "../../../config/types.js";
 import { isRawExpression } from "../../../mdx/types.js";
 import { cx, fieldLabel, summarizeProps } from "../../lib/utils.js";
 import { Icon } from "../Icon.js";
@@ -157,16 +157,9 @@ export function ComponentNodeView({
     (p: Record<string, unknown>) => updateAttributes({ props: p }),
     [updateAttributes],
   );
-  const name = String(node.attrs.name);
-  const config = env.components[name];
-  const props = (node.attrs.props ?? {}) as Record<string, unknown>;
-  const schema = config?.props ?? {};
-  const [open, setOpen] = useState(() => opensAtFirst(schema));
-  const acceptsChildren = config
-    ? Boolean(config.children)
-    : node.childCount > 0 || Boolean(node.attrs.hasChildren);
-  const hasProps =
-    Object.keys(schema).length > 0 || Object.keys(props).length > 0;
+  const block = describeBlock(node, env.components);
+  const [open, setOpen] = useState(() => opensAtFirst(block.schema));
+  const { config, schema, props, acceptsChildren, hasProps } = block;
 
   return (
     <NodeViewWrapper
@@ -184,10 +177,10 @@ export function ComponentNodeView({
         <span className="v-block__icon">
           <Icon name={config?.icon ?? "box"} />
         </span>
-        <span className="v-block__name">{config?.label ?? name}</span>
+        <span className="v-block__name">{config?.label ?? block.name}</span>
         <Thumbnail schema={schema} props={props} />
         <span className="v-block__summary">
-          {!open ? summarizeProps(props) : config?.description}
+          {open ? config?.description : summarizeProps(props)}
         </span>
         <div className="v-block__actions">
           {hasProps && (
@@ -217,16 +210,46 @@ export function ComponentNodeView({
           <PropsForm schema={schema} props={props} onChange={commitProps} />
         </div>
       )}
-      {acceptsChildren && (
-        <div className="v-block__children">
-          <NodeViewContent className="v-prose v-prose-nested" />
-        </div>
-      )}
-      {!config && !acceptsChildren && !hasProps && (
-        <div className="v-block__empty">Unknown component with no props.</div>
-      )}
+      <BlockBody block={block} />
     </NodeViewWrapper>
   );
+}
+
+type Block = ReturnType<typeof describeBlock>;
+
+/**
+ * A component node as the editor shows it: its config (none for a component
+ * the site doesn't declare), props, whether it holds content and whether
+ * it has any settings to edit.
+ */
+function describeBlock(
+  node: ReactNodeViewProps["node"],
+  components: Record<string, ComponentConfig>,
+) {
+  const name = String(node.attrs.name);
+  const config: ComponentConfig | undefined = components[name];
+  const props = (node.attrs.props ?? {}) as Record<string, unknown>;
+  const schema = config?.props ?? {};
+  // An undeclared component holds content if it has some, or had when parsed.
+  const acceptsChildren = config
+    ? Boolean(config.children)
+    : node.childCount > 0 || Boolean(node.attrs.hasChildren);
+  const hasProps =
+    Object.keys(schema).length > 0 || Object.keys(props).length > 0;
+  return { name, config, props, schema, acceptsChildren, hasProps };
+}
+
+/** The block's content, or a note when an unknown block has nothing to show. */
+function BlockBody({ block }: { block: Block }) {
+  if (block.acceptsChildren) {
+    return (
+      <div className="v-block__children">
+        <NodeViewContent className="v-prose v-prose-nested" />
+      </div>
+    );
+  }
+  if (block.config || block.hasProps) return null;
+  return <div className="v-block__empty">Unknown component with no props.</div>;
 }
 
 /** A block's settings start open when there are a few simple ones. */

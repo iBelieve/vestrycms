@@ -49,7 +49,7 @@ describe("the assets page", () => {
     expect(dialog.querySelector("img")).not.toBeNull();
     await user.click(within(dialog).getByRole("button", { name: /Copy path/ }));
     expect(await navigator.clipboard.readText()).toBe("public/images/a.png");
-    expect(screen.getByText("Path copied")).toBeTruthy();
+    expect(await screen.findByText("Path copied")).toBeTruthy();
   });
 
   it("uploads and deletes files", async () => {
