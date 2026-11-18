@@ -1341,6 +1341,53 @@ a.v-chrome__chip:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A tree row: an indented toggle beside the title and the line under it. */
+.v-table__node {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.v-table__label {
+  min-width: 0;
+  flex: 1;
+}
+.v-table__toggle {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--v-radius-sm);
+  background: none;
+  color: var(--v-text-muted);
+}
+/* Only a row with children has a button; a leaf's toggle is a spacer. */
+button.v-table__toggle {
+  cursor: pointer;
+}
+button.v-table__toggle:hover {
+  background: #eef0f4;
+  color: var(--v-text);
+}
+.v-table__toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.12s;
+}
+.v-table__toggle[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+.v-table__folder {
+  font-weight: 600;
+  color: var(--v-text-muted);
+}
+.v-table__count {
+  color: var(--v-text-faint);
+  font-size: 12.5px;
+}
 .v-table td.v-table__actions {
   text-align: right;
   width: 1%;

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { openPanel } from "./harness.js";
 import { collection, defineConfig, fields } from "../../src/config/index.js";
 import { formatDate } from "../../src/ui/lib/utils.js";
@@ -66,6 +66,20 @@ const config = defineConfig({
       path: "src/content/faqs/*.md",
       columns: ["number", { field: "title", label: "Question" }, "title"],
       schema: { number: fields.number(), title: fields.text() },
+    }),
+    pages: collection({
+      label: "Pages",
+      path: "src/content/pages/**.md",
+      tree: true,
+      sort: { field: "title", direction: "asc" },
+      status: { field: "draft", publishedWhen: false },
+      schema: { title: fields.text(), draft: fields.boolean() },
+    }),
+    readings: collection({
+      label: "Readings",
+      path: "src/content/readings/**.md",
+      tree: "only",
+      schema: { title: fields.text() },
     }),
     authors: collection({
       label: "Authors",
@@ -149,6 +163,13 @@ const files = {
     "---",
     "",
   ].join("\n"),
+  "src/content/pages/about.md": "---\ntitle: About\n---\n",
+  "src/content/pages/resources.md": "---\ntitle: Resources\n---\n",
+  "src/content/pages/resources/music.md":
+    "---\ntitle: Resources - Music\ndraft: true\n---\n",
+  "src/content/pages/guides/one.md": "---\ntitle: Guide one\n---\n",
+  "src/content/readings/cw.md": "---\ntitle: CW\n---\n",
+  "src/content/readings/cw/advent.md": '---\ntitle: "CW: Advent"\n---\n',
   "src/content/authors.yaml": "- id: ann\n  name: Ann Smith\n",
   "src/content/staff/bob.md": "---\nname: Bob\ntitle: Accountant\n---\n",
 };
@@ -160,6 +181,9 @@ const titles = () =>
     .map((a) => a.textContent);
 
 describe("a collection's list", () => {
+  // The list's view and expanded rows are kept in localStorage.
+  afterEach(() => localStorage.clear());
+
   it("shows, searches, filters and sorts its entries", async () => {
     const user = userEvent.setup();
     await openPanel(config, { url: "/collections/posts", files });
@@ -315,6 +339,72 @@ describe("a collection's list", () => {
     ).toEqual(["Name", ""]);
     expect(screen.getAllByText("Ann Smith")).toHaveLength(1);
   });
+
+  it("nests entries by folder, and lists them flat on request", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/pages", files });
+    await screen.findByText("Resources");
+    // Only the top level shows at first, with how much each folder holds.
+    expect(titles()).toEqual(["About", "Resources"]);
+    expect(screen.getByText("guides")).toBeTruthy();
+    expect(screen.getAllByText("· 1")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Expand Resources" }));
+    expect(titles()).toEqual(["About", "Resources", "Music"]);
+    expect(screen.getByText("Music").getAttribute("title")).toBe(
+      "Resources - Music",
+    );
+    await user.click(screen.getByRole("button", { name: "Expand guides" }));
+    expect(titles()).toEqual(["About", "Guide one", "Resources", "Music"]);
+    await user.click(
+      screen.getByRole("button", { name: "Collapse Resources" }),
+    );
+    expect(titles()).toEqual(["About", "Guide one", "Resources"]);
+
+    // A filter lists its matches flat, under their full titles.
+    await user.click(screen.getByRole("button", { name: "Draft" }));
+    expect(titles()).toEqual(["Resources - Music"]);
+    await user.click(screen.getByRole("button", { name: "All" }));
+    await user.type(screen.getByPlaceholderText("Search pages…"), "guide");
+    expect(titles()).toEqual(["Guide one"]);
+    await user.clear(screen.getByPlaceholderText("Search pages…"));
+
+    // The list view, which is remembered.
+    await user.click(screen.getByRole("button", { name: "List" }));
+    expect(titles()).toHaveLength(4);
+    expect(screen.queryByRole("button", { name: /Expand/ })).toBeNull();
+    expect(localStorage.getItem("vestry:list-view:pages")).toBe('"list"');
+    await user.click(screen.getByRole("button", { name: "Tree" }));
+    expect(titles()).toEqual(["About", "Guide one", "Resources"]);
+    expect(JSON.parse(localStorage.getItem("vestry:tree-open:pages")!)).toEqual(
+      ["guides"],
+    );
+  });
+
+  it("shows a tree with no toggle when the tree is the only view", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/readings", files });
+    await screen.findByText("CW");
+    expect(screen.queryByRole("button", { name: "List" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Expand CW" }));
+    expect(titles()).toEqual(["CW", "Advent"]);
+  });
+
+  it.each(["{nope", "{}", "null", '"cw"', "[1]"])(
+    "falls back to the defaults when storage holds %s",
+    async (garbage) => {
+      const user = userEvent.setup();
+      localStorage.setItem("vestry:tree-open:pages", garbage);
+      localStorage.setItem("vestry:list-view:pages", garbage);
+      await openPanel(config, { url: "/collections/pages", files });
+      await screen.findByText("Resources");
+      expect(titles()).toEqual(["About", "Resources"]);
+      await user.click(
+        screen.getByRole("button", { name: "Expand Resources" }),
+      );
+      expect(titles()).toEqual(["About", "Resources", "Music"]);
+    },
+  );
 
   it("invites the first entry of an empty collection", async () => {
     await openPanel(config, { url: "/collections/notes" });
