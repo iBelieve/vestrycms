@@ -38,6 +38,14 @@ while Vestry is below 1.0, a minor version may change behaviour.
   value go by title. A collection sorted by `order` used to list the entries
   without one first, ties in slug order.
 
+### Fixed
+
+- **Scrolling inside a long menu no longer closes it.** A menu closes when
+  the page scrolls, so that it doesn't float away from its button, but
+  scrolling the menu itself closed it too, so the end of a long Insert menu
+  (a site with many components) couldn't be reached. Scrolling past a
+  menu's end no longer scrolls the page behind it either.
+
 ## 0.4.0
 
 ### Added
