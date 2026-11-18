@@ -24,7 +24,7 @@ const theme = EditorView.theme({
     color: "#9ca3af",
   },
   ".cm-activeLineGutter": { background: "#f3f4f6" },
-  ".cm-activeLine": { background: "rgba(37, 99, 235, 0.04)" },
+  ".cm-activeLine": { background: "rgba(194, 65, 12, 0.04)" },
   ".cm-content": { padding: "8px 0" },
 });
 

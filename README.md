@@ -1,8 +1,5 @@
 <h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-reverse.svg" />
-    <img src="assets/logo.svg" alt="" width="48" align="absmiddle" />
-  </picture>
+  <img src="assets/icon.svg" alt="" width="48" align="absmiddle" />
   Vestry CMS
 </h1>
 

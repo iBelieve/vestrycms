@@ -1,16 +1,12 @@
 /**
  * Vestry's own mark (`assets/logo.svg`): arches and V in the current text
  * colour, so one component serves light and dark backgrounds, with the
- * sparkle in the brand orange.
+ * sparkle in the brand orange. It is decorative: the site name beside it
+ * labels the link.
  */
 export function VestryMark({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 256 278"
-      role="img"
-      aria-label="Vestry"
-    >
+    <svg className={className} viewBox="0 0 256 278" aria-hidden="true">
       <g fill="currentColor">
         <path d="M118 16C72 21 35 57 30 106H56C61 72 86 47 118 42Z" />
         <path d="M138 16C184 21 221 57 226 106H200C195 72 170 47 138 42Z" />

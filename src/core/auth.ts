@@ -321,7 +321,7 @@ function inviteEmail(
     ].join("\n"),
     html: emailHtml(
       `${escapeHtml(inviterName)} invited you to edit <strong>${escapeHtml(siteName)}</strong> as ${roleLabel(user.role)}.`,
-      `<p style="margin:20px 0"><a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Open ${escapeHtml(siteName)}</a></p>`,
+      `<p style="margin:20px 0"><a href="${escapeHtml(adminUrl)}" style="display:inline-block;background:#c2410c;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Open ${escapeHtml(siteName)}</a></p>`,
       `Sign in with this email address (${escapeHtml(user.email)}). We'll email you a code each time you sign in; there's no password.`,
     ),
   };
