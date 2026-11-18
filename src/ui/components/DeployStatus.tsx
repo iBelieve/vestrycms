@@ -79,7 +79,7 @@ function DeployMenu({ status }: { status: Available }) {
           type="button"
           className={cx("v-chrome__chip v-deploys__chip", `is-${summary.tone}`)}
           onClick={toggle}
-          title="Site builds"
+          title="Publishing status"
         >
           {summary.tone === "busy" ? (
             <LoaderCircle className="v-deploys__spin" />
@@ -102,7 +102,7 @@ function DeployList({ status }: { status: Available }) {
   const now = useNow(status.pending > 0 ? 1_000 : 30_000);
   return (
     <div className="v-deploys">
-      <div className="v-menu__heading">Site builds</div>
+      <div className="v-menu__heading">Publishing</div>
       <p className="v-deploys__lead">{leadText(status)}</p>
       {groupCommits(status.commits).map((group) => (
         <section key={group.key} className="v-deploys__group">
@@ -113,7 +113,7 @@ function DeployList({ status }: { status: Available }) {
                 key={c.sha}
                 commit={c}
                 now={now}
-                typical={status.typicalSeconds}
+                typicalBuild={status.typicalBuildSeconds}
               />
             ))}
           </ul>
@@ -125,7 +125,7 @@ function DeployList({ status }: { status: Available }) {
 
 function leadText(status: Available): string {
   const typical = status.typicalSeconds
-    ? ` Builds usually take ${aboutDuration(status.typicalSeconds)}.`
+    ? ` Changes usually go live in ${aboutDuration(status.typicalSeconds)}.`
     : "";
   if (status.pending > 0) {
     const changes =
@@ -133,20 +133,20 @@ function leadText(status: Available): string {
     return `${changes} on the way to the site.${typical}`;
   }
   if (status.failed)
-    return "The last build failed, so the site still shows the change marked live. Open the build log to see why.";
+    return "The latest change couldn't be published, so the site still shows the changes under On the site. Open it to see why.";
   if (!newestIsLive(status))
-    return "The newest change isn't on the site: its build didn't run, or an older build deployed after it.";
-  return "Every change below is live on the site.";
+    return "The latest change isn't on the site yet. Saving again will publish it.";
+  return "Every change below is on the site.";
 }
 
 function CommitRow({
   commit,
   now,
-  typical,
+  typicalBuild,
 }: {
   commit: DeployCommit;
   now: number;
-  typical: number | null;
+  typicalBuild: number | null;
 }) {
   const link = commit.buildUrl ?? commit.url;
   const building = commit.state === "building";
@@ -155,15 +155,10 @@ function CommitRow({
       ? `started ${timeAgo(commit.buildStartedAt, now)}`
       : timeAgo(commit.date, now);
   const progress = building
-    ? buildProgress(commit.buildStartedAt, typical, now)
+    ? buildProgress(commit.buildStartedAt, typicalBuild, now)
     : null;
-  // The section says the state; a failure, and the commit the site was
-  // deployed from, are called out on the row.
-  const note = commit.current
-    ? "On the site now"
-    : commit.state === "failed" || commit.state === "overwritten"
-      ? STATE_LABELS[commit.state]
-      : null;
+  // The section says the state; only a failure is called out on the row.
+  const note = commit.state === "failed" ? STATE_LABELS.failed : null;
   return (
     <li className={cx("v-deploys__row", `is-${commit.state}`)}>
       <span className="v-deploys__icon" title={STATE_LABELS[commit.state]}>
@@ -190,7 +185,12 @@ function CommitRow({
           )}
         </small>
         {progress !== null && (
-          <span className="v-deploys__progress">
+          <span
+            className="v-deploys__progress"
+            role="progressbar"
+            aria-label="Estimated build progress"
+            aria-valuenow={Math.round(progress * 100)}
+          >
             <span style={{ width: `${progress * 100}%` }} />
           </span>
         )}
@@ -219,7 +219,7 @@ function useLiveToast(status: Status | undefined) {
   useEffect(() => {
     if (!status?.available) return;
     if (wasPending.current && pending === 0) {
-      if (failed) toast("error", "The site build failed");
+      if (failed) toast("error", "Your changes couldn't be published");
       else if (live) toast("success", "Your changes are live on the site");
       else toast("error", "Your changes aren't live on the site");
     }

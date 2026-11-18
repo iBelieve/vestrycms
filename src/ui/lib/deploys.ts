@@ -15,9 +15,9 @@ export const STATE_LABELS: Record<DeployState, string> = {
   queued: "Waiting",
   building: "Publishing",
   superseded: "Waiting",
-  failed: "Build failed",
-  overwritten: "Replaced by an older build",
-  unknown: "Not built",
+  failed: "Couldn't publish",
+  overwritten: "Replaced by an earlier change",
+  unknown: "Not published",
 };
 
 /** The top bar's summary of the deploy status. */
@@ -38,7 +38,7 @@ export function deploySummary(
           : "Publishing",
     };
   }
-  if (status.failed) return { tone: "bad", label: "Build failed" };
+  if (status.failed) return { tone: "bad", label: "Couldn't publish" };
   // Nothing is on its way, but the newest change may still not be live: its
   // build was cancelled or never reported, or an older build deployed after it.
   if (!newestIsLive(status)) return { tone: "bad", label: "Not live" };
@@ -80,45 +80,74 @@ export function aboutDuration(seconds: number): string {
   return `about ${Math.round(seconds / 60)} min`;
 }
 
+type SectionKey = "waiting" | "building" | "stuck" | "live";
+
 /** A titled group of commits in the open list. */
 export interface CommitGroup {
-  key: string;
+  key: SectionKey;
   title: string;
   commits: DeployCommit[];
 }
 
-/** The list's sections, in order, and the states each one holds. */
-const SECTIONS: { key: string; title: string; states: DeployState[] }[] = [
-  {
-    key: "waiting",
-    title: "Waiting to publish",
-    states: ["waiting", "queued", "superseded"],
-  },
-  { key: "building", title: "Publishing now", states: ["building"] },
-  {
-    key: "stuck",
-    title: "Not published",
-    states: ["failed", "unknown", "overwritten"],
-  },
-  { key: "live", title: "On the site", states: ["live"] },
+/** The list's sections, in order. */
+const SECTIONS: { key: SectionKey; title: string }[] = [
+  { key: "waiting", title: "Waiting to publish" },
+  { key: "building", title: "Publishing now" },
+  { key: "stuck", title: "Not published" },
+  { key: "live", title: "On the site" },
 ];
+
+/**
+ * The section each state goes in. A superseded commit has no build of its
+ * own, so it goes with the newer build that carries it.
+ */
+const SECTION_OF: Record<Exclude<DeployState, "superseded">, SectionKey> = {
+  waiting: "waiting",
+  queued: "waiting",
+  building: "building",
+  failed: "stuck",
+  unknown: "stuck",
+  overwritten: "stuck",
+  live: "live",
+};
 
 /** The commits by section, leaving out empty sections. */
 export function groupCommits(commits: DeployCommit[]): CommitGroup[] {
-  return SECTIONS.map(({ key, title, states }) => ({
+  const grouped: Record<SectionKey, DeployCommit[]> = {
+    waiting: [],
+    building: [],
+    stuck: [],
+    live: [],
+  };
+  // Newest first, so a superseded commit follows the nearest newer build
+  // coming or running: publishing now if that build is already running.
+  let carrier: SectionKey = "waiting";
+  for (const commit of commits) {
+    const { state } = commit;
+    const key: SectionKey =
+      state === "superseded" ? carrier : SECTION_OF[state];
+    if (key === "waiting" || key === "building") carrier = key;
+    grouped[key].push(commit);
+  }
+  return SECTIONS.map(({ key, title }) => ({
     key,
     title,
-    commits: commits.filter((c) => states.includes(c.state)),
+    commits: grouped[key],
   })).filter((g) => g.commits.length > 0);
 }
 
-/** How far along a running build probably is, from 0 to 0.95. */
+/**
+ * How far along a running build probably is, from 0.03 to 0.95: the time
+ * since it started against how long builds usually run. Null when there is
+ * nothing to time it against.
+ */
 export function buildProgress(
   startedAt: string | null,
-  typicalSeconds: number | null,
+  typicalBuildSeconds: number | null,
   now: number,
 ): number | null {
-  if (!startedAt || !typicalSeconds) return null;
+  if (!startedAt || !typicalBuildSeconds) return null;
   const elapsed = (now - Date.parse(startedAt)) / 1000;
-  return Math.min(0.95, Math.max(0.03, elapsed / typicalSeconds));
+  if (!Number.isFinite(elapsed)) return null;
+  return Math.min(0.95, Math.max(0.03, elapsed / typicalBuildSeconds));
 }

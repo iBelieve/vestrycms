@@ -229,13 +229,15 @@ describe("deployStatus", () => {
     ]);
   });
 
-  it("takes the typical time from save to live from past builds", () => {
+  it("takes the typical time from save to live, and of a build, from past builds", () => {
     const s = status([
       commit(10, [run("completed", "success", 9, 8)]),
       commit(20, [run("completed", "success", 19, 17)]),
       commit(30, [run("completed", "success", 29, 26)]),
     ]);
     expect(s.typicalSeconds).toBe(180);
+    // Builds themselves run 1, 2 and 3 minutes.
+    expect(s.typicalBuildSeconds).toBe(120);
   });
 
   it("drops build links that aren't https", () => {

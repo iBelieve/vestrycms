@@ -2,13 +2,15 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { act, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { openPanel } from "./harness.js";
 import { defineConfig, fields, singleton } from "../../src/config/index.js";
+import type { DeployCommit, DeployState } from "../../src/core/deploys.js";
 import type { SourceCommit } from "../../src/core/source.js";
 import { LocalSource } from "../../src/core/sources/local.js";
+import { buildProgress, groupCommits } from "../../src/ui/lib/deploys.js";
 
 const config = defineConfig({
   name: "Test Site",
@@ -75,7 +77,7 @@ async function sourceWith(commits: { current: SourceCommit[] }) {
   });
 }
 
-const chip = () => screen.getByTitle("Site builds");
+const chip = () => screen.getByTitle("Publishing status");
 
 describe("build status", () => {
   it("shows saves on their way, which one is live, and when they arrive", async () => {
@@ -113,13 +115,16 @@ describe("build status", () => {
       "building",
       "live",
     ]);
-    expect(rows[2].textContent).toContain("On the site now");
     expect(
       within(rows[1] as HTMLElement)
         .getByRole("link", { name: /Advent/ })
         .getAttribute("href"),
     ).toBe("https://dash.cloudflare.com/builds/c2");
-    await user.click(chip());
+    // Scrolling a long list keeps it open; scrolling the page closes it.
+    fireEvent.scroll(list.closest(".v-menu__panel")!);
+    expect(document.querySelector(".v-deploys")).toBe(list);
+    fireEvent.scroll(window);
+    expect(document.querySelector(".v-deploys")).toBeNull();
 
     // The builds finish; the next save asks again and sees them live.
     commits.current = [
@@ -148,9 +153,11 @@ describe("build status", () => {
     await openPanel(config, {
       api: { localSource: await sourceWith(commits) },
     });
-    expect(await screen.findByText("Build failed")).toBeTruthy();
+    expect(await screen.findByText("Couldn't publish")).toBeTruthy();
     await userEvent.setup().click(chip());
-    expect(screen.getByText(/The last build failed/)).toBeTruthy();
+    expect(
+      screen.getByText(/latest change couldn.t be published/),
+    ).toBeTruthy();
   });
 
   it("doesn't call a change live when its build was cancelled", async () => {
@@ -181,7 +188,7 @@ describe("build status", () => {
     expect(screen.getByText("Not live")).toBeTruthy();
     await user.click(chip());
     expect(
-      screen.getByText(/The newest change isn't on the site/),
+      screen.getByText(/latest change isn.t on the site yet/),
     ).toBeTruthy();
   });
 
@@ -189,6 +196,63 @@ describe("build status", () => {
     await openPanel(config);
     await screen.findByText("Dashboard", { selector: "h1 *, h1" });
     await act(async () => {});
-    expect(screen.queryByTitle("Site builds")).toBeNull();
+    expect(screen.queryByTitle("Publishing status")).toBeNull();
+  });
+});
+
+describe("build list", () => {
+  const row = (sha: string, state: DeployState): DeployCommit => ({
+    sha,
+    title: sha,
+    date: "2026-11-18T12:00:00Z",
+    url: null,
+    author: "vestry[bot]",
+    mine: false,
+    state,
+    current: state === "live",
+    buildStartedAt: null,
+    buildFinishedAt: null,
+    buildUrl: null,
+  });
+  const sections = (commits: DeployCommit[]) =>
+    groupCommits(commits).map((g) => [g.key, g.commits.map((c) => c.sha)]);
+
+  it("groups commits in sections, and a change with the running build as publishing", () => {
+    expect(
+      sections([
+        row("c6", "waiting"),
+        row("c5", "superseded"),
+        row("c4", "building"),
+        row("c3", "superseded"),
+        row("c2", "failed"),
+        row("c1", "live"),
+      ]),
+    ).toEqual([
+      ["waiting", ["c6", "c5"]],
+      ["building", ["c4", "c3"]],
+      ["stuck", ["c2"]],
+      ["live", ["c1"]],
+    ]);
+    expect(
+      sections([
+        row("c3", "queued"),
+        row("c2", "superseded"),
+        row("c1", "unknown"),
+      ]),
+    ).toEqual([
+      ["waiting", ["c3", "c2"]],
+      ["stuck", ["c1"]],
+    ]);
+  });
+
+  it("times a running build against how long builds take", () => {
+    const start = "2026-11-18T12:00:00Z";
+    const at = (s: number) => Date.parse(start) + s * 1000;
+    expect(buildProgress(start, 100, at(50))).toBe(0.5);
+    expect(buildProgress(start, 100, at(0))).toBe(0.03);
+    expect(buildProgress(start, 100, at(500))).toBe(0.95);
+    expect(buildProgress(null, 100, at(50))).toBeNull();
+    expect(buildProgress(start, null, at(50))).toBeNull();
+    expect(buildProgress("not a date", 100, at(50))).toBeNull();
   });
 });

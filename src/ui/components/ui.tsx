@@ -473,8 +473,13 @@ export function Menu({
       if (e.key === "Escape") setOpen(false);
     };
     // A scroll or resize while open closes the menu rather than leaving it
-    // floating away from its trigger.
-    const onMove = () => setOpen(false);
+    // floating away from its trigger. Scrolling a long panel itself doesn't
+    // move the trigger, so it keeps the menu open.
+    const onMove = (e: Event) => {
+      if (e.target instanceof Node && panelRef.current?.contains(e.target))
+        return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onMove, true);

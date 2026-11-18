@@ -478,15 +478,15 @@ change how many entries appear.
 Every save is a commit, and a site that builds from its repository (such as
 Cloudflare Workers Builds) is live only once that commit's build deploys.
 The top bar shows where the latest saves are: **Publishing** while a build
-is coming or running, **Live** once it has deployed, **Build failed** if the
+is coming or running, **Live** once it has deployed, **Couldn't publish** if the
 newest build failed, and **Not live** if its build was cancelled or never
 reported, or an older build deployed after it. It opens the last ten
 commits on the branch in sections: **Waiting to publish** (queued, or going
-out with a newer build), **Publishing now** (with a progress bar timed from
-recent builds), **Not published** (a failed or cancelled build) and **On
-the site**, where the commit the site was deployed from is marked "On the
-site now". Each links to its build log. Toasts say when changes you watched
-publishing go live.
+out with a newer build that hasn't started), **Publishing now** (building, or
+going out with a build that is running; with a progress bar timed from
+recent builds), **Not published** (a build that failed, was cancelled or
+never ran, or was replaced by an older one) and **On the site**. Each links
+to its build log. Toasts say when changes you watched publishing go live.
 
 The status is read from the check runs the host posts on each commit
 (Workers Builds names them `Workers Builds: <worker>`, Pages
@@ -501,7 +501,7 @@ Every build deploys the whole tree, so a live commit makes every commit
 before it live too. Workers Builds skips a queued build when a newer one is
 queued, so saves in quick succession are shown as going out with the newer
 build. When builds run side by side and finish out of order, the one that
-deployed last is the one marked live.
+deployed last is the one on the site.
 
 ```ts
 deploys: { check: "Workers Builds: website" }, // a repository with several Workers

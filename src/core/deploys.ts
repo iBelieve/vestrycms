@@ -68,6 +68,8 @@ export type DeployStatus =
       failed: boolean;
       /** Typical time from save to live, in seconds, from recent builds. */
       typicalSeconds: number | null;
+      /** Typical time a build runs, start to finish, in seconds, from recent builds. */
+      typicalBuildSeconds: number | null;
     }
   | {
       available: false;
@@ -161,7 +163,8 @@ export function deployStatus(
     pending,
     // A failure only stands while no newer build is on its way to replace it.
     failed: !pending && ahead[0]?.state === "failed",
-    typicalSeconds: typicalSeconds(commits, builds),
+    typicalSeconds: medianSeconds(builds, (_, i) => commits[i].date),
+    typicalBuildSeconds: medianSeconds(builds, (build) => build.startedAt),
   };
 }
 
@@ -244,17 +247,21 @@ function creditedAuthor(commit: SourceCommit): {
   return commit.author;
 }
 
-/** The median time from commit to live among the successful builds. */
-function typicalSeconds(
-  commits: SourceCommit[],
+/**
+ * The median time, in seconds, from `from` (the commit's save, or the
+ * build's start) to finishing, among the successful builds.
+ */
+function medianSeconds(
   builds: (SourceCheckRun | null)[],
+  from: (build: SourceCheckRun, i: number) => string | null,
 ): number | null {
   const times = builds
-    .map((build, i) =>
-      build?.conclusion === "success" && build.completedAt
-        ? (Date.parse(build.completedAt) - Date.parse(commits[i].date)) / 1000
-        : NaN,
-    )
+    .map((build, i) => {
+      if (build?.conclusion !== "success" || !build.completedAt) return NaN;
+      const start = from(build, i);
+      if (!start) return NaN;
+      return (Date.parse(build.completedAt) - Date.parse(start)) / 1000;
+    })
     .filter((s) => Number.isFinite(s) && s > 0)
     .sort((a, b) => a - b);
   if (!times.length) return null;
