@@ -7,6 +7,25 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Fixed
 
+- **Menus use the control panel's font.** Row and account menus (and the
+  preview dragged in a list or tree) render outside the panel's root, so
+  they fell back to the browser's serif font. They now share its base
+  styles.
+- **Entry lists keep their titles readable.** Naming the title field in a
+  collection's `columns` now places the title column (labelled as that
+  column or field is) instead of adding a second copy of the title, which
+  took most of the width and squeezed the real title to a word per line.
+  The same goes for a collection without `columns` sorted by its title
+  field (its list showed the title, then the same name again).
+  The title column also keeps at least 260px, scrolling the table sideways
+  when needed, and other columns cut a long value short instead of
+  crowding it. In a collection whose `titleField` is not `title`, a column
+  for a field named `title` now sorts by its own value, not the title's.
+- **List columns show what a list holds.** A list of references shows the
+  titles it refers to and a list of values shows the values, instead of
+  "1 items": option labels, formatted dates, Yes or No, and file names. A
+  `multiselect` column shows its option labels, and a list of objects
+  counts them in proper English.
 - **Copying a file's path says so only when it worked.** The Assets page
   reported "Path copied" even when the browser refused clipboard access; it
   now shows an error instead.

@@ -50,30 +50,34 @@ body {
   background: var(--v-chrome);
 }
 
-#vestry-root {
+/* Menus and drag previews render in a portal on <body>, outside
+   #vestry-root, so .v-portal gives them the same base styles. */
+:is(#vestry-root, .v-portal) {
   font-family: var(--v-font);
   font-size: 14px;
   line-height: 1.5;
   color: var(--v-text);
-  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+#vestry-root {
+  min-height: 100vh;
+}
 
-#vestry-root *,
-#vestry-root *::before,
-#vestry-root *::after {
+:is(#vestry-root, .v-portal) *,
+:is(#vestry-root, .v-portal) *::before,
+:is(#vestry-root, .v-portal) *::after {
   box-sizing: border-box;
 }
 
-#vestry-root a {
+:is(#vestry-root, .v-portal) a {
   color: var(--v-primary);
   text-decoration: none;
 }
-#vestry-root a:hover {
+:is(#vestry-root, .v-portal) a:hover {
   text-decoration: underline;
 }
 /* Links styled as other components keep their own colours. */
-#vestry-root
+:is(#vestry-root, .v-portal)
   a:where(
     .v-btn,
     .v-nav__link,
@@ -84,23 +88,18 @@ body {
   ) {
   color: inherit;
 }
-#vestry-root a:where(.v-btn--primary) {
+:is(#vestry-root, .v-portal) a:where(.v-btn--primary) {
   color: #fff;
 }
-#vestry-root a:where(.v-btn--danger) {
+:is(#vestry-root, .v-portal) a:where(.v-btn--danger) {
   color: var(--v-danger);
 }
-#vestry-root a:where(.v-nav__link.is-active) {
+:is(#vestry-root, .v-portal) a:where(.v-nav__link.is-active) {
   color: var(--v-primary);
 }
 
 /* Zero-specificity reset so component classes (e.g. .v-btn--primary) win. */
-:where(
-  #vestry-root button,
-  #vestry-root input,
-  #vestry-root select,
-  #vestry-root textarea
-) {
+:where(:is(#vestry-root, .v-portal) :is(button, input, select, textarea)) {
   font: inherit;
   color: inherit;
 }
@@ -1324,11 +1323,23 @@ a.v-chrome__chip:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* The title column takes whatever width the fixed columns leave and
-   truncates, so the table never grows wider than its card. */
+/* The title column takes whatever width the other columns leave, wrapping
+   the title and truncating the line under it. It never gets narrower than
+   min-width: past that the table scrolls sideways instead. */
 .v-table td.v-table__main {
   width: 100%;
   max-width: 0;
+  min-width: 260px;
+}
+/* Other columns stay on one line, and a long value is cut short rather
+   than squeezing the title. */
+.v-table td.v-table__cell {
+  white-space: nowrap;
+}
+.v-table__clip {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .v-table td.v-table__actions {
   text-align: right;

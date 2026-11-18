@@ -248,7 +248,7 @@ export function TreeInput({
           ))}
         </SortableContext>
         {createPortal(
-          <DragOverlay dropAnimation={null}>
+          <DragOverlay className="v-portal" dropAnimation={null}>
             {activeNode && (
               <div className="v-tree__item v-tree__ghost">
                 <span className="v-list__handle">

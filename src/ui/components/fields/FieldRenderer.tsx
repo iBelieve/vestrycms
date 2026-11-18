@@ -1012,6 +1012,7 @@ function ArrayInput(props: FieldProps<Extract<Field, { type: "array" }>>) {
         </SortableContext>
         {createPortal(
           <DragOverlay
+            className="v-portal"
             dropAnimation={{
               duration: 180,
               easing: "cubic-bezier(0.2, 0, 0, 1)",
