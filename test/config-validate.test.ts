@@ -172,12 +172,17 @@ describe("validateConfig", () => {
     ).toThrow(/component "Event": "date" has default/);
   });
 
-  it("rejects create and delete, which editable replaced", () => {
-    expect(() => validateConfig(posts({ editable: false }))).not.toThrow();
-    for (const old of ["create", "delete"])
+  it("rejects create, delete and editable, which fixedEntries replaced", () => {
+    expect(() =>
+      validateConfig(posts({ fixedEntries: true, readOnly: true })),
+    ).not.toThrow();
+    for (const old of ["create", "delete", "editable"])
       expect(() => validateConfig(posts({ [old]: false }))).toThrow(
         `sets ${old}, which Vestry replaced`,
       );
+    expect(() => validateConfig(posts({ editable: false } as never))).toThrow(
+      "set fixedEntries: true",
+    );
   });
 
   it("accepts reserved slugs, but only slugs", () => {
@@ -192,10 +197,11 @@ describe("validateConfig", () => {
     ).toThrow("reservedSlugs has undefined, which is not a slug");
   });
 
-  it("accepts editable only as true or false", () => {
-    expect(() => validateConfig(posts({ editable: "false" as never }))).toThrow(
-      "editable must be true or false",
-    );
+  it("accepts fixedEntries and readOnly only as true or false", () => {
+    for (const flag of ["fixedEntries", "readOnly"])
+      expect(() => validateConfig(posts({ [flag]: "true" as never }))).toThrow(
+        `${flag} must be true or false`,
+      );
   });
 
   it("still requires the repository", () => {

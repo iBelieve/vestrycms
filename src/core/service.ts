@@ -30,6 +30,7 @@ import {
   basename,
   collectionFormat,
   isEditable,
+  isReadOnly,
   isReservedSlug,
   reservedSlugProblem,
   dirname,
@@ -310,6 +311,7 @@ export class ContentService {
     input: SaveEntryInput,
   ): Promise<SavedEntry> {
     const col = this.collection(key);
+    refuseReadOnly(col);
     const save: EntrySave = {
       key,
       col,
@@ -662,6 +664,7 @@ export class ContentService {
 
   async deleteEntry(key: string, slug: string): Promise<{ commit: string }> {
     const col = this.collection(key);
+    refuseReadOnly(col);
     if (!isEditable(col))
       throw new SourceError(
         "Deleting is disabled for this collection",
@@ -952,6 +955,16 @@ export class ContentService {
       singular: col.singular ?? col.label,
     });
   }
+}
+
+/** Refuses any change to a read-only collection (`readOnly`). */
+function refuseReadOnly(col: CollectionConfig): void {
+  if (isReadOnly(col))
+    throw new SourceError(
+      `${col.label} are read-only in the control panel`,
+      403,
+      "forbidden",
+    );
 }
 
 /** Refuses a new entry where the collection doesn't allow creating them. */

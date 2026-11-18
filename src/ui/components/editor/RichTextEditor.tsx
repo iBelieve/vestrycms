@@ -79,6 +79,8 @@ export interface RichTextEditorProps {
   compact?: boolean;
   /** Render without its own border, to sit flush inside a card. */
   flush?: boolean;
+  /** Show the document without a toolbar, and take no edits. */
+  readOnly?: boolean;
   onUpload?: (upload: {
     path: string;
     base64: string;
@@ -123,7 +125,7 @@ function EditorInner(props: RichTextEditorProps) {
         props.flush && "v-rte--flush",
       )}
     >
-      {editor && (
+      {editor && !props.readOnly && (
         <Toolbar
           editor={editor}
           mode={mode}
@@ -165,9 +167,10 @@ function useMdxEditor(
     env,
     format = "mdx",
     placeholder,
+    readOnly,
   }: Pick<
     RichTextEditorProps,
-    "value" | "onChange" | "env" | "format" | "placeholder"
+    "value" | "onChange" | "env" | "format" | "placeholder" | "readOnly"
   >,
   visual: boolean,
 ) {
@@ -185,6 +188,7 @@ function useMdxEditor(
   );
   const editor = useEditor({
     extensions,
+    editable: !readOnly,
     content: initialDoc ?? { type: "doc", content: [{ type: "paragraph" }] },
     editorProps: { attributes: { class: "v-prose", spellcheck: "true" } },
     onUpdate: ({ editor }) =>
