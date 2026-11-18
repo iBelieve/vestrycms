@@ -1,9 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ExternalLink, Plus, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  ExternalLink,
+  Plus,
+  Search,
+} from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
-import type { Field } from "../../config/types.js";
-import { fillTemplate } from "../../core/paths.js";
+import type {
+  CollectionConfig,
+  Field,
+  ListColumn,
+} from "../../config/types.js";
+import { basename, fillTemplate } from "../../core/paths.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
 import {
@@ -15,11 +26,13 @@ import {
 } from "../components/ui.js";
 import type { EntrySummary } from "../../core/service.js";
 import { useVestry } from "../context.js";
+import { type TreeRow, treeRows } from "../lib/entry-tree.js";
 import {
   cx,
   entryHref,
   fieldLabel,
   formatDate,
+  summarize,
   titleCase,
 } from "../lib/utils.js";
 
@@ -34,17 +47,28 @@ export function CollectionListPage() {
     dir: "asc" | "desc";
   } | null>(null);
 
+  const [view, setView] = useStoredState(
+    `vestry:list-view:${key}`,
+    "tree",
+    (v): v is "tree" | "list" => v === "tree" || v === "list",
+  );
+  const [open, setOpen] = useStoredState(
+    `vestry:tree-open:${key}`,
+    NONE_OPEN,
+    (v): v is string[] =>
+      Array.isArray(v) && v.every((p) => typeof p === "string"),
+  );
+  const expanded = useMemo(() => new Set(open), [open]);
+  const toggleOpen = (path: string) =>
+    setOpen((o) =>
+      o.includes(path) ? o.filter((p) => p !== path) : [...o, path],
+    );
+
   const q = useQuery({
     queryKey: ["entries", key],
     queryFn: () => api.listEntries(key),
     enabled: Boolean(col),
   });
-
-  const columns = useMemo(() => {
-    if (!col) return [];
-    const list = col.columns ?? (col.sort?.field ? [col.sort.field] : []);
-    return list.map((c) => (typeof c === "string" ? { field: c } : c));
-  }, [col]);
 
   const entries = useMemo(() => {
     let list = q.data?.entries ?? [];
@@ -65,9 +89,10 @@ export function CollectionListPage() {
     }
     if (sort) {
       const dir = sort.dir === "asc" ? 1 : -1;
+      const titleField = col?.titleField ?? "title";
       list = [...list].sort((a, b) => {
-        const av = sortValue(a, sort.field);
-        const bv = sortValue(b, sort.field);
+        const av = sortValue(a, sort.field, titleField);
+        const bv = sortValue(b, sort.field, titleField);
         return av < bv ? -dir : av > bv ? dir : 0;
       });
     }
@@ -75,6 +100,13 @@ export function CollectionListPage() {
   }, [q.data, status, search, sort, col]);
 
   if (!col) return <NotFoundState title={`No collection called “${key}”`} />;
+  const columns = listColumns(col);
+  // A search or status filter lists its matches flat, wherever they sit.
+  const tree =
+    Boolean(col.tree) &&
+    (col.tree === "only" || view === "tree") &&
+    !search.trim() &&
+    status === "all";
 
   const toggleSort = (field: string) =>
     setSort((s) =>
@@ -133,6 +165,20 @@ export function CollectionListPage() {
               ))}
             </div>
           )}
+          {col.tree === true && (
+            <div className="v-segment" aria-label="View">
+              {(["tree", "list"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={cx(view === v && "is-active")}
+                  onClick={() => setView(v)}
+                >
+                  {titleCase(v)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="v-card">
           {q.isLoading && <Loading />}
@@ -164,80 +210,47 @@ export function CollectionListPage() {
                 <table className="v-table">
                   <thead>
                     <tr>
-                      {header("title", "Title")}
-                      {columns.map((c) => {
-                        if (c.field === "status" || c.field === "slug")
-                          return header(c.field, c.label ?? titleCase(c.field));
-                        const f = col.schema[c.field];
-                        return header(
-                          c.field,
-                          c.label ??
-                            (f ? fieldLabel(c.field, f) : titleCase(c.field)),
-                        );
-                      })}
-                      {col.status &&
-                        !columns.some((c) => c.field === "status") && (
-                          <th>Status</th>
-                        )}
+                      {columns.before.map((c) =>
+                        header(c.field, columnLabel(col, c)),
+                      )}
+                      {header(columns.titleField, columns.titleLabel)}
+                      {columns.after.map((c) =>
+                        header(c.field, columnLabel(col, c)),
+                      )}
+                      {columns.extraStatus && <th>Status</th>}
                       <th />
                     </tr>
                   </thead>
                   <tbody>
-                    {entries.map((e) => (
-                      <tr key={e.slug}>
-                        <td className="v-table__main">
-                          <Link
-                            className="v-table__title"
-                            to={entryHref(key, e.slug)}
-                          >
-                            {e.title}
-                          </Link>
-                          {e.data[col.titleField ?? "title"] !== undefined &&
-                          e.data.subtitle ? (
-                            <span className="v-table__sub">
-                              {String(e.data.subtitle)}
-                            </span>
-                          ) : (
-                            e.excerpt && (
-                              <span className="v-table__sub">{e.excerpt}</span>
-                            )
-                          )}
-                        </td>
-                        {columns.map((c) => (
-                          <td key={c.field} style={{ whiteSpace: "nowrap" }}>
-                            {c.field === "status" ? (
-                              <Badge status={e.status} />
-                            ) : c.field === "slug" ? (
-                              <span className="v-mono">{e.slug}</span>
-                            ) : (
-                              <CellValue
-                                field={col.schema[c.field]}
-                                value={e.data[c.field]}
-                              />
-                            )}
-                          </td>
+                    {tree
+                      ? treeRows(entries, expanded).map((row) => (
+                          <EntryRow
+                            key={row.path}
+                            col={col}
+                            colKey={key}
+                            columns={columns}
+                            siteUrl={config.siteUrl}
+                            row={row}
+                            open={expanded.has(row.path)}
+                            onToggle={() => toggleOpen(row.path)}
+                          />
+                        ))
+                      : entries.map((e) => (
+                          <EntryRow
+                            key={e.slug}
+                            col={col}
+                            colKey={key}
+                            columns={columns}
+                            siteUrl={config.siteUrl}
+                            row={{
+                              path: e.slug,
+                              depth: 0,
+                              entry: e,
+                              label: e.title,
+                              children: 0,
+                            }}
+                          />
                         ))}
-                        {col.status &&
-                          !columns.some((c) => c.field === "status") && (
-                            <td>
-                              <Badge status={e.status} />
-                            </td>
-                          )}
-                        <td className="v-table__actions">
-                          {col.previewUrl && (
-                            <a
-                              className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
-                              title="View on site"
-                              target="_blank"
-                              rel="noreferrer"
-                              href={`${config.siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...e.data, slug: e.slug })}`}
-                            >
-                              <ExternalLink />
-                            </a>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
                   </tbody>
                 </table>
               </div>
@@ -253,9 +266,226 @@ export function CollectionListPage() {
   );
 }
 
+type Columns = ReturnType<typeof listColumns>;
+
+/** An entry's row (or, in a tree, a folder's), with its columns. */
+function EntryRow({
+  col,
+  colKey,
+  columns,
+  siteUrl,
+  row,
+  open,
+  onToggle,
+}: {
+  col: CollectionConfig;
+  colKey: string;
+  columns: Columns;
+  siteUrl?: string;
+  row: TreeRow;
+  open?: boolean;
+  onToggle?: () => void;
+}) {
+  const e = row.entry;
+  const cells = (list: ListColumn[]) =>
+    list.map((c) =>
+      e ? (
+        <ColumnCell key={c.field} col={col} column={c} entry={e} />
+      ) : (
+        <td key={c.field} />
+      ),
+    );
+  return (
+    <tr>
+      {cells(columns.before)}
+      <td className="v-table__main">
+        <div
+          className={cx(onToggle && "v-table__node")}
+          style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
+        >
+          {onToggle &&
+            (row.children > 0 ? (
+              <button
+                type="button"
+                className="v-table__toggle"
+                aria-expanded={open}
+                aria-label={`${open ? "Collapse" : "Expand"} ${e?.title ?? row.label}`}
+                onClick={onToggle}
+              >
+                <ChevronRight />
+              </button>
+            ) : (
+              <span className="v-table__toggle" />
+            ))}
+          <div className="v-table__label">
+            {e ? (
+              <Link
+                className="v-table__title"
+                to={entryHref(colKey, e.slug)}
+                title={row.label === e.title ? undefined : e.title}
+              >
+                {row.label}
+              </Link>
+            ) : (
+              <span className="v-table__folder">{row.label}</span>
+            )}
+            {onToggle && row.children > 0 && !open && (
+              <span className="v-table__count"> · {row.children}</span>
+            )}
+            {e && <EntrySubtitle col={col} entry={e} />}
+          </div>
+        </div>
+      </td>
+      {cells(columns.after)}
+      {columns.extraStatus && <td>{e && <Badge status={e.status} />}</td>}
+      <td className="v-table__actions">
+        {e && col.previewUrl && (
+          <a
+            className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
+            title="View on site"
+            target="_blank"
+            rel="noreferrer"
+            href={`${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...e.data, slug: e.slug })}`}
+          >
+            <ExternalLink />
+          </a>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+const NONE_OPEN: string[] = [];
+
+/**
+ * State kept in localStorage under `key`, so a view or an expanded folder
+ * survives a reload. Storage that fails, or holds anything `valid` rejects,
+ * falls back to `initial`.
+ */
+function useStoredState<T>(
+  key: string,
+  initial: T,
+  valid: (value: unknown) => value is T,
+): [T, (update: ((value: T) => T) | T) => void] {
+  const read = (): T => {
+    try {
+      const raw = localStorage.getItem(key);
+      const stored: unknown = raw === null ? initial : JSON.parse(raw);
+      return valid(stored) ? stored : initial;
+    } catch {
+      return initial;
+    }
+  };
+  const [state, setState] = useState<{ key: string; value: T }>(() => ({
+    key,
+    value: read(),
+  }));
+  // Another collection's list (the page stays mounted): read its key once.
+  let value = state.value;
+  if (state.key !== key) {
+    value = read();
+    setState({ key, value });
+  }
+  const set = (update: ((value: T) => T) | T) =>
+    setState((s) => {
+      const current = s.key === key ? s.value : read();
+      const next =
+        typeof update === "function"
+          ? (update as (value: T) => T)(current)
+          : update;
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        // Not remembered, but still applied.
+      }
+      return { key, value: next };
+    });
+  return [value, set];
+}
+
+/**
+ * The list's columns around the title. The title always shows, as the
+ * entry's link; naming the title field in `columns` only places it (and may
+ * relabel it), so it never appears twice.
+ */
+function listColumns(col: CollectionConfig) {
+  const titleField = col.titleField ?? "title";
+  const list = (col.columns ?? (col.sort?.field ? [col.sort.field] : [])).map(
+    (c): ListColumn => (typeof c === "string" ? { field: c } : c),
+  );
+  const title = list.find((c) => c.field === titleField);
+  const at = title ? list.indexOf(title) : 0;
+  const rest = list.filter((c) => c.field !== titleField);
+  return {
+    // The title column sorts under the title field's key, so a separate
+    // `title` field listed as a column still sorts by its own value.
+    titleField,
+    before: rest.slice(0, at),
+    after: rest.slice(at),
+    titleLabel: title ? columnLabel(col, title) : "Title",
+    /** A collection with a status shows it even when `columns` leaves it out. */
+    extraStatus: Boolean(col.status) && !list.some((c) => c.field === "status"),
+  };
+}
+
+function columnLabel(col: CollectionConfig, c: ListColumn): string {
+  if (c.label) return c.label;
+  const f =
+    c.field === "status" || c.field === "slug"
+      ? undefined
+      : col.schema[c.field];
+  return f ? fieldLabel(c.field, f) : titleCase(c.field);
+}
+
+/** The line under an entry's title: its subtitle, or else its excerpt. */
+function EntrySubtitle({
+  col,
+  entry,
+}: {
+  col: CollectionConfig;
+  entry: EntrySummary;
+}) {
+  const sub =
+    entry.data[col.titleField ?? "title"] !== undefined && entry.data.subtitle
+      ? String(entry.data.subtitle)
+      : entry.excerpt;
+  return sub ? <span className="v-table__sub">{sub}</span> : null;
+}
+
+function ColumnCell({
+  col,
+  column,
+  entry,
+}: {
+  col: CollectionConfig;
+  column: ListColumn;
+  entry: EntrySummary;
+}) {
+  return (
+    <td className="v-table__cell">
+      <div className="v-table__clip">
+        {column.field === "status" ? (
+          <Badge status={entry.status} />
+        ) : column.field === "slug" ? (
+          <span className="v-mono">{entry.slug}</span>
+        ) : (
+          <CellValue
+            field={col.schema[column.field]}
+            value={entry.data[column.field]}
+          />
+        )}
+      </div>
+    </td>
+  );
+}
+
 /** What an entry is sorted by in a column. */
-function sortValue(entry: EntrySummary, field: string): string {
-  if (field === "title") return entry.title;
+function sortValue(
+  entry: EntrySummary,
+  field: string,
+  titleField: string,
+): string {
+  if (field === titleField) return entry.title;
   if (field === "slug") return entry.slug;
   return String(entry.data[field] ?? "");
 }
@@ -266,11 +496,6 @@ function CellValue({ field, value }: { field?: Field; value: unknown }) {
     return <span className="v-faint">—</span>;
   if (!field) return <>{String(value)}</>;
   switch (field.type) {
-    case "date":
-    case "datetime":
-      return <>{formatDate(value)}</>;
-    case "boolean":
-      return <>{value ? "Yes" : "No"}</>;
     case "select": {
       const opt = field.options.find((o) => o.value === value);
       return (
@@ -295,13 +520,75 @@ function CellValue({ field, value }: { field?: Field; value: unknown }) {
       return (
         <ReferenceLabel collection={field.collection} id={String(value)} />
       );
+    case "multiselect":
+      return Array.isArray(value) ? (
+        <ListValue of={field} items={value} />
+      ) : null;
     case "array":
-      return <>{Array.isArray(value) ? `${value.length} items` : ""}</>;
+      return Array.isArray(value) ? (
+        <ListValue of={field.of} items={value} />
+      ) : null;
     case "object":
       return <span className="v-muted">…</span>;
     default:
-      return <>{String(value)}</>;
+      return <>{valueText(field, value)}</>;
   }
+}
+
+/**
+ * A list in a column: the titles of the entries it refers to, or its values,
+ * joined; a list of objects shows how many it holds. Blank items are skipped.
+ */
+function ListValue({ of, items }: { of: Field; items: unknown[] }) {
+  const shown = items.filter((v) => v !== undefined && v !== null && v !== "");
+  if (shown.length === 0) return <span className="v-faint">—</span>;
+  if (of.type === "reference")
+    return (
+      <>
+        {shown.map((id, i) => (
+          <Fragment key={i}>
+            {i > 0 && ", "}
+            <ReferenceLabel collection={of.collection} id={String(id)} />
+          </Fragment>
+        ))}
+      </>
+    );
+  if (shown.every((v) => typeof v !== "object"))
+    return <>{shown.map((v) => valueText(of, v)).join(", ")}</>;
+  return <>{summarize(shown)}</>;
+}
+
+/** A single value as text: an option's label, a date, Yes or No, a file name. */
+function valueText(field: Field, value: unknown): string {
+  switch (field.type) {
+    case "select":
+    case "multiselect":
+      return (
+        field.options.find((o) => o.value === value)?.label || String(value)
+      );
+    case "date":
+    case "datetime":
+      return formatDate(value);
+    case "boolean":
+      return value ? "Yes" : "No";
+    case "image":
+    case "file":
+      return basename(String(value));
+    default:
+      return String(value);
+  }
+}
+
+/** Each fetched list's titles by slug, so labels look an entry up directly. */
+const titlesBySlug = new WeakMap<EntrySummary[], Map<string, string>>();
+
+function entryTitle(entries: EntrySummary[], slug: string) {
+  let titles = titlesBySlug.get(entries);
+  if (!titles) {
+    titles = new Map(entries.map((e) => [e.slug, e.title]));
+    titlesBySlug.set(entries, titles);
+  }
+  return titles.get(slug);
 }
 
 function ReferenceLabel({
@@ -317,6 +604,5 @@ function ReferenceLabel({
     queryFn: () => api.listEntries(collection),
     staleTime: 60_000,
   });
-  const e = q.data?.entries.find((x) => x.slug === id);
-  return <>{e?.title ?? id}</>;
+  return <>{(q.data && entryTitle(q.data.entries, id)) ?? id}</>;
 }
