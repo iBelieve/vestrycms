@@ -444,6 +444,24 @@ reorders and re-parents: drag a node up or down to move it and sideways to
 change its depth, within `maxDepth`. A dashed slot shows where it will land
 and descendants travel with their parent.
 
+## Entry lists
+
+A collection's list shows the title (with its subtitle or excerpt under it)
+and the fields named in `columns`; naming the title field there only sets
+where the title column goes. A collection kept in nested folders (a `**`
+path) can show its entries as a tree instead, nested by the folders in their
+slugs (`cw21/1year` under `cw21`), with a child's title shortened by the
+part it repeats from its parent's:
+
+```ts
+pages: collection({ path: "src/content/pages/**.mdx", tree: true, … }),
+lectionaries: collection({ path: "…/**.yaml", tree: "only", … }),
+```
+
+`tree: true` adds a Tree/List toggle that opens on the tree; `"only"` shows
+the tree with no toggle. Each editor's choice and expanded rows are kept in
+their browser. A search or status filter lists its matches flat.
+
 ## Dashboard
 
 Each collection gets a tile with its entry count. Collections whose `sort`

@@ -5,6 +5,13 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ## Unreleased
 
+### Added
+
+- **Entry lists can show a tree.** A collection kept in nested folders can
+  set `tree: true` (a Tree/List toggle, opening on the tree) or
+  `tree: "only"` to nest its entries by folder, with collapsible rows and
+  each child's title shortened by what it repeats from its parent's.
+
 ### Fixed
 
 - **Menus use the control panel's font.** Row and account menus (and the

@@ -1,5 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ExternalLink, Plus, Search } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  ExternalLink,
+  Plus,
+  Search,
+} from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import type {
@@ -19,6 +26,7 @@ import {
 } from "../components/ui.js";
 import type { EntrySummary } from "../../core/service.js";
 import { useVestry } from "../context.js";
+import { type TreeRow, treeRows } from "../lib/entry-tree.js";
 import {
   cx,
   entryHref,
@@ -38,6 +46,20 @@ export function CollectionListPage() {
     field: string;
     dir: "asc" | "desc";
   } | null>(null);
+
+  const [view, setView] = useStoredState<"tree" | "list">(
+    `vestry:list-view:${key}`,
+    "tree",
+  );
+  const [open, setOpen] = useStoredState<string[]>(
+    `vestry:tree-open:${key}`,
+    [],
+  );
+  const expanded = useMemo(() => new Set(open), [open]);
+  const toggleOpen = (path: string) =>
+    setOpen((o) =>
+      o.includes(path) ? o.filter((p) => p !== path) : [...o, path],
+    );
 
   const q = useQuery({
     queryKey: ["entries", key],
@@ -76,6 +98,12 @@ export function CollectionListPage() {
 
   if (!col) return <NotFoundState title={`No collection called “${key}”`} />;
   const columns = listColumns(col);
+  // A search or status filter lists its matches flat, wherever they sit.
+  const tree =
+    Boolean(col.tree) &&
+    (col.tree === "only" || view === "tree") &&
+    !search.trim() &&
+    status === "all";
 
   const toggleSort = (field: string) =>
     setSort((s) =>
@@ -134,6 +162,20 @@ export function CollectionListPage() {
               ))}
             </div>
           )}
+          {col.tree === true && (
+            <div className="v-segment" aria-label="View">
+              {(["tree", "list"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={cx(view === v && "is-active")}
+                  onClick={() => setView(v)}
+                >
+                  {titleCase(v)}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="v-card">
           {q.isLoading && <Loading />}
@@ -177,53 +219,35 @@ export function CollectionListPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {entries.map((e) => (
-                      <tr key={e.slug}>
-                        {columns.before.map((c) => (
-                          <ColumnCell
-                            key={c.field}
+                    {tree
+                      ? treeRows(entries, expanded).map((row) => (
+                          <EntryRow
+                            key={row.path}
                             col={col}
-                            column={c}
-                            entry={e}
+                            colKey={key}
+                            columns={columns}
+                            siteUrl={config.siteUrl}
+                            row={row}
+                            open={expanded.has(row.path)}
+                            onToggle={() => toggleOpen(row.path)}
+                          />
+                        ))
+                      : entries.map((e) => (
+                          <EntryRow
+                            key={e.slug}
+                            col={col}
+                            colKey={key}
+                            columns={columns}
+                            siteUrl={config.siteUrl}
+                            row={{
+                              path: e.slug,
+                              depth: 0,
+                              entry: e,
+                              label: e.title,
+                              children: 0,
+                            }}
                           />
                         ))}
-                        <td className="v-table__main">
-                          <Link
-                            className="v-table__title"
-                            to={entryHref(key, e.slug)}
-                          >
-                            {e.title}
-                          </Link>
-                          <EntrySubtitle col={col} entry={e} />
-                        </td>
-                        {columns.after.map((c) => (
-                          <ColumnCell
-                            key={c.field}
-                            col={col}
-                            column={c}
-                            entry={e}
-                          />
-                        ))}
-                        {columns.extraStatus && (
-                          <td>
-                            <Badge status={e.status} />
-                          </td>
-                        )}
-                        <td className="v-table__actions">
-                          {col.previewUrl && (
-                            <a
-                              className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
-                              title="View on site"
-                              target="_blank"
-                              rel="noreferrer"
-                              href={`${config.siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...e.data, slug: e.slug })}`}
-                            >
-                              <ExternalLink />
-                            </a>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
                   </tbody>
                 </table>
               </div>
@@ -237,6 +261,134 @@ export function CollectionListPage() {
       </div>
     </>
   );
+}
+
+type Columns = ReturnType<typeof listColumns>;
+
+/** An entry's row (or, in a tree, a folder's), with its columns. */
+function EntryRow({
+  col,
+  colKey,
+  columns,
+  siteUrl,
+  row,
+  open,
+  onToggle,
+}: {
+  col: CollectionConfig;
+  colKey: string;
+  columns: Columns;
+  siteUrl?: string;
+  row: TreeRow;
+  open?: boolean;
+  onToggle?: () => void;
+}) {
+  const e = row.entry;
+  const cells = (list: ListColumn[]) =>
+    list.map((c) =>
+      e ? (
+        <ColumnCell key={c.field} col={col} column={c} entry={e} />
+      ) : (
+        <td key={c.field} />
+      ),
+    );
+  return (
+    <tr>
+      {cells(columns.before)}
+      <td className="v-table__main">
+        <div
+          className={cx(onToggle && "v-table__node")}
+          style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
+        >
+          {onToggle &&
+            (row.children > 0 ? (
+              <button
+                type="button"
+                className="v-table__toggle"
+                aria-expanded={open}
+                aria-label={`${open ? "Collapse" : "Expand"} ${row.label}`}
+                onClick={onToggle}
+              >
+                <ChevronRight />
+              </button>
+            ) : (
+              <span className="v-table__toggle" />
+            ))}
+          <div className="v-table__label">
+            {e ? (
+              <Link
+                className="v-table__title"
+                to={entryHref(colKey, e.slug)}
+                title={row.label === e.title ? undefined : e.title}
+              >
+                {row.label}
+              </Link>
+            ) : (
+              <span className="v-table__folder">{row.label}</span>
+            )}
+            {onToggle && row.children > 0 && !open && (
+              <span className="v-table__count"> · {row.children}</span>
+            )}
+            {e && <EntrySubtitle col={col} entry={e} />}
+          </div>
+        </div>
+      </td>
+      {cells(columns.after)}
+      {columns.extraStatus && <td>{e && <Badge status={e.status} />}</td>}
+      <td className="v-table__actions">
+        {e && col.previewUrl && (
+          <a
+            className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
+            title="View on site"
+            target="_blank"
+            rel="noreferrer"
+            href={`${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...e.data, slug: e.slug })}`}
+          >
+            <ExternalLink />
+          </a>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * State kept in localStorage under `key`, so a view or an expanded folder
+ * survives a reload. Storage that fails or holds garbage falls back to
+ * `initial`.
+ */
+function useStoredState<T>(
+  key: string,
+  initial: T,
+): [T, (update: ((value: T) => T) | T) => void] {
+  const read = (): T => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? initial : (JSON.parse(raw) as T);
+    } catch {
+      return initial;
+    }
+  };
+  const [state, setState] = useState<{ key: string; value: T }>(() => ({
+    key,
+    value: read(),
+  }));
+  const value = state.key === key ? state.value : read();
+  const set = (update: ((value: T) => T) | T) =>
+    setState((s) => {
+      const current = s.key === key ? s.value : read();
+      const next =
+        typeof update === "function"
+          ? (update as (value: T) => T)(current)
+          : update;
+      try {
+        localStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        // Not remembered, but still applied.
+      }
+      return { key, value: next };
+    });
+  return [value, set];
 }
 
 /**
