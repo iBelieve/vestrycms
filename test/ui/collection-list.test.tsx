@@ -123,6 +123,19 @@ const config = defineConfig({
       ],
       schema: { title: fields.text() },
     }),
+    home: collection({
+      label: "Home pages",
+      path: "src/pages/*.md",
+      schema: { title: fields.text() },
+    }),
+    manual: collection({
+      label: "Manual",
+      path: "src/content/manual/**.md",
+      tree: "only",
+      sort: { field: "title", direction: "asc" },
+      pinned: ["guide"],
+      schema: { title: fields.text() },
+    }),
     notes: collection({
       label: "Notes",
       path: "src/content/notes/*.md",
@@ -189,6 +202,12 @@ const files = {
   "src/content/site/docs/faq.md": "---\ntitle: FAQ\n---\n",
   "src/content/site/docs/start.md": "---\ntitle: Start here\n---\n",
   "src/content/site/index.md": "---\ntitle: Welcome\n---\n",
+  "src/pages/500.md": "---\ntitle: Server error\n---\n",
+  "src/pages/Index.md": "---\ntitle: Welcome\n---\n",
+  "src/pages/about.md": "---\ntitle: About\n---\n",
+  "src/content/manual/about.md": "---\ntitle: About\n---\n",
+  "src/content/manual/guide.md": "---\ntitle: Guide\n---\n",
+  "src/content/manual/guide/one.md": '---\ntitle: "Guide: One"\n---\n',
   "src/content/readings/cw.md": "---\ntitle: CW\n---\n",
   "src/content/readings/cw/advent.md": '---\ntitle: "CW: Advent"\n---\n',
   "src/content/authors.yaml": "- id: ann\n  name: Ann Smith\n",
@@ -523,6 +542,27 @@ describe("a collection's list", () => {
     await user.type(search, "faq");
     expect(titles()).toEqual(["FAQ"]);
     expect(divider()).toBeNull();
+  });
+
+  it("pins the home and error pages by default, ignoring case", async () => {
+    await openPanel(config, { url: "/collections/home", files });
+    await screen.findByText("Welcome");
+    expect(titles()).toEqual(["Welcome", "Server error", "About"]);
+    expect(
+      [...document.querySelectorAll(".v-table__pin-icon")].map((icon) =>
+        [...icon.classList].find((c) => c.startsWith("lucide-")),
+      ),
+    ).toEqual(["lucide-house", "lucide-triangle-exclamation-point"]);
+    expect(document.querySelector(".v-table__divider")).toBeTruthy();
+  });
+
+  it("keeps a pinned entry with children in the tree, to head its folder", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/manual", files });
+    await screen.findByText("About");
+    expect(titles()).toEqual(["Guide", "About", "Guide"]);
+    await user.click(screen.getByRole("button", { name: "Expand Guide" }));
+    expect(titles()).toEqual(["Guide", "About", "Guide", "One"]);
   });
 
   it("invites the first entry of an empty collection", async () => {

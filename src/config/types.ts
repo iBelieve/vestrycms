@@ -424,9 +424,9 @@ export interface CollectionConfig {
    * listed first, above a divider, in this order, whatever the sort, view
    * or folder. Each is a slug, or a slug with the name of an icon shown
    * before its title: `[{ slug: "index", icon: "house" }, "404"]`.
-   * Defaults, in a collection of a file per entry, to the home and error
-   * pages as Astro names them: `index`, `404` and `500`, with icons. `[]`
-   * pins none.
+   * Defaults, in a collection of a file per entry, to the home page,
+   * `index`, and in `src/pages/` also to the error pages, `404` and `500`,
+   * each with an icon. `[]` pins none.
    */
   pinned?: (string | PinnedEntry)[];
 }

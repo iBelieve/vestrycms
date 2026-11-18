@@ -231,14 +231,27 @@ describe("pinnedEntries", () => {
     { slug: "500", icon: "triangle-alert" },
   ];
 
-  it("pins the home and error pages by default in a file per entry", () => {
+  it("pins the home page by default in a file per entry", () => {
     expect(pinnedEntries(pages("src/pages/*.mdx"))).toEqual(astro);
-    expect(pinnedEntries(pages("./src/content/pages/**.md"))).toEqual(astro);
+    expect(pinnedEntries(pages("./src/pages/**.md"))).toEqual(astro);
+    // Error pages only where Astro reads them: elsewhere a 404 is a hymn.
+    expect(pinnedEntries(pages("src/content/pages/**.md"))).toEqual([astro[0]]);
+    expect(pinnedEntries(pages("src/content/hymns/*.md"))).toEqual([astro[0]]);
   });
 
   it("pins nothing by default where slugs aren't file names", () => {
     expect(pinnedEntries(pages("src/content/docs/**/index.md"))).toEqual([]);
     expect(pinnedEntries(pages("src/data/menu.yaml"))).toEqual([]);
+  });
+
+  it("hands out copies, so changing one changes no other list", () => {
+    const first = pinnedEntries(pages("src/pages/*.mdx"));
+    first[0].icon = "file";
+    first.pop();
+    expect(pinnedEntries(pages("src/pages/*.mdx"))).toEqual(astro);
+    const configured = pages("src/pages/*.mdx", [{ slug: "home" }]);
+    pinnedEntries(configured)[0].icon = "house";
+    expect(configured.pinned).toEqual([{ slug: "home" }]);
   });
 
   it("takes the configured list instead, slugs or with icons", () => {

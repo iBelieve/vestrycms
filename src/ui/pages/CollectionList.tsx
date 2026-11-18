@@ -372,7 +372,11 @@ function EntryTable({
         )}
         <tbody>
           {tree ? (
-            <TreeRows entries={rest} {...props} columns={columns} />
+            <TreeRows
+              entries={withPinnedParents(entries, rest)}
+              {...props}
+              columns={columns}
+            />
           ) : (
             rest.map((e) => (
               <EntryRow
@@ -417,6 +421,26 @@ function splitPinned(
   }
   pinned.sort((a, b) => a.rank - b.rank);
   return { pinned, rest };
+}
+
+/**
+ * The entries for the tree under the pinned ones: the rest, and any pinned
+ * entry with others under it, which stays in the tree too, to head its
+ * folder (`entries` keeps the list's order).
+ */
+function withPinnedParents(
+  entries: EntrySummary[],
+  rest: EntrySummary[],
+): EntrySummary[] {
+  if (rest.length === entries.length) return rest;
+  const kept = new Set(rest);
+  const parents = new Set<string>();
+  for (const e of rest) {
+    const parts = e.slug.split("/");
+    for (let i = 1; i < parts.length; i++)
+      parents.add(parts.slice(0, i).join("/"));
+  }
+  return entries.filter((e) => kept.has(e) || parents.has(e.slug));
 }
 
 /** An entry's row in a flat list. */

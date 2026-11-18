@@ -9,9 +9,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 - **Special pages first.** A collection's special entries are listed
   first, above a divider, whatever the sort or view. In a collection of a
-  file per entry, those are the home and error pages as Astro names them,
-  `index`, `404` and `500`, with icons, so a site's home page is at the top
-  of Pages whatever its title.
+  file per entry, that is the home page, `index`, with a house icon, so a
+  site's home page is at the top of Pages whatever its title, and in
+  `src/pages/` also Astro's error pages, `404` and `500`.
   **`pinned`** on a collection names them instead, each a slug or
   `{ slug, icon }` (`pinned: [{ slug: "home", icon: "house" }]`), and
   `pinned: []` turns them off. In a tree they leave their folder and show
