@@ -21,6 +21,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
   that still sets `editable` fails at startup with a message saying what to
   use instead.
 
+### Fixed
+
+- `readOnly: true` on a `markdown` field now keeps it from being edited
+  (it shows no toolbar), and on an `array` or `tree` field keeps its rows
+  from being dragged.
+
 ## 0.5.0
 
 ### Added

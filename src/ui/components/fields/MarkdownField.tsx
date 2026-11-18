@@ -9,11 +9,13 @@ export function MarkdownField({
   onChange,
   components,
   placeholder,
+  readOnly,
 }: {
   value: string;
   onChange: (v: string) => void;
   components?: string[];
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   const { config } = useVestry();
   const env = useMemo<EditorEnv>(
@@ -39,6 +41,7 @@ export function MarkdownField({
       components={components ?? []}
       env={env}
       placeholder={placeholder}
+      readOnly={readOnly}
       compact
     />
   );

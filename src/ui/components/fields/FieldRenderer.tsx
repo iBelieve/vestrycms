@@ -311,6 +311,7 @@ const INPUTS: { [T in Field["type"]]: (props: InputProps<T>) => ReactNode } = {
       onChange={onChange}
       components={field.components}
       placeholder={field.description}
+      readOnly={field.readOnly}
     />
   ),
   code: ({ field, value, onChange }) => (
@@ -756,10 +757,13 @@ interface HandleProps {
 function SortableRow({
   id,
   className,
+  disabled,
   children,
 }: {
   id: string;
   className: string;
+  /** The row can't be dragged (a read-only list). */
+  disabled?: boolean;
   children: (handle: HandleProps, dragging: boolean) => React.ReactNode;
 }) {
   const {
@@ -770,7 +774,7 @@ function SortableRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
   return (
     <div
       ref={setNodeRef}
@@ -1005,7 +1009,12 @@ function ArrayInput(props: FieldProps<Extract<Field, { type: "array" }>>) {
             {items.map((item, i) => {
               const open = openIdx === i;
               return (
-                <SortableRow key={ids[i]} id={ids[i]} className={rowClass(i)}>
+                <SortableRow
+                  key={ids[i]}
+                  id={ids[i]}
+                  className={rowClass(i)}
+                  disabled={field.readOnly}
+                >
                   {(handle) =>
                     isObject ? (
                       <>

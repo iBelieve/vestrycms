@@ -338,7 +338,7 @@ function useEntryForm(props: EntryFormProps) {
     [readOnly, props.col],
   );
   const collection = kind === "collection" ? (col as CollectionConfig) : null;
-  const doc = useDocument(col, entry, draft);
+  const doc = useDocument(col, entry, draft, readOnly);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const pattern = useMemo(() => parsePathPattern(col.path), [col]);
@@ -594,12 +594,19 @@ function EntryBody({ form }: { form: EntryFormModel }) {
   );
 }
 
+/** The format of entries' Markdown or MDX body, or null if they have none. */
+function bodyFormat(col: Entry): "md" | "mdx" | null {
+  const format = collectionFormat(col);
+  return col.body !== false && (format === "md" || format === "mdx")
+    ? format
+    : null;
+}
+
 /** A read-only collection's body, as its Markdown source. */
 function ReadOnlyBody({ col, body }: { col: Entry; body: string }) {
-  const format = collectionFormat(col);
-  if (col.body === false || (format !== "md" && format !== "mdx")) return null;
+  if (!bodyFormat(col)) return null;
   return (
-    <Card title={col.body?.label ?? "Content"}>
+    <Card title={(col.body || undefined)?.label ?? "Content"}>
       <CodeInput
         value={body}
         onChange={() => {}}
@@ -619,12 +626,15 @@ interface FieldSetProps {
 /**
  * The entry being edited, as last saved and as it stands, with its uploads.
  * A draft left by the save that created or renamed it is laid over the
- * saved version.
+ * saved version. A read-only entry takes no changes, so nothing (a field
+ * that seeds a value, a drag, typing in a rich text field) can leave it
+ * unsaved.
  */
 function useDocument(
   col: Entry,
   entry: EntryDetail | undefined,
   draft: Draft | undefined,
+  readOnly: boolean,
 ) {
   const [initial, setInitial] = useState<EditorState>(() =>
     entry
@@ -641,10 +651,14 @@ function useDocument(
   // The form as it stands, kept here too so that a save finishing reads
   // every change, including one made since the last render.
   const latest = useRef(form);
-  const change = useCallback((update: (form: Form) => Form) => {
-    latest.current = update(latest.current);
-    setForm(latest.current);
-  }, []);
+  const change = useCallback(
+    (update: (form: Form) => Form) => {
+      if (readOnly) return;
+      latest.current = update(latest.current);
+      setForm(latest.current);
+    },
+    [readOnly],
+  );
   const [sha, setSha] = useState<string | null>(entry?.sha ?? null);
   /** Sets the data, or updates it as it stands. */
   const setData = useCallback(
@@ -980,7 +994,7 @@ function BodyCard({
   fileUrl: (path: string) => string;
   doc: Document;
 }) {
-  const format = collectionFormat(col);
+  const format = bodyFormat(col);
   // Kept from render to render, so the editor's environment is too.
   const body = useMemo(
     () => (col.body === false ? null : (col.body ?? {})),
@@ -991,7 +1005,7 @@ function BodyCard({
     () => bodyEnv({ body, filePath, config, uploads, fileUrl }),
     [body, filePath, config, uploads, fileUrl],
   );
-  if (!body || (format !== "md" && format !== "mdx")) return null;
+  if (!body || !format) return null;
   return (
     <div className="v-card v-card--editor">
       <div className="v-card__header">

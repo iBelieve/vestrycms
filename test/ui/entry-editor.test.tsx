@@ -105,6 +105,7 @@ const config = defineConfig({
         draft: fields.boolean({ sidebar: true }),
         tags: fields.array(fields.text()),
         see: fields.reference({ collection: "notes" }),
+        intro: fields.markdown(),
       },
     }),
   },
@@ -128,7 +129,7 @@ const files = {
   "src/pages/index.md": "---\ntitle: Home\n---\n",
   "src/content/rules/first.md": "---\ntitle: First\n---\n",
   "src/content/notes/one.md":
-    "---\ntitle: One\ndraft: false\ntags:\n  - a\nsee: one\n---\nThe *body*.\n",
+    "---\ntitle: One\ndraft: false\ntags:\n  - a\nsee: one\nintro: An intro.\n---\nThe *body*.\n",
 };
 
 /** Holds every request with `method` until the returned function is called. */
@@ -683,6 +684,12 @@ describe("a read-only collection", () => {
       .getByRole("group")
       .querySelectorAll("button, input, textarea, select"))
       expect(button.matches(":disabled")).toBe(true);
+    // A rich text field takes no edits, and has no toolbar to make them.
+    await screen.findByText("An intro.");
+    expect(
+      document.querySelector(".ProseMirror")?.getAttribute("contenteditable"),
+    ).toBe("false");
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
     // The body is shown as its source, read-only.
     const body =
       await screen.findByDisplayValue<HTMLTextAreaElement>(/The \*body\*\./);

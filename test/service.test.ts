@@ -370,6 +370,7 @@ describe("fixed and reserved slugs", () => {
         });
       await expect(pages.deleteEntry(key, "one")).rejects.toMatchObject({
         status: 403,
+        message: expect.stringContaining("read-only in the control panel"),
       });
       expect(await pages.getEntry(key, "one")).toMatchObject({
         data: { title: "One" },

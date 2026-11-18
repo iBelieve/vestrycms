@@ -664,6 +664,7 @@ export class ContentService {
 
   async deleteEntry(key: string, slug: string): Promise<{ commit: string }> {
     const col = this.collection(key);
+    refuseReadOnly(col);
     if (!isEditable(col))
       throw new SourceError(
         "Deleting is disabled for this collection",
@@ -956,7 +957,7 @@ export class ContentService {
   }
 }
 
-/** Refuses any save to a read-only collection (`editing: "none"`). */
+/** Refuses any change to a read-only collection (`readOnly`). */
 function refuseReadOnly(col: CollectionConfig): void {
   if (isReadOnly(col))
     throw new SourceError(
