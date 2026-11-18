@@ -210,7 +210,7 @@ describe("fixed and reserved slugs", () => {
       docs: collection({
         label: "Docs",
         path: "src/docs/**.md",
-        reservedSlugs: ["sermons"],
+        reservedSlugs: ["sermons", "sermons/archive"],
         schema: { title: fields.text() },
       }),
       menus: collection({
@@ -231,6 +231,7 @@ describe("fixed and reserved slugs", () => {
       "src/pages/about.mdx": "---\ntitle: About\n---\n",
       "src/fixed/one.md": "---\ntitle: One\n---\n",
       "src/docs/guide.md": "---\ntitle: Guide\n---\n",
+      "src/docs/sermons/old.md": "---\ntitle: Old\n---\n",
       "src/data/menus.yaml": "- id: main\n  title: Main\n",
     })) {
       await mkdir(path.dirname(path.join(fixedRoot, file)), {
@@ -364,6 +365,41 @@ describe("fixed and reserved slugs", () => {
       slug: "sermons-series/one",
     });
     expect(saved.slug).toBe("sermons-series/one");
+  });
+
+  it("names the reserved slug itself before one it is under", async () => {
+    await expect(
+      pages.saveEntry("docs", null, {
+        data: { title: "Archive" },
+        slug: "sermons/archive",
+      }),
+    ).rejects.toMatchObject({
+      message: '"sermons/archive" is a reserved slug',
+    });
+  });
+
+  it("still edits and deletes an entry already under a reserved slug", async () => {
+    const saved = await pages.saveEntry("docs", "sermons/old", {
+      data: { title: "Older" },
+    });
+    expect(saved.slug).toBe("sermons/old");
+    await pages.deleteEntry("docs", "sermons/old");
+    expect(await pages.getEntry("docs", "sermons/old")).toBe(null);
+  });
+
+  it("looks under a reserved slug only where the collection has folders", async () => {
+    // A list's ids are not paths.
+    const saved = await pages.saveEntry("menus", null, {
+      data: { id: "main/extra", title: "Extra" },
+    });
+    expect(saved.slug).toBe("main/extra");
+    // A flat collection refuses the slash itself.
+    await expect(
+      pages.saveEntry("pages", null, {
+        data: { title: "Index" },
+        slug: "sermons/index",
+      }),
+    ).rejects.toMatchObject({ status: 400, code: "bad_slug" });
   });
 });
 

@@ -10,8 +10,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - **`reservedSlugs`** on a collection names slugs the site depends on, such
   as `["index", "404"]` for pages at fixed routes, or the names of its other
   routes. An entry at one can't be renamed or deleted, and no other entry
-  can be created at or renamed to one, or to a slug under one
-  (`sermons/index` under `sermons`), in any letter case.
+  can be created at or renamed to one, or, in a collection with folders, to
+  a slug under one (`sermons/index` under `sermons`), in any letter case.
 - **Build status in the top bar.** After a save, the panel shows whether
   it is publishing, live, or failed to build, and lists recent saves with
   their builds and which one is on the site. It reads the check runs
