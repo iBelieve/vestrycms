@@ -14,6 +14,7 @@ import {
 } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import { useVestry } from "../context.js";
+import { DeployStatus } from "./DeployStatus.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./ui.js";
 import { logoSrc } from "../lib/logo.js";
@@ -44,6 +45,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </span>
         ))}
         <div className="v-chrome__spacer" />
+        {client.user && <DeployStatus />}
         <SourceChip client={client} />
         {config.siteUrl && (
           <a

@@ -89,7 +89,8 @@ body {
     .v-dash-card,
     .v-table__title,
     .v-brand,
-    .v-folder
+    .v-folder,
+    .v-deploys__title a
   ) {
   color: inherit;
 }
@@ -252,6 +253,133 @@ a.v-chrome__chip:hover {
 }
 #vestry-root a:where(.v-chrome__brand, .v-chrome__chip) {
   color: inherit;
+}
+
+/* build status */
+button.v-chrome__chip {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+button.v-chrome__chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.v-deploys__chip.is-ok svg {
+  color: #4ade80;
+}
+.v-deploys__chip.is-busy {
+  color: var(--v-chrome-text);
+}
+.v-deploys__chip.is-busy svg {
+  color: #fdba74;
+}
+.v-deploys__chip.is-bad {
+  color: #fecaca;
+}
+.v-deploys__chip.is-bad svg {
+  color: #f87171;
+}
+.v-deploys__spin {
+  animation: v-spin 1s linear infinite;
+}
+.v-menu__panel:has(.v-deploys) {
+  max-height: min(560px, calc(100vh - 80px));
+}
+.v-deploys {
+  width: min(380px, calc(100vw - 32px));
+}
+.v-deploys__lead {
+  margin: 0;
+  padding: 0 10px 8px;
+  color: var(--v-text-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.v-deploys__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.v-deploys__row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--v-radius-sm);
+}
+.v-deploys__icon svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--v-text-faint);
+}
+.v-deploys__row.is-live .v-deploys__icon svg {
+  color: var(--v-success);
+}
+.v-deploys__row:is(.is-building, .is-queued, .is-waiting, .is-superseded)
+  .v-deploys__icon
+  svg {
+  color: var(--v-primary);
+}
+.v-deploys__row.is-failed .v-deploys__icon svg {
+  color: var(--v-danger);
+}
+.v-deploys__body {
+  min-width: 0;
+  flex: 1;
+}
+.v-deploys__title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: var(--v-text);
+}
+.v-deploys__title a svg {
+  width: 11px;
+  height: 11px;
+  margin-left: 4px;
+  vertical-align: -1px;
+  color: var(--v-text-faint);
+}
+.v-deploys__body small {
+  display: block;
+  color: var(--v-text-muted);
+  font-size: 12px;
+}
+.v-deploys__group-title {
+  margin: 0;
+  padding: 10px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-text-faint);
+}
+.v-deploys__group {
+  border-top: 1px solid var(--v-border);
+}
+.v-deploys__progress {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--v-border);
+  overflow: hidden;
+}
+.v-deploys__progress span {
+  display: block;
+  height: 100%;
+  background: var(--v-primary);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+.v-deploys__row.is-failed .v-deploys__state {
+  color: var(--v-danger);
 }
 .v-menu__item--static {
   cursor: default;
@@ -1165,6 +1293,9 @@ a.v-chrome__chip:hover {
   z-index: 80;
   max-height: 360px;
   overflow: auto;
+  /* Scrolling past the end of a long panel mustn't scroll the page, which
+     would close the menu. */
+  overscroll-behavior: contain;
 }
 .v-menu__item {
   display: flex;

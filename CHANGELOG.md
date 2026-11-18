@@ -3,6 +3,18 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Added
+
+- **Build status in the top bar.** After a save, the panel shows whether
+  it is publishing, live, or failed to build, and lists recent saves with
+  their builds and which one is on the site. It reads the check runs
+  Cloudflare Workers Builds and Pages post on each commit, so it survives a
+  reload and handles several saves in quick succession. The GitHub App needs
+  the **Checks: read-only** permission; `deploys` in the config picks the
+  check (`{ check: "Workers Builds: website" }`) or turns it off (`false`).
+
 ## 0.4.0
 
 ### Added
