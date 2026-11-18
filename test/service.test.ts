@@ -191,6 +191,215 @@ describe("renaming an entry", () => {
   });
 });
 
+describe("fixed and reserved slugs", () => {
+  const fixedConfig = defineConfig({
+    repo: { owner: "o", name: "r" },
+    collections: {
+      pages: collection({
+        label: "Pages",
+        path: "src/pages/*.mdx",
+        reservedSlugs: ["index", "404", "sermons"],
+        schema: { title: fields.text() },
+      }),
+      fixed: collection({
+        label: "Fixed",
+        path: "src/fixed/*.md",
+        editable: false,
+        schema: { title: fields.text() },
+      }),
+      menus: collection({
+        label: "Menus",
+        path: "src/data/menus.yaml",
+        reservedSlugs: ["main", "footer"],
+        schema: { id: fields.text(), title: fields.text() },
+      }),
+    },
+  });
+  let fixedRoot: string;
+  let pages: ContentService;
+
+  beforeAll(async () => {
+    fixedRoot = await mkdtemp(path.join(tmpdir(), "vestry-fixed-"));
+    for (const [file, text] of Object.entries({
+      "src/pages/index.mdx": "---\ntitle: Home\n---\n",
+      "src/pages/about.mdx": "---\ntitle: About\n---\n",
+      "src/fixed/one.md": "---\ntitle: One\n---\n",
+      "src/data/menus.yaml": "- id: main\n  title: Main\n",
+    })) {
+      await mkdir(path.dirname(path.join(fixedRoot, file)), {
+        recursive: true,
+      });
+      await writeFile(path.join(fixedRoot, file), text);
+    }
+    pages = new ContentService(fixedConfig, new LocalSource(fixedRoot), {
+      builtAt: "",
+      files: {},
+    });
+  });
+
+  afterAll(() => rm(fixedRoot, { recursive: true, force: true }));
+
+  it("keeps a reserved entry from being renamed or deleted", async () => {
+    await expect(
+      pages.saveEntry("pages", "index", {
+        data: { title: "Home" },
+        slug: "home",
+      }),
+    ).rejects.toMatchObject({ status: 403, code: "forbidden" });
+    await expect(pages.deleteEntry("pages", "index")).rejects.toMatchObject({
+      status: 403,
+      code: "forbidden",
+    });
+    expect(await pages.getEntry("pages", "index")).not.toBe(null);
+  });
+
+  it("still saves a reserved entry in place", async () => {
+    const saved = await pages.saveEntry("pages", "index", {
+      data: { title: "Welcome" },
+    });
+    expect(saved.slug).toBe("index");
+  });
+
+  it("refuses a reserved slug to a new or renamed entry", async () => {
+    await expect(
+      pages.saveEntry("pages", null, {
+        data: { title: "Sermons" },
+        slug: "sermons",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    await expect(
+      pages.saveEntry("pages", "about", {
+        data: { title: "About" },
+        slug: "404",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    expect(await pages.getEntry("pages", "about")).not.toBe(null);
+  });
+
+  it("refuses to rename a list entry with a reserved id", async () => {
+    await expect(
+      pages.saveEntry("menus", "main", { data: { id: "top", title: "Main" } }),
+    ).rejects.toMatchObject({ status: 403, code: "forbidden" });
+    await expect(
+      pages.saveEntry("menus", null, { data: { id: "main", title: "Again" } }),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      pages.saveEntry("menus", null, { data: { id: "footer", title: "F" } }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+  });
+
+  it("refuses a reserved slug in any letter case", async () => {
+    await expect(
+      pages.saveEntry("pages", null, {
+        data: { title: "Sermons" },
+        slug: "Sermons",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    await expect(pages.deleteEntry("pages", "INDEX")).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it("treats a save under a slug with no entry as creating it", async () => {
+    await expect(
+      pages.saveEntry("pages", "sermons", { data: { title: "Sermons" } }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    await expect(
+      pages.saveEntry("menus", "footer", {
+        data: { id: "footer", title: "F" },
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    await expect(
+      pages.saveEntry("fixed", "two", { data: { title: "Two" } }),
+    ).rejects.toMatchObject({ status: 403, code: "forbidden" });
+    expect(await pages.getEntry("pages", "sermons")).toBe(null);
+    expect(await pages.getEntry("fixed", "two")).toBe(null);
+    expect(await pages.getEntry("menus", "footer")).toBe(null);
+  });
+
+  it("refuses to create, rename or delete entries of a collection that isn't editable", async () => {
+    await expect(
+      pages.saveEntry("fixed", null, { data: { title: "Two" } }),
+    ).rejects.toMatchObject({ status: 403, code: "forbidden" });
+    await expect(
+      pages.saveEntry("fixed", "one", { data: { title: "One" }, slug: "uno" }),
+    ).rejects.toMatchObject({ status: 403, code: "forbidden" });
+    await expect(pages.deleteEntry("fixed", "one")).rejects.toMatchObject({
+      status: 403,
+      code: "forbidden",
+    });
+    const saved = await pages.saveEntry("fixed", "one", {
+      data: { title: "Uno" },
+    });
+    expect(saved.slug).toBe("one");
+  });
+});
+
+describe("sorting", () => {
+  const sortConfig = defineConfig({
+    repo: { owner: "o", name: "r" },
+    collections: {
+      pages: collection({
+        label: "Pages",
+        path: "src/pages/**.md",
+        sort: { field: "order", direction: "asc" },
+        schema: { title: fields.text(), order: fields.number() },
+      }),
+    },
+  });
+  let sortRoot: string;
+
+  beforeAll(async () => {
+    sortRoot = await mkdtemp(path.join(tmpdir(), "vestry-sort-"));
+  });
+
+  afterAll(() => rm(sortRoot, { recursive: true, force: true }));
+
+  it("puts entries without a value last, and ties in title order", async () => {
+    const pages = new ContentService(sortConfig, new LocalSource(sortRoot), {
+      builtAt: "",
+      files: {},
+    });
+    for (const [slug, title, order] of [
+      ["zeta", "Zeta", undefined],
+      ["about", "About", undefined],
+      ["second", "Second", 2],
+      ["first-b", "First B", 1],
+      ["first-a", "First A", 1],
+    ] as const)
+      await pages.saveEntry("pages", null, { data: { title, order }, slug });
+    const entries = await pages.listEntries("pages");
+    expect(entries.map((e) => e.slug)).toEqual([
+      "first-a",
+      "first-b",
+      "second",
+      "about",
+      "zeta",
+    ]);
+    // Missing values stay last when the order is reversed too.
+    const reversed = new ContentService(
+      defineConfig({
+        ...sortConfig,
+        collections: {
+          pages: {
+            ...sortConfig.collections!.pages,
+            sort: { field: "order", direction: "desc" },
+          },
+        },
+      }),
+      new LocalSource(sortRoot),
+      { builtAt: "", files: {} },
+    );
+    expect((await reversed.listEntries("pages")).map((e) => e.slug)).toEqual([
+      "second",
+      "first-a",
+      "first-b",
+      "about",
+      "zeta",
+    ]);
+  });
+});
+
 describe("entries kept as a list in one file", () => {
   const file = () => readFile(path.join(root, "src/data/links.yaml"), "utf8");
 

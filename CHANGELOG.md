@@ -7,6 +7,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **`reservedSlugs`** on a collection names slugs the site depends on, such
+  as `["index", "404"]` for pages at fixed routes, or the names of its other
+  routes. An entry at one can't be renamed or deleted, and no other entry
+  can be created at or renamed to one, in any letter case.
 - **Build status in the top bar.** After a save, the panel shows whether
   it is publishing, live, or failed to build, and lists recent saves with
   their builds and which one is on the site. It reads the check runs
@@ -14,6 +18,24 @@ while Vestry is below 1.0, a minor version may change behaviour.
   reload and handles several saves in quick succession. The GitHub App needs
   the **Checks: read-only** permission; `deploys` in the config picks the
   check (`{ check: "Workers Builds: website" }`) or turns it off (`false`).
+
+### Changed
+
+- **`editable: false` replaces `create: false` and `delete: false`,** and
+  stops renames too. Since 0.3 the Slug box renamed entries even in a
+  collection that didn't allow creating or deleting them, which could move
+  a site's home or 404 page off its route. In a collection that isn't
+  editable, the Slug box is read-only, there is no New or Delete button, and
+  the API refuses a new entry, a rename or a deletion, including a save to
+  a slug that has no entry yet. (The API used to accept a new entry; only
+  the panel hid the button.) A config that still sets `create` or `delete`
+  fails at startup with a message saying what to use instead.
+- **Deleting an entry that others refer to asks first,** naming them (as a
+  rename already did). `delete: false` was the way to protect such entries;
+  the warning replaces it.
+- **Entries without a sort value come last,** and entries with the same
+  value go by title. A collection sorted by `order` used to list the entries
+  without one first, ties in slug order.
 
 ## 0.4.0
 

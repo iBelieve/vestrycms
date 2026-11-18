@@ -303,6 +303,27 @@ In a collection kept as a list in one file, an entry's slug is its id field
 the same way: the editor asks first, and references to it, in the list and
 in other files, are updated in the same commit.
 
+Deleting an entry that others refer to asks first, naming them, since
+their references would then point at nothing.
+
+`editable: false` keeps a collection's set of entries as the site has it:
+their fields and bodies can still be edited, but entries can't be created,
+deleted or renamed. For individual entries, `reservedSlugs` names slugs the
+site depends on, such as pages kept at fixed routes or names its other
+routes already use:
+
+```ts
+pages: collection({
+  path: "src/pages/*.mdx",
+  reservedSlugs: ["index", "404", "sermons"],
+  …
+}),
+```
+
+An entry at a reserved slug can't be renamed or deleted (its Slug box is
+read-only and it has no Delete button), and no other entry can be created at
+or renamed to one, in any letter case. The API refuses the same.
+
 A date field can live in the file name instead of the frontmatter:
 
 ```ts
@@ -465,6 +486,13 @@ lectionaries: collection({ path: "…/**.yaml", tree: "only", … }),
 `tree: true` adds a Tree/List toggle that opens on the tree; `"only"` shows
 the tree with no toggle. Each editor's choice and expanded rows are kept in
 their browser. A search or status filter lists its matches flat.
+
+Entries, and siblings in the tree, follow the collection's `sort`. Entries
+without a value for the sort field come last, and entries with the same
+value (or none) go by title. Sorting pages by an `order` field that only
+some of them set lists those first, in order, then the rest alphabetically.
+A collection kept as a list in one file lists its entries in the file's
+order.
 
 ## Dashboard
 

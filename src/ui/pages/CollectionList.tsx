@@ -14,7 +14,7 @@ import type {
   Field,
   ListColumn,
 } from "../../config/types.js";
-import { basename, fillTemplate } from "../../core/paths.js";
+import { basename, fillTemplate, isEditable } from "../../core/paths.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
 import {
@@ -70,7 +70,7 @@ export function CollectionListPage() {
       <TopBar
         title={col.label}
         actions={
-          col.create !== false && (
+          isEditable(col) && (
             <Link
               to={`/collections/${key}/new`}
               className="v-btn v-btn--primary"
@@ -257,7 +257,7 @@ function NoEntries({
       icon={<Icon name={col.icon ?? "files"} />}
       title={searching ? "No matches" : `No ${col.label.toLowerCase()} yet`}
     >
-      {!searching && col.create !== false && (
+      {!searching && isEditable(col) && (
         <p>
           <Link to={`/collections/${collectionKey}/new`} className="v-btn">
             <Plus /> Create the first {col.singular?.toLowerCase() ?? "entry"}

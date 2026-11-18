@@ -135,6 +135,24 @@ export function collectionFormat(
   return c.format ?? formatFromPath(c.path);
 }
 
+/**
+ * Whether entries can be created, deleted and renamed (`editable`, true
+ * unless set to `false`).
+ */
+export function isEditable(c: CollectionConfig): boolean {
+  return c.editable !== false;
+}
+
+/**
+ * Whether `slug` is one of the collection's `reservedSlugs`, ignoring case:
+ * `Index.mdx` is the same file as `index.mdx` on a case-insensitive disk,
+ * and Astro lowercases content ids.
+ */
+export function isReservedSlug(c: CollectionConfig, slug: string): boolean {
+  const s = slug.toLowerCase();
+  return c.reservedSlugs?.some((r) => r.toLowerCase() === s) ?? false;
+}
+
 export function slugify(input: string): string {
   return input
     .normalize("NFKD")

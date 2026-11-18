@@ -172,6 +172,32 @@ describe("validateConfig", () => {
     ).toThrow(/component "Event": "date" has default/);
   });
 
+  it("rejects create and delete, which editable replaced", () => {
+    expect(() => validateConfig(posts({ editable: false }))).not.toThrow();
+    for (const old of ["create", "delete"])
+      expect(() => validateConfig(posts({ [old]: false }))).toThrow(
+        `sets ${old}, which Vestry replaced`,
+      );
+  });
+
+  it("accepts reserved slugs, but only slugs", () => {
+    expect(() =>
+      validateConfig(posts({ reservedSlugs: ["index", "404"] })),
+    ).not.toThrow();
+    expect(() => validateConfig(posts({ reservedSlugs: ["../x"] }))).toThrow(
+      'reservedSlugs has "../x", which is not a slug',
+    );
+    expect(() =>
+      validateConfig(posts({ reservedSlugs: [undefined as never] })),
+    ).toThrow("reservedSlugs has undefined, which is not a slug");
+  });
+
+  it("accepts editable only as true or false", () => {
+    expect(() => validateConfig(posts({ editable: "false" as never }))).toThrow(
+      "editable must be true or false",
+    );
+  });
+
   it("still requires the repository", () => {
     expect(() => validateConfig({ repo: { owner: "", name: "" } })).toThrow(
       /repo\.owner/,

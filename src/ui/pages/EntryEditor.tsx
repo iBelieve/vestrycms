@@ -23,6 +23,7 @@ import type {
 } from "../../config/types.js";
 import {
   collectionFormat,
+  isEditable,
   parsePathPattern,
   type PathPattern,
 } from "../../core/paths.js";
@@ -68,8 +69,9 @@ import {
   sectionFields,
   sendSave,
   slugBox,
+  slugError,
+  slugFixed,
   slugHint,
-  slugProblem,
 } from "./entry-editing.js";
 
 export function CollectionEntryPage() {
@@ -86,6 +88,14 @@ export function CollectionEntryPage() {
 
 export function NewEntryPage() {
   const { collection = "" } = useParams();
+  const col = useVestry().config.collections?.[collection];
+  // The API refuses a new entry here, so there is no form to fill in.
+  if (col && !isEditable(col))
+    return (
+      <NotFoundState title={`New entries can't be added to ${col.label}`}>
+        This collection doesn't allow creating entries.
+      </NotFoundState>
+    );
   return (
     <EntryEditor
       kind="collection"
@@ -279,11 +289,10 @@ function EntryForm(props: EntryFormProps) {
         />
       )}
       {form.confirmDelete && (
-        <ConfirmDialog
-          title={`Delete “${display.titleValue}”?`}
-          message="The file will be removed from the repository in a new commit."
-          confirmLabel="Delete"
-          danger
+        <DeleteDialog
+          collectionKey={props.collectionKey}
+          slug={props.slug!}
+          title={display.titleValue}
           busy={remove.isPending}
           onCancel={() => form.setConfirmDelete(false)}
           onConfirm={() => remove.mutate()}
@@ -395,9 +404,7 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
         <EditorActions
           unsaved={unsaved}
           previewHref={display.previewHref}
-          canDelete={
-            !isNew && collection !== null && collection.delete !== false
-          }
+          canDelete={form.slugs.deletable}
           onDelete={() => form.setConfirmDelete(true)}
           onSave={() => void saving.requestSave()}
           saving={saving.save.isPending}
@@ -466,6 +473,7 @@ function EntrySidebar({ form }: { form: EntryFormModel }) {
               pattern={form.pattern}
               slug={slugs.finalSlug}
               box={slugs.box}
+              fixed={slugs.fixed}
               onChange={slugs.setTyped}
               error={slugs.error}
               hint={slugHint(
@@ -720,16 +728,31 @@ function useSlug({
     data: state.data,
     dateKey,
   });
+  /** Saving will move an existing entry to a different file. */
+  const renaming =
+    kind === "collection" && !isNew && !!finalSlug && finalSlug !== slug;
+  // A new entry has no slug yet, so nothing about it is fixed.
+  const fixed = slugFixed(collection, slug);
   return {
     finalSlug,
+    /** Why the slug box is read-only, if it is. */
+    fixed,
+    /** An existing entry can be deleted where its slug could change. */
+    deletable: collection !== null && slug !== null && fixed === null,
     dateKey,
     setTyped,
     latestTyped: () => latestTyped.current,
     box: slugBox(finalSlug, typed, dateKey),
-    error: slugProblem(kind, pattern, finalSlug),
-    /** Saving will move an existing entry to a different file. */
-    renaming:
-      kind === "collection" && !isNew && !!finalSlug && finalSlug !== slug,
+    error: slugError({
+      kind,
+      collection,
+      pattern,
+      finalSlug,
+      data: state.data,
+      fixed,
+      changing: isNew || renaming,
+    }),
+    renaming,
   };
 }
 type Slugs = ReturnType<typeof useSlug>;
@@ -1125,6 +1148,7 @@ function SlugField({
   pattern,
   slug,
   box,
+  fixed,
   onChange,
   error,
   hint,
@@ -1132,6 +1156,8 @@ function SlugField({
   pattern: PathPattern;
   slug: string;
   box: { value: string; prefix: string };
+  /** Why the slug can't change, if it can't. */
+  fixed: string | null;
   onChange: (value: string) => void;
   error: string | null;
   hint: string | null;
@@ -1139,8 +1165,14 @@ function SlugField({
   return (
     <div>
       <label className="v-field__label">Slug</label>
-      {pattern.single ? (
-        <input className="v-input v-input--mono" readOnly value={slug} />
+      {pattern.single || fixed ? (
+        <input
+          className="v-input v-input--mono"
+          readOnly
+          value={slug}
+          // The error and the reason it is fixed never show together.
+          aria-describedby={error || fixed ? "v-slug-note" : undefined}
+        />
       ) : (
         <div className="v-slug">
           {box.prefix && (
@@ -1160,7 +1192,16 @@ function SlugField({
           />
         </div>
       )}
-      {error && <div className="v-field__error">{error}</div>}
+      {error && (
+        <div id="v-slug-note" className="v-field__error">
+          {error}
+        </div>
+      )}
+      {fixed && !error && (
+        <div id="v-slug-note" className="v-field__hint">
+          {fixed}
+        </div>
+      )}
       {hint && (
         <div className="v-field__hint v-mono" style={{ fontSize: 11.5 }}>
           {hint}
@@ -1196,6 +1237,83 @@ function EntryMeta({
   );
 }
 
+/** Entries that refer to one, at most eight of them by name. */
+function ReferenceList({ references }: { references: EntryReference[] }) {
+  return (
+    <ul className="v-reference-list">
+      {references.slice(0, 8).map((r) => (
+        <li key={`${r.kind}:${r.key}:${r.slug}`}>
+          {r.kind === "collection" ? `${r.label}: ${r.title}` : r.label}
+        </li>
+      ))}
+      {references.length > 8 && <li>and {references.length - 8} more</li>}
+    </ul>
+  );
+}
+
+const referCount = (n: number) =>
+  n === 1 ? "1 other entry refers" : `${n} other entries refer`;
+
+/**
+ * Confirms a deletion, first looking up the entries that refer to this one,
+ * whose references would then point at nothing.
+ */
+function DeleteDialog({
+  collectionKey,
+  slug,
+  title,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  collectionKey: string;
+  slug: string;
+  title: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { api } = useVestry();
+  const lookup = useQuery({
+    queryKey: ["references", collectionKey, slug],
+    queryFn: () => api.references(collectionKey, slug),
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const references = lookup.data?.references ?? [];
+  const removed =
+    "The file will be removed from the repository in a new commit.";
+  return (
+    <ConfirmDialog
+      title={`Delete “${title}”?`}
+      message={
+        lookup.isPending ? (
+          "Checking for entries that refer to it…"
+        ) : references.length ? (
+          <>
+            {referCount(references.length)} to this one, and would then point at
+            an entry that no longer exists:
+            <ReferenceList references={references} />
+            {removed}
+          </>
+        ) : (
+          <>
+            {lookup.isError &&
+              "The entries that refer to it couldn't be checked. "}
+            {removed}
+          </>
+        )
+      }
+      confirmLabel={references.length ? "Delete anyway" : "Delete"}
+      danger
+      busy={busy}
+      confirmDisabled={lookup.isPending}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
 function RenameDialog({
   references,
   busy,
@@ -1212,18 +1330,9 @@ function RenameDialog({
       title="Rename this entry?"
       message={
         <>
-          {references.length === 1
-            ? "1 other entry refers"
-            : `${references.length} other entries refer`}{" "}
-          to this one and will be updated in the same commit:
-          <ul className="v-reference-list">
-            {references.slice(0, 8).map((r) => (
-              <li key={`${r.kind}:${r.key}:${r.slug}`}>
-                {r.kind === "collection" ? `${r.label}: ${r.title}` : r.label}
-              </li>
-            ))}
-            {references.length > 8 && <li>and {references.length - 8} more</li>}
-          </ul>
+          {referCount(references.length)} to this one and will be updated in the
+          same commit:
+          <ReferenceList references={references} />
         </>
       }
       confirmLabel="Rename and update"

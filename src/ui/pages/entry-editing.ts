@@ -17,6 +17,8 @@ import {
   dirname,
   entryPath,
   fillTemplate,
+  isEditable,
+  isReservedSlug,
   isSafeSlug,
   normalizePath,
   relativePath,
@@ -111,8 +113,66 @@ export function slugBox(
   return { value, prefix };
 }
 
+/**
+ * Why an existing entry's slug can't change, if it can't: its collection
+ * isn't `editable`, or its slug is reserved.
+ */
+export function slugFixed(
+  collection: CollectionConfig | null,
+  slug: string | null,
+): string | null {
+  if (!collection || slug === null) return null;
+  if (!isEditable(collection))
+    return "This collection doesn't allow renaming entries.";
+  if (isReservedSlug(collection, slug))
+    return "This entry's slug is reserved, so it can't be renamed.";
+  return null;
+}
+
+/**
+ * What's wrong with the slug the entry will be saved under, if anything.
+ * A reserved slug can't be taken; a fixed one can't change, though a list
+ * entry's id or a date kept in the file name can still try to change it.
+ */
+export function slugError({
+  kind,
+  collection,
+  pattern,
+  finalSlug,
+  data,
+  fixed,
+  changing,
+}: {
+  kind: Kind;
+  collection: CollectionConfig | null;
+  pattern: PathPattern;
+  finalSlug: string;
+  /** The entry's form data, whose id field a list entry is saved under. */
+  data: Record<string, unknown>;
+  /** Why the current slug can't change, if it can't. */
+  fixed: string | null;
+  /** The entry is new, or saving it renames it. */
+  changing: boolean;
+}): string | null {
+  if (!changing) return slugProblem(kind, pattern, finalSlug);
+  if (fixed) return fixed;
+  // A new list entry has no slug yet: it takes the id its form holds, or
+  // one derived from its fields when it holds none, as the server does.
+  const taken =
+    collection && pattern.single
+      ? listId(collection, data) ||
+        finalSlug ||
+        (data[collection.idField ?? "id"] == null
+          ? derivedSlug(collection, data)
+          : "")
+      : finalSlug;
+  if (collection && taken && isReservedSlug(collection, taken))
+    return `"${taken}" is a reserved slug.`;
+  return slugProblem(kind, pattern, finalSlug);
+}
+
 /** Why a collection entry cannot be saved under `slug`, if it cannot. */
-export function slugProblem(
+function slugProblem(
   kind: Kind,
   pattern: PathPattern | null,
   slug: string,

@@ -28,6 +28,8 @@ import type { BuildIndex } from "./index-types.js";
 import {
   basename,
   collectionFormat,
+  isEditable,
+  isReservedSlug,
   dirname,
   entryPath,
   extname,
@@ -317,6 +319,7 @@ export class ContentService {
         keepWallClock: true,
       }),
     };
+    if (slug === null) refuseCreate(col);
     return save.pattern.single
       ? this.saveListEntry(save)
       : this.saveFileEntry(save);
@@ -332,6 +335,11 @@ export class ContentService {
     // A changed id renames the entry: every reference to the old one, in
     // this list and in other files, follows it in the same commit.
     const renamedFrom = !isNew && index !== -1 && id !== slug ? slug : null;
+    // An id the list doesn't hold yet adds an entry, even under a slug.
+    const adding = index === -1;
+    if (adding) refuseCreate(col);
+    if (renamedFrom) refuseRename(col, renamedFrom);
+    if (adding || renamedFrom) refuseReserved(col, id);
     const text = serializeEntryList(
       format,
       renamedFrom
@@ -428,7 +436,14 @@ export class ContentService {
     const path = entryPath(pattern, finalSlug);
     const renamedFrom =
       !isNew && finalSlug !== slug ? entryPath(pattern, slug) : null;
-    await this.checkSaveTarget(save, path, renamedFrom);
+    if (renamedFrom) refuseRename(col, slug!);
+    if (isNew || renamedFrom) refuseReserved(col, finalSlug);
+    const exists = await this.checkSaveTarget(save, path, renamedFrom);
+    // Saved under a slug that has no file yet, the entry is created there.
+    if (!isNew && !exists) {
+      refuseCreate(col);
+      refuseReserved(col, finalSlug);
+    }
     // An entry that refers to itself follows its own rename. (A file composed
     // by the client, `raw`, has had the same done to it there.)
     const data = renamedFrom
@@ -503,13 +518,14 @@ export class ContentService {
 
   /**
    * Refuses to overwrite another entry, and to save over a version newer
-   * than the one the editor opened.
+   * than the one the editor opened. Returns whether the entry being saved
+   * already has a file.
    */
   private async checkSaveTarget(
     { slug, input }: EntrySave,
     path: string,
     renamedFrom: string | null,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const isNew = slug === null;
     const target = await this.source.read(path);
     if ((isNew || renamedFrom) && target) {
@@ -533,6 +549,7 @@ export class ContentService {
         "conflict",
       );
     }
+    return Boolean(existing);
   }
 
   /**
@@ -643,9 +660,15 @@ export class ContentService {
 
   async deleteEntry(key: string, slug: string): Promise<{ commit: string }> {
     const col = this.collection(key);
-    if (col.delete === false)
+    if (!isEditable(col))
       throw new SourceError(
         "Deleting is disabled for this collection",
+        403,
+        "forbidden",
+      );
+    if (isReservedSlug(col, slug))
+      throw new SourceError(
+        `"${slug}" is a reserved slug, so it can't be deleted`,
         403,
         "forbidden",
       );
@@ -929,6 +952,38 @@ export class ContentService {
   }
 }
 
+/** Refuses a new entry where the collection doesn't allow creating them. */
+function refuseCreate(col: CollectionConfig): void {
+  if (!isEditable(col))
+    throw new SourceError(
+      "Creating entries is disabled for this collection",
+      403,
+      "forbidden",
+    );
+}
+
+/** Refuses to rename entry `slug` when its slug is fixed. */
+function refuseRename(col: CollectionConfig, slug: string): void {
+  if (!isEditable(col))
+    throw new SourceError(
+      "Renaming is disabled for this collection",
+      403,
+      "forbidden",
+    );
+  if (isReservedSlug(col, slug))
+    throw new SourceError(
+      `"${slug}" is a reserved slug, so it can't be renamed`,
+      403,
+      "forbidden",
+    );
+}
+
+/** Refuses to put an entry at a reserved slug. */
+function refuseReserved(col: CollectionConfig, slug: string): void {
+  if (isReservedSlug(col, slug))
+    throw new SourceError(`"${slug}" is a reserved slug`, 409, "exists");
+}
+
 /** A list's entries with every reference to entry `from` of `key` moved to `to`. */
 function renameInList(
   schema: Schema,
@@ -960,20 +1015,42 @@ function statusOf(
   return bool === publishedWhen ? "published" : "draft";
 }
 
+/**
+ * Entries in the collection's `sort` order. Entries without a value for the
+ * sort field come last, and entries with the same value (or none) are in
+ * title order, then slug order. The tree keeps this order among siblings,
+ * so pages ordered by an `order` field that only some of them set list the
+ * ordered ones first, then the rest alphabetically.
+ */
 function sortEntries(
   col: CollectionConfig,
   entries: EntrySummary[],
 ): EntrySummary[] {
-  const sort = col.sort;
-  const dir = sort?.direction === "asc" ? 1 : -1;
-  const field = sort?.field;
-  return [...entries].sort((a, b) => {
-    const av = field ? sortable(a.data[field]) : a.slug;
-    const bv = field ? sortable(b.data[field]) : b.slug;
-    if (av === bv) return a.slug < b.slug ? -dir : dir;
-    return av < bv ? -dir : dir;
-  });
+  const dir = col.sort?.direction === "asc" ? 1 : -1;
+  const field = col.sort?.field;
+  const bySlug = (a: EntrySummary, b: EntrySummary) =>
+    a.slug < b.slug ? -dir : a.slug > b.slug ? dir : 0;
+  // Without a sort field, entries go by slug (newest first for dated ones).
+  if (!field) return [...entries].sort(bySlug);
+  return [...entries].sort(
+    (a, b) =>
+      compareField(a.data[field], b.data[field], dir) ||
+      a.title.localeCompare(b.title) ||
+      bySlug(a, b),
+  );
 }
+
+/** Compares two sort values in direction `dir`, with missing ones last. */
+function compareField(a: unknown, b: unknown, dir: number): number {
+  const am = isMissing(a);
+  const bm = isMissing(b);
+  if (am || bm) return am === bm ? 0 : am ? 1 : -1;
+  const av = sortable(a);
+  const bv = sortable(b);
+  return av < bv ? -dir : av > bv ? dir : 0;
+}
+
+const isMissing = (v: unknown) => v === undefined || v === null || v === "";
 
 function sortable(v: unknown): string | number {
   if (v instanceof Date) return v.getTime();

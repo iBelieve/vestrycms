@@ -108,6 +108,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   busy,
+  confirmDisabled,
 }: {
   title: string;
   message: ReactNode;
@@ -116,6 +117,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
   busy?: boolean;
+  /** Holds the confirm button back, as while something loads. */
+  confirmDisabled?: boolean;
 }) {
   return (
     <Modal
@@ -129,7 +132,7 @@ export function ConfirmDialog({
           <Button
             variant={danger ? "danger" : "primary"}
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
           >
             {busy ? <Spinner /> : null}
             {confirmLabel}
