@@ -322,7 +322,12 @@ pages: collection({
 
 An entry at a reserved slug can't be renamed or deleted (its Slug box is
 read-only and it has no Delete button), and no other entry can be created at
-or renamed to one, in any letter case. The API refuses the same.
+or renamed to one, in any letter case. In a collection with nested folders,
+no new entry can go under one either (`sermons/index` or `sermons/page/2`
+under `sermons`), since its route would be the reserved one or sit below
+it. Entries already there can still be edited and deleted, and renamed to a
+slug outside it; a rename that stays under it (changing a date kept in the
+file name is one) is refused like a new entry. The API refuses the same.
 
 A date field can live in the file name instead of the frontmatter:
 

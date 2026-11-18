@@ -64,7 +64,7 @@ const config = defineConfig({
     pages: collection({
       label: "Pages",
       singular: "page",
-      path: "src/pages/*.md",
+      path: "src/pages/**.md",
       body: false,
       reservedSlugs: ["index", "404"],
       schema: { title: fields.text() },
@@ -603,6 +603,11 @@ describe("a fixed slug", () => {
     await screen.findByText("New page");
     await user.type(slugInput(), "404");
     expect(screen.getByText('"404" is a reserved slug.')).toBeTruthy();
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+    await user.type(slugInput(), "/missing");
+    expect(
+      screen.getByText('"404/missing" is under the reserved slug "404".'),
+    ).toBeTruthy();
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 

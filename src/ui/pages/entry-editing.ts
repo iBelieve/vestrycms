@@ -19,6 +19,7 @@ import {
   fillTemplate,
   isEditable,
   isReservedSlug,
+  reservedSlugProblem,
   isSafeSlug,
   normalizePath,
   relativePath,
@@ -166,9 +167,9 @@ export function slugError({
           ? derivedSlug(collection, data)
           : "")
       : finalSlug;
-  if (collection && taken && isReservedSlug(collection, taken))
-    return `"${taken}" is a reserved slug.`;
-  return slugProblem(kind, pattern, finalSlug);
+  const reserved =
+    collection && taken ? reservedSlugProblem(collection, taken) : null;
+  return reserved ? `${reserved}.` : slugProblem(kind, pattern, finalSlug);
 }
 
 /** Why a collection entry cannot be saved under `slug`, if it cannot. */

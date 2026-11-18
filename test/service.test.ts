@@ -207,6 +207,12 @@ describe("fixed and reserved slugs", () => {
         editable: false,
         schema: { title: fields.text() },
       }),
+      docs: collection({
+        label: "Docs",
+        path: "src/docs/**.md",
+        reservedSlugs: ["sermons", "sermons/archive"],
+        schema: { title: fields.text() },
+      }),
       menus: collection({
         label: "Menus",
         path: "src/data/menus.yaml",
@@ -224,6 +230,8 @@ describe("fixed and reserved slugs", () => {
       "src/pages/index.mdx": "---\ntitle: Home\n---\n",
       "src/pages/about.mdx": "---\ntitle: About\n---\n",
       "src/fixed/one.md": "---\ntitle: One\n---\n",
+      "src/docs/guide.md": "---\ntitle: Guide\n---\n",
+      "src/docs/sermons/old.md": "---\ntitle: Old\n---\n",
       "src/data/menus.yaml": "- id: main\n  title: Main\n",
     })) {
       await mkdir(path.dirname(path.join(fixedRoot, file)), {
@@ -332,6 +340,66 @@ describe("fixed and reserved slugs", () => {
       data: { title: "Uno" },
     });
     expect(saved.slug).toBe("one");
+  });
+
+  it("refuses new or renamed entries under a reserved slug", async () => {
+    await expect(
+      pages.saveEntry("docs", null, {
+        data: { title: "Index" },
+        slug: "Sermons/index",
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "exists",
+      message: '"Sermons/index" is under the reserved slug "sermons"',
+    });
+    await expect(
+      pages.saveEntry("docs", "guide", {
+        data: { title: "Guide" },
+        slug: "sermons/page/2",
+      }),
+    ).rejects.toMatchObject({ status: 409, code: "exists" });
+    // A slug that only begins with the reserved one is someone else's.
+    const saved = await pages.saveEntry("docs", null, {
+      data: { title: "Series" },
+      slug: "sermons-series/one",
+    });
+    expect(saved.slug).toBe("sermons-series/one");
+  });
+
+  it("names the reserved slug itself before one it is under", async () => {
+    await expect(
+      pages.saveEntry("docs", null, {
+        data: { title: "Archive" },
+        slug: "sermons/archive",
+      }),
+    ).rejects.toMatchObject({
+      message: '"sermons/archive" is a reserved slug',
+    });
+  });
+
+  it("still edits and deletes an entry already under a reserved slug", async () => {
+    const saved = await pages.saveEntry("docs", "sermons/old", {
+      data: { title: "Older" },
+    });
+    expect(saved.slug).toBe("sermons/old");
+    await pages.deleteEntry("docs", "sermons/old");
+    expect(await pages.getEntry("docs", "sermons/old")).toBe(null);
+  });
+
+  it("looks under a reserved slug only where the collection has folders", async () => {
+    // A list's ids are not paths.
+    const saved = await pages.saveEntry("menus", null, {
+      data: { id: "main/extra", title: "Extra" },
+    });
+    expect(saved.slug).toBe("main/extra");
+    // A flat collection refuses the slash itself.
+    await expect(
+      pages.saveEntry("pages", null, {
+        data: { title: "Index" },
+        slug: "sermons/index",
+      }),
+    ).rejects.toMatchObject({ status: 400, code: "bad_slug" });
   });
 });
 

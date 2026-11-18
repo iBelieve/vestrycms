@@ -153,6 +153,28 @@ export function isReservedSlug(c: CollectionConfig, slug: string): boolean {
   return c.reservedSlugs?.some((r) => r.toLowerCase() === s) ?? false;
 }
 
+/**
+ * Why no entry may be put at `slug`, if none may: it is reserved, or, in a
+ * collection with folders, it is under a reserved slug (`sermons/index`
+ * under `sermons`), whose route the entry would share or sit below. Case is
+ * ignored, as in `isReservedSlug`.
+ */
+export function reservedSlugProblem(
+  c: CollectionConfig,
+  slug: string,
+): string | null {
+  if (isReservedSlug(c, slug)) return `"${slug}" is a reserved slug`;
+  // Only a `**` path has folders; a list's ids are not paths.
+  if (!parsePathPattern(c.path).deep) return null;
+  const s = slug.toLowerCase();
+  const parent = c.reservedSlugs?.find((r) =>
+    s.startsWith(`${r.toLowerCase()}/`),
+  );
+  return parent === undefined
+    ? null
+    : `"${slug}" is under the reserved slug "${parent}"`;
+}
+
 export function slugify(input: string): string {
   return input
     .normalize("NFKD")

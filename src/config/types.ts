@@ -415,7 +415,8 @@ export interface CollectionConfig {
    * Slugs the site depends on, such as pages kept at fixed routes
    * (`["index", "404"]`) or names its other routes already use. An entry
    * at one can't be renamed or deleted, and no other entry can be created
-   * at or renamed to one.
+   * at or renamed to one, or, in a collection with folders (`**`), to a
+   * slug under one (`sermons/index`).
    */
   reservedSlugs?: string[];
 }
