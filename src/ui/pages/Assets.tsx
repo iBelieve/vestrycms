@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Trash, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { Copy, Trash } from "lucide-react";
+import { useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { joinPath } from "../../core/paths.js";
 import type { AssetItem } from "../../core/service.js";
@@ -9,6 +9,7 @@ import {
   AssetGrid,
   Dropzone,
   FolderGrid,
+  UploadButton,
   uploadedMessage,
   uploadPayload,
 } from "../components/AssetBrowser.js";
@@ -22,7 +23,6 @@ import {
   Loading,
   Modal,
   NotFoundState,
-  Spinner,
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
@@ -55,6 +55,7 @@ export function AssetsPage() {
         title={container.label}
         actions={
           <UploadButton
+            variant="primary"
             accept={container.accept}
             busy={upload.isPending}
             onFiles={(files) => upload.mutate(files)}
@@ -144,38 +145,6 @@ function AssetsListing({
   );
 }
 
-/** A hidden file input and the button that opens it. */
-function UploadButton({
-  accept,
-  busy,
-  onFiles,
-}: {
-  accept?: string[];
-  busy: boolean;
-  onFiles: (files: File[]) => void;
-}) {
-  const fileInput = useRef<HTMLInputElement>(null);
-  return (
-    <>
-      <input
-        ref={fileInput}
-        type="file"
-        hidden
-        multiple
-        accept={accept?.map((a) => `.${a}`).join(",")}
-        onChange={(e) => e.target.files && onFiles(Array.from(e.target.files))}
-      />
-      <Button
-        variant="primary"
-        onClick={() => fileInput.current?.click()}
-        disabled={busy}
-      >
-        {busy ? <Spinner /> : <Upload />} Upload
-      </Button>
-    </>
-  );
-}
-
 /** The selected file: a preview, its path and URL, and a way to delete it. */
 function AssetDetails({
   containerKey,
@@ -213,9 +182,14 @@ function AssetDetails({
               <Trash /> Delete
             </Button>
             <Button
-              onClick={() => {
-                navigator.clipboard.writeText(item.path);
-                toast("success", "Path copied");
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(item.path);
+                  toast("success", "Path copied");
+                } catch {
+                  // Refused, or no clipboard outside a secure context.
+                  toast("error", "Couldn't copy the path");
+                }
               }}
             >
               <Copy /> Copy path

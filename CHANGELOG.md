@@ -7,6 +7,15 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Fixed
 
+- **Sorting a collection by its Status column works.** It sorted by a
+  `status` value the entries don't have, so the order never changed.
+- **Uploading the same file again after a failed upload works.** The
+  upload buttons now clear their file choice, and an empty choice is
+  ignored instead of reporting a rejected file type or uploading nothing.
+- **"Copy path" says when copying fails** instead of claiming the path was
+  copied.
+- **The asset picker keeps showing its files when a refresh fails**, with
+  the error above them.
 - **The logo shows before the GitHub App is set up.** A logo kept in the
   repository is now bundled into the build instead of fetched from GitHub,
   so the sign-in page no longer shows a broken image while the

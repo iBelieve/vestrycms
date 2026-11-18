@@ -93,7 +93,7 @@ export function TreeInput({
       ),
     );
   const remove = (id: string) => {
-    commit(removeNode(tree, id));
+    commit(removeNode(latest.current, id));
     if (editing === id) setEditing(null);
   };
   const add = (parentId: string | null) => {
@@ -102,12 +102,13 @@ export function TreeInput({
       data: defaultValues(field.fields),
       children: [],
     };
-    const parent = parentId ? findNode(tree, parentId) : null;
+    const current = latest.current;
+    const parent = parentId ? findNode(current, parentId) : null;
     commit(
       insertNode(
-        tree,
+        current,
         parentId,
-        parent ? parent.children.length : tree.length,
+        parent ? parent.children.length : current.length,
         node,
       ),
     );
@@ -284,13 +285,13 @@ function useTreeDrag(
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [offsetX, setOffsetX] = useState(0);
+  const flat = useMemo(() => flatten(tree, collapsed), [tree, collapsed]);
   const visible = useMemo(() => {
-    const flat = flatten(tree, collapsed);
     if (!activeId) return flat;
     const node = findNode(tree, activeId);
     const hidden = new Set(node ? descendantIds(node) : []);
     return flat.filter((i) => !hidden.has(i.id));
-  }, [tree, collapsed, activeId]);
+  }, [flat, activeId, tree]);
   const projection =
     activeId && overId
       ? getProjection(visible, activeId, overId, offsetX, maxDepth)

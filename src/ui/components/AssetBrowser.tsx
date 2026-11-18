@@ -2,12 +2,13 @@
  * The pieces the Assets page and the asset picker share: the folder
  * breadcrumbs, the drop zone, and the folder and file grids.
  */
-import { ChevronRight, File as FileIcon, Folder } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { ChevronRight, File as FileIcon, Folder, Upload } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
 import type { AssetItem } from "../../core/service.js";
 import { fileToBase64 } from "../api.js";
 import { useVestry } from "../context.js";
 import { cx, formatBytes } from "../lib/utils.js";
+import { Button, Spinner } from "./ui.js";
 
 /** Reads files for `api.uploadAssets`. */
 export function uploadPayload(
@@ -50,6 +51,51 @@ export function AssetCrumbs({
         </span>
       ))}
     </div>
+  );
+}
+
+/** A hidden file input and the button that opens it. */
+export function UploadButton({
+  accept,
+  multiple = true,
+  busy,
+  onFiles,
+  variant,
+  size,
+}: {
+  accept?: string[];
+  multiple?: boolean;
+  busy: boolean;
+  onFiles: (files: File[]) => void;
+  variant?: "primary";
+  size?: "sm";
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <input
+        ref={fileInput}
+        type="file"
+        hidden
+        multiple={multiple}
+        accept={accept?.map((a) => `.${a}`).join(",")}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          // Cleared, so that choosing the same file again (to retry a
+          // failed upload, say) is a change too.
+          e.target.value = "";
+          if (files.length) onFiles(files);
+        }}
+      />
+      <Button
+        variant={variant}
+        size={size}
+        onClick={() => fileInput.current?.click()}
+        disabled={busy}
+      >
+        {busy ? <Spinner /> : <Upload />} Upload
+      </Button>
+    </>
   );
 }
 

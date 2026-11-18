@@ -1,6 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { joinPath, safeFileName } from "../../core/paths.js";
 import type { VestryConfig } from "../../config/types.js";
 import type { AssetItem } from "../../core/service.js";
@@ -10,11 +9,12 @@ import {
   AssetGrid,
   Dropzone,
   FolderGrid,
+  UploadButton,
   uploadedMessage,
   uploadPayload,
 } from "./AssetBrowser.js";
 import { useVestry } from "../context.js";
-import { Alert, Button, Loading, Modal, Spinner, useToast } from "./ui.js";
+import { Alert, Button, Loading, Modal, useToast } from "./ui.js";
 
 /**
  * Browse (and upload to) a repository directory and pick a file. Used by
@@ -89,7 +89,8 @@ export function AssetPicker({
             />
             <div className="v-grow" />
             {allowUpload && (
-              <PickerUploadButton
+              <UploadButton
+                size="sm"
                 accept={accept}
                 multiple={!deferUploads}
                 busy={uploading}
@@ -204,13 +205,16 @@ function PickerListing({
   onPick: (path: string) => void;
 }) {
   if (query.isLoading) return <Loading />;
-  if (query.error)
-    return <Alert kind="error">{(query.error as Error).message}</Alert>;
+  // A failed refetch keeps the listing it had, so show both.
+  const error = query.error ? (
+    <Alert kind="error">{(query.error as Error).message}</Alert>
+  ) : null;
   const listing = query.data;
-  if (!listing) return null;
+  if (!listing) return error;
   const empty = listing.items.length === 0 && listing.folders.length === 0;
   return (
     <>
+      {error}
       <FolderGrid folders={listing.folders} onOpen={onOpenFolder} />
       <AssetGrid
         items={listing.items.filter((i) => !accept || accept.includes(i.ext))}
@@ -242,39 +246,6 @@ function containerFor(
   return found
     ? { containerKey: found[0], containerDir: found[1].directory }
     : { containerKey: null, containerDir: directory };
-}
-
-function PickerUploadButton({
-  accept,
-  multiple,
-  busy,
-  onFiles,
-}: {
-  accept?: string[];
-  multiple: boolean;
-  busy: boolean;
-  onFiles: (files: File[]) => void;
-}) {
-  const fileInput = useRef<HTMLInputElement>(null);
-  return (
-    <>
-      <input
-        ref={fileInput}
-        type="file"
-        hidden
-        multiple={multiple}
-        accept={accept?.map((a) => `.${a}`).join(",")}
-        onChange={(e) => e.target.files && onFiles(Array.from(e.target.files))}
-      />
-      <Button
-        size="sm"
-        onClick={() => fileInput.current?.click()}
-        disabled={busy}
-      >
-        {busy ? <Spinner /> : <Upload />} Upload
-      </Button>
-    </>
-  );
 }
 
 export type PendingUpload = {

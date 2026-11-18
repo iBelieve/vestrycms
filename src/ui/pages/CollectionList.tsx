@@ -384,6 +384,9 @@ function EntryCell({
 function sortValue(entry: EntrySummary, field: string): string {
   if (field === "title") return entry.title;
   if (field === "slug") return entry.slug;
+  // The column shows the entry's status, which `data` holds under the
+  // status field's own key, if at all.
+  if (field === "status") return entry.status ?? "";
   return String(entry.data[field] ?? "");
 }
 

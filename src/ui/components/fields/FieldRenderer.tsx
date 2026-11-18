@@ -42,6 +42,7 @@ import {
   cx,
   defaultValue,
   fieldLabel,
+  IMAGE_EXTENSIONS,
   isImagePath,
   summarize,
   type ValidationError,
@@ -594,8 +595,6 @@ function DatetimeInput({
   );
 }
 
-const IMAGE_ACCEPT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"];
-
 function AssetInput(props: FieldProps) {
   const field = props.field as Extract<Field, { type: "image" | "file" }>;
   const value = (props.value as string) ?? "";
@@ -633,7 +632,7 @@ function AssetInput(props: FieldProps) {
       {open && (
         <AssetPicker
           directory={field.directory}
-          accept={field.accept ?? (isImage ? IMAGE_ACCEPT : undefined)}
+          accept={field.accept ?? (isImage ? IMAGE_EXTENSIONS : undefined)}
           allowUpload={field.upload !== false}
           title={isImage ? "Choose an image" : "Choose a file"}
           deferUploads={Boolean(props.ctx?.addUpload)}

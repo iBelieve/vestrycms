@@ -51,7 +51,12 @@ import type {
   ImportSpec,
   PMNode,
 } from "../../../mdx/types.js";
-import { cssToStyle, cx, defaultValues } from "../../lib/utils.js";
+import {
+  cssToStyle,
+  cx,
+  defaultValues,
+  IMAGE_EXTENSIONS,
+} from "../../lib/utils.js";
 import { AssetPicker } from "../AssetPicker.js";
 import { Icon } from "../Icon.js";
 import { CodeInput } from "../fields/CodeInput.js";
@@ -602,7 +607,7 @@ function ImageTool({
       {open && env.imageDirectory && (
         <AssetPicker
           directory={env.imageDirectory}
-          accept={["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"]}
+          accept={IMAGE_EXTENSIONS}
           title="Insert image"
           deferUploads={Boolean(onUpload)}
           onClose={() => setOpen(false)}
