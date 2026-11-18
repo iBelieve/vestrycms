@@ -508,7 +508,8 @@ export interface VestryConfig {
   name?: string;
   /**
    * Logo shown in the control panel's top bar instead of the name: a
-   * repository path (e.g. `src/assets/logo.svg`, served through Vestry) or an
+   * repository path (e.g. `src/assets/logo.svg`, bundled into the build, or
+   * served through Vestry when the file is not there at build time) or an
    * absolute URL. The bar is dark, so use a light/reverse variant.
    */
   logo?: string;

@@ -91,7 +91,9 @@ the browser), so it cannot contain functions.
 
 `name` titles the control panel; `logo` (a repository path such as
 `src/assets/logo-reverse.svg`, or an absolute URL) replaces it in the dark
-top bar, so a light or reverse variant works best.
+top bar, so a light or reverse variant works best. A repository logo is
+bundled into the build, so the sign-in page shows it even before the GitHub
+App is set up.
 
 ### Sign-in and users
 
@@ -173,7 +175,7 @@ src
 │   └── values.ts       Asset path normalisation, auto fields
 ├── mdx/                MDX ⇄ ProseMirror document conversion
 ├── pages/              Injected routes: admin.astro shell, api.ts endpoint
-├── integration/        Build-time index, formatter module, dev bridge, client deps
+├── integration/        Build-time index, formatter and logo modules, dev bridge, client deps
 └── ui/                 React control panel (Tiptap, TanStack Query, react-router)
 ```
 
@@ -188,8 +190,8 @@ Routes injected into the site:
 
 Virtual modules provided by the Vite plugin: `virtual:vestry/config`,
 `virtual:vestry/runtime`, `virtual:vestry/index` (build-time frontmatter
-index keyed by git blob SHA) and `virtual:vestry/formatter` (Prettier, when
-installed).
+index keyed by git blob SHA), `virtual:vestry/formatter` (Prettier, when
+installed) and `virtual:vestry/logo` (the logo's build asset URL, or `null`).
 
 The index is bundled into the server, so it holds only what entry lists
 show: nested and long-form fields (`array`, `object`, `tree`, `markdown`,

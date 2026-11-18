@@ -1,6 +1,6 @@
 /**
  * The Astro integration's Node side: its hooks and virtual modules, the dev
- * server bridge, the build-time index and the formatter module.
+ * server bridge, the build-time index and the formatter and logo modules.
  */
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import {
@@ -26,6 +26,7 @@ import vestry, { collection, defineConfig, fields } from "../src/index.js";
 import { buildIndex } from "../src/integration/build-index.js";
 import { nodeToFetchHandler } from "../src/integration/dev-middleware.js";
 import { formatterModule } from "../src/integration/formatter.js";
+import { logoModule } from "../src/integration/logo.js";
 
 const config = defineConfig({
   name: "Test Site",
@@ -227,6 +228,39 @@ describe("formatterModule", () => {
   });
 });
 
+describe("logoModule", () => {
+  const none = "export default null;\n";
+
+  beforeAll(async () => {
+    await mkdir(path.join(root, "src/assets"), { recursive: true });
+    await writeFile(path.join(root, "src/assets/logo.svg"), "<svg/>");
+  });
+
+  it("bundles a logo file in the project as a build asset", () => {
+    const file = path.join(root, "src/assets/logo.svg");
+    const source = `import url from ${JSON.stringify(`${file}?url`)};\nexport default url;\n`;
+    expect(logoModule(root, "src/assets/logo.svg")).toBe(source);
+    expect(logoModule(root, "/src/assets/logo.svg")).toBe(source);
+    expect(logoModule(root, "./src/assets/logo.svg")).toBe(source);
+  });
+
+  it("leaves a missing file, an absolute URL or no logo to the API", () => {
+    expect(logoModule(root, undefined)).toBe(none);
+    expect(logoModule(root, "https://example.org/logo.svg")).toBe(none);
+    expect(logoModule(root, "src/assets/missing.svg")).toBe(none);
+  });
+
+  it("bundles only a file inside the project", () => {
+    // A folder would fail the site's build.
+    expect(logoModule(root, "src/assets")).toBe(none);
+    expect(logoModule(root, "src/assets/")).toBe(none);
+    // The file exists, but outside the root the API would serve from.
+    expect(
+      logoModule(path.join(root, "src/content"), "../assets/logo.svg"),
+    ).toBe(none);
+  });
+});
+
 describe("the integration", () => {
   // The mode comes from the environment unless a test sets it.
   beforeEach(() => vi.stubEnv("VESTRY_MODE", undefined));
@@ -291,7 +325,7 @@ describe("the integration", () => {
     expect(plugin.resolveId("virtual:other")).toBe(null);
   });
 
-  it("serves the config, runtime, formatter and index modules", async () => {
+  it("serves the config, runtime, formatter, logo and index modules", async () => {
     const { plugin } = setUp("build");
     expect(await plugin.load("\0virtual:vestry/config")).toBe(
       `export default ${JSON.stringify(config)};`,
@@ -302,10 +336,29 @@ describe("the integration", () => {
     expect(await plugin.load("\0virtual:vestry/formatter")).toContain(
       "export const available = false;",
     );
+    expect(await plugin.load("\0virtual:vestry/logo")).toBe(
+      "export default null;\n",
+    );
     const index = await plugin.load("\0virtual:vestry/index");
     expect(index).toContain("src/content/posts/first.md");
     expect(await plugin.load("\0virtual:vestry/unknown")).toBe(null);
     expect(await plugin.load("virtual:vestry/config")).toBe(null);
+  });
+
+  it("bundles the configured logo from the project root", async () => {
+    await mkdir(path.join(root, "src/assets"), { recursive: true });
+    await writeFile(path.join(root, "src/assets/logo.svg"), "<svg/>");
+    const { plugin } = setUp(
+      "build",
+      {},
+      { ...config, logo: "src/assets/logo.svg" },
+    );
+    expect(await plugin.load("\0virtual:vestry/logo")).toBe(
+      logoModule(root, "src/assets/logo.svg"),
+    );
+    expect(await plugin.load("\0virtual:vestry/logo")).toContain(
+      "src/assets/logo.svg?url",
+    );
   });
 
   it("serves an empty index in dev", async () => {

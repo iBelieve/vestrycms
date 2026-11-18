@@ -9,6 +9,10 @@ export default defineConfig({
       "virtual:vestry/formatter": fileURLToPath(
         new URL("./test/ui/formatter-stub.ts", import.meta.url),
       ),
+      // No bundled logo, so the panel loads it through the API.
+      "virtual:vestry/logo": fileURLToPath(
+        new URL("./test/ui/logo-stub.ts", import.meta.url),
+      ),
     },
   },
   test: {

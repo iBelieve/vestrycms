@@ -7,6 +7,11 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Fixed
 
+- **The logo shows before the GitHub App is set up.** A logo kept in the
+  repository is now bundled into the build instead of fetched from GitHub,
+  so the sign-in page no longer shows a broken image while the
+  `VESTRY_GITHUB_*` variables are missing. It also loads without a request
+  to the worker.
 - **Two crops seeding at once both keep their crop.** When an entry with two
   crop fields opened on an image neither had cropped yet, only the second
   default survived. Fields now change the form's values as they stand, so

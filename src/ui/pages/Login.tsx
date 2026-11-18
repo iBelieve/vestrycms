@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authErrorMessage } from "../auth-client.js";
 import { Alert, Spinner } from "../components/ui.js";
 import { useVestry } from "../context.js";
+import { logoSrc } from "../lib/logo.js";
 
 /**
  * Two-step sign-in: an email address, then the six-digit code we emailed.
@@ -23,11 +24,7 @@ export function LoginPage() {
     if (step === "code") codeRef.current?.focus();
   }, [step]);
 
-  const logo = client.config.logo
-    ? /^https?:\/\//.test(client.config.logo)
-      ? client.config.logo
-      : api.fileUrl(client.config.logo)
-    : null;
+  const logo = logoSrc(client.config.logo, api);
 
   /** Asks for a code; resolves true when the request was accepted. */
   async function requestCode(e?: FormEvent): Promise<boolean> {

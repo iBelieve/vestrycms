@@ -16,6 +16,7 @@ import { Link, NavLink, useNavigate } from "react-router";
 import { useVestry } from "../context.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./ui.js";
+import { logoSrc } from "../lib/logo.js";
 import { initials } from "../lib/utils.js";
 
 export interface Crumb {
@@ -28,6 +29,7 @@ const CrumbsContext = createContext<(crumbs: Crumb[]) => void>(() => {});
 
 export function Shell({ children }: { children: ReactNode }) {
   const { client, config, name, api, authClient, refresh } = useVestry();
+  const logo = logoSrc(config.logo, api);
   const navigate = useNavigate();
   const [crumbs, setCrumbs] = useState<Crumb[]>([]);
   const collections = Object.entries(config.collections ?? {});
@@ -84,16 +86,8 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="v-app">
       <header className="v-chrome">
         <Link to="/" className="v-chrome__brand" title={name}>
-          {config.logo ? (
-            <img
-              className="v-chrome__logo"
-              src={
-                /^https?:\/\//.test(config.logo)
-                  ? config.logo
-                  : api.fileUrl(config.logo)
-              }
-              alt={name}
-            />
+          {logo ? (
+            <img className="v-chrome__logo" src={logo} alt={name} />
           ) : (
             <>
               <span className="v-chrome__mark">V</span>

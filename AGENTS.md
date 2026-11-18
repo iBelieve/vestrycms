@@ -46,8 +46,9 @@ main consumer; keep it free of site-specific code.
   adds sign-in on Better Auth's memory adapter. jsdom loads no images and
   lays nothing out, so the image tool and tree tests stub `Image` and element
   sizes, and CodeMirror is mocked where a test types code.
-  `virtual:vestry/formatter` resolves to `test/ui/formatter-stub.ts`
-  (`vitest.config.ts`).
+  `virtual:vestry/formatter` resolves to `test/ui/formatter-stub.ts` and
+  `virtual:vestry/logo` to `test/ui/logo-stub.ts` (no bundled logo, so the
+  panel loads it through the API) (`vitest.config.ts`).
 - `test/fixtures/mdx` files must round-trip byte for byte, so Prettier skips
   them; write them in the serializer's canonical style.
 - The fixtures also pass through the editor schema
