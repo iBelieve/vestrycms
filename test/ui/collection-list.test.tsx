@@ -280,6 +280,12 @@ describe("a collection's list", () => {
     expect(titles()).toEqual(["Beta", "Alpha"]);
     await user.click(screen.getByRole("button", { name: "Status" }));
     expect(titles()).toEqual(["Alpha", "Beta"]);
+    // Neither has a value for "missing", so they go by title, as on the
+    // server (which lists them Beta first, by slug).
+    await user.click(screen.getByRole("button", { name: "Missing" }));
+    expect(titles()).toEqual(["Alpha", "Beta"]);
+    await user.click(screen.getByRole("button", { name: "Missing" }));
+    expect(titles()).toEqual(["Alpha", "Beta"]);
   });
 
   it("shows a status column of its own, and no new button where creating is off", async () => {

@@ -209,13 +209,15 @@ function sortEntries(
 ): EntrySummary[] {
   if (!sort) return entries;
   const dir = sort.dir === "asc" ? 1 : -1;
-  // The same order as the server's: numbers as numbers, missing last.
-  return [...entries].sort((a, b) =>
-    compareSortValues(
-      sortValue(a, sort.field, titleField),
-      sortValue(b, sort.field, titleField),
-      dir,
-    ),
+  // The same order as the server's: numbers as numbers, missing last, and
+  // ties by title.
+  return [...entries].sort(
+    (a, b) =>
+      compareSortValues(
+        sortValue(a, sort.field, titleField),
+        sortValue(b, sort.field, titleField),
+        dir,
+      ) || a.title.localeCompare(b.title),
   );
 }
 
