@@ -26,7 +26,8 @@ import type { SourceCheckRun, SourceCommit } from "./source.js";
  * - `failed`: its build failed or timed out.
  * - `overwritten`: it was deployed, but a build of an older commit deployed after it.
  * - `unknown`: its build was cancelled or skipped, or none was reported long
- *   after it was saved, and nothing newer is on the way.
+ *   after it was saved (or before a newer commit's build settled), and
+ *   nothing newer is on the way.
  */
 export type DeployState =
   | "live"
@@ -118,22 +119,24 @@ export function deployStatus(
   commits: SourceCommit[],
   options: { check?: string; email?: string | null; now?: number } = {},
 ): DeployStatus {
-  const prefixes = options.check ? [options.check] : DEFAULT_DEPLOY_CHECKS;
+  const check = options.check?.trim();
+  const prefixes = check ? [check] : DEFAULT_DEPLOY_CHECKS;
   const builds = commits.map((c) => deployCheck(c.checks, prefixes));
   if (!builds.some(Boolean)) return { available: false, reason: "no-builds" };
   const now = options.now ?? Date.now();
   const live = liveIndex(builds);
   const email = options.email?.toLowerCase() || null;
 
-  // Newest first, so each commit knows whether a newer build is on the way.
-  let newerBuild = false;
+  // Newest first, so each commit knows what became of the newer ones.
+  let newer: Newer = "none";
   const out = commits.map((commit, i): DeployCommit => {
     const build = builds[i];
     const author = creditedAuthor(commit);
     let state: DeployState = "live";
     if (live < 0 || i < live) {
-      state = pendingState(build, Date.parse(commit.date), now, newerBuild);
-      if (ON_THE_WAY.has(state)) newerBuild = true;
+      state = pendingState(build, Date.parse(commit.date), now, newer);
+      if (ON_THE_WAY.has(state)) newer = "coming";
+      else if (newer === "none") newer = "settled";
     }
     return {
       sha: commit.sha,
@@ -200,22 +203,31 @@ function liveIndex(builds: (SourceCheckRun | null)[]): number {
 }
 
 /**
- * The state of a commit whose changes are not live. `newerBuild`: a newer
- * commit's build is coming, running or done, and includes this one.
+ * What became of the commits newer than one that isn't live:
+ * - `none`: there are none (it is the newest not-live commit).
+ * - `coming`: a newer build is on its way, and includes this commit.
+ * - `settled`: the newer ones settled (failed, cancelled, overwritten)
+ *   without going live, so no build is coming for this commit either.
  */
+type Newer = "none" | "coming" | "settled";
+
+/** The state of a commit whose changes are not live. */
 function pendingState(
   build: SourceCheckRun | null,
   savedAt: number,
   now: number,
-  newerBuild: boolean,
+  newer: Newer,
 ): DeployState {
   if (build?.status === "queued") return "queued";
   if (build?.status === "in_progress") return "building";
   if (build?.conclusion === "success") return "overwritten";
   if (build?.conclusion && FAILED.has(build.conclusion)) return "failed";
   // Cancelled, skipped or no build at all: a newer build carries it.
-  if (newerBuild) return "superseded";
-  if (!build) return now - savedAt > NO_BUILD_AFTER_MS ? "unknown" : "waiting";
+  if (newer === "coming") return "superseded";
+  // Only a commit with nothing newer may still be waiting for its build to
+  // be reported; under a settled one, none is coming.
+  if (!build && newer === "none")
+    return now - savedAt > NO_BUILD_AFTER_MS ? "unknown" : "waiting";
   return "unknown";
 }
 

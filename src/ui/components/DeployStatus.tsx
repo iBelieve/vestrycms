@@ -17,6 +17,7 @@ import { useVestry } from "../context.js";
 import {
   aboutDuration,
   deploySummary,
+  newestIsLive,
   pollInterval,
   STATE_LABELS,
   timeAgo,
@@ -69,7 +70,6 @@ export function DeployStatus() {
 
 function DeployMenu({ status }: { status: Available }) {
   const summary = deploySummary(status);
-  const now = useNow(status.pending > 0 ? 1_000 : 30_000);
   return (
     <Menu
       align="right"
@@ -91,18 +91,24 @@ function DeployMenu({ status }: { status: Available }) {
         </button>
       )}
     >
-      {() => (
-        <div className="v-deploys">
-          <div className="v-menu__heading">Site builds</div>
-          <p className="v-deploys__lead">{leadText(status)}</p>
-          <ul className="v-deploys__list">
-            {status.commits.map((c) => (
-              <CommitRow key={c.sha} commit={c} now={now} />
-            ))}
-          </ul>
-        </div>
-      )}
+      {() => <DeployList status={status} />}
     </Menu>
+  );
+}
+
+/** The open menu: its clock only ticks while it is shown. */
+function DeployList({ status }: { status: Available }) {
+  const now = useNow(status.pending > 0 ? 1_000 : 30_000);
+  return (
+    <div className="v-deploys">
+      <div className="v-menu__heading">Site builds</div>
+      <p className="v-deploys__lead">{leadText(status)}</p>
+      <ul className="v-deploys__list">
+        {status.commits.map((c) => (
+          <CommitRow key={c.sha} commit={c} now={now} />
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -117,6 +123,8 @@ function leadText(status: Available): string {
   }
   if (status.failed)
     return "The last build failed, so the site still shows the change marked live. Open the build log to see why.";
+  if (!newestIsLive(status))
+    return "The newest change isn't on the site: its build didn't run, or an older build deployed after it.";
   return "Every change below is live on the site.";
 }
 
@@ -169,12 +177,14 @@ function useLiveToast(status: Status | undefined) {
   const wasPending = useRef(false);
   const pending = status?.available ? status.pending : 0;
   const failed = status?.available ? status.failed : false;
+  const live = status?.available ? newestIsLive(status) : false;
   useEffect(() => {
     if (!status?.available) return;
     if (wasPending.current && pending === 0) {
       if (failed) toast("error", "The site build failed");
-      else toast("success", "Your changes are live on the site");
+      else if (live) toast("success", "Your changes are live on the site");
+      else toast("error", "Your changes aren't live on the site");
     }
     wasPending.current = pending > 0;
-  }, [status, pending, failed, toast]);
+  }, [status, pending, failed, live, toast]);
 }

@@ -147,6 +147,38 @@ describe("build status", () => {
     expect(screen.getByText(/The last build failed/)).toBeTruthy();
   });
 
+  it("doesn't call a change live when its build was cancelled", async () => {
+    const user = userEvent.setup();
+    const cancelled = commit("c2", "Update Site", 5, { status: "completed" });
+    cancelled.checks[0].conclusion = "cancelled";
+    const commits = {
+      current: [
+        commit("c2", "Update Site", 0.5, { status: "in_progress" }),
+        commit("c1", "Create Page: About", 30, {
+          status: "completed",
+          ok: true,
+        }),
+      ],
+    };
+    await openPanel(config, {
+      url: "/singletons/site",
+      api: { localSource: await sourceWith(commits) },
+    });
+    expect(await screen.findByText("Publishing")).toBeTruthy();
+
+    commits.current = [cancelled, ...commits.current.slice(1)];
+    await user.type(await screen.findByLabelText("Tagline"), "!");
+    await user.click(screen.getByRole("button", { name: /^Save/ }));
+    expect(
+      await screen.findByText("Your changes aren't live on the site"),
+    ).toBeTruthy();
+    expect(screen.getByText("Not live")).toBeTruthy();
+    await user.click(chip());
+    expect(
+      screen.getByText(/The newest change isn't on the site/),
+    ).toBeTruthy();
+  });
+
   it("stays out of the way without builds", async () => {
     await openPanel(config);
     await screen.findByText("Dashboard", { selector: "h1 *, h1" });

@@ -31,7 +31,17 @@ export function deploySummary(
     };
   }
   if (status.failed) return { tone: "bad", label: "Build failed" };
+  // Nothing is on its way, but the newest change may still not be live: its
+  // build was cancelled or never reported, or an older build deployed after it.
+  if (!newestIsLive(status)) return { tone: "bad", label: "Not live" };
   return { tone: "ok", label: "Live" };
+}
+
+/** Whether the newest commit's changes are on the site. */
+export function newestIsLive(
+  status: Extract<DeployStatus, { available: true }>,
+): boolean {
+  return status.commits[0]?.state === "live";
 }
 
 /** How often to ask again: often while something is on its way, rarely otherwise. */

@@ -360,8 +360,16 @@ export class GitHubSource implements ContentSource {
     const cached = await this.#cache.get<{
       limit: number;
       commits: SourceCommit[];
+      checked: number;
     }>(key);
-    if (cached && cached.limit >= limit) return cached.commits.slice(0, limit);
+    // Freshness is checked here rather than left to the cache's TTL, which a
+    // KV cache stretches to at least a minute.
+    if (
+      cached &&
+      cached.limit >= limit &&
+      Date.now() - cached.checked < RECENT_COMMITS_TTL * 1000
+    )
+      return cached.commits.slice(0, limit);
     const { data } = await this.#request<GraphQLResponse<RecentCommitsData>>(
       graphqlUrl(this.#apiBase),
       {
@@ -378,7 +386,11 @@ export class GitHubSource implements ContentSource {
       },
     );
     const commits = readRecentCommits(data);
-    await this.#cache.set(key, { limit, commits }, 5);
+    await this.#cache.set(
+      key,
+      { limit, commits, checked: Date.now() },
+      RECENT_COMMITS_TTL,
+    );
     return commits;
   }
 }
@@ -461,6 +473,9 @@ async function responseError(
 }
 
 // ------------------------------------------------------------ check runs
+
+/** How long (seconds) recent commits and their check runs are reused. */
+const RECENT_COMMITS_TTL = 5;
 
 const RECENT_COMMITS_QUERY = `query($owner: String!, $name: String!, $ref: String!, $limit: Int!) {
   repository(owner: $owner, name: $name) {

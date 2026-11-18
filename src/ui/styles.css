@@ -355,7 +355,6 @@ button.v-chrome__chip:hover {
 .v-deploys__row.is-failed .v-deploys__state {
   color: var(--v-danger);
 }
-.v-deploys__row.is-live:first-child .v-deploys__state,
 .v-deploys__row.is-live .v-deploys__state {
   color: var(--v-success);
 }

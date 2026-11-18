@@ -3,7 +3,7 @@
  * GitHub GraphQL query that reads them, and the /deploys route.
  */
 import { createServer } from "node:http";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { defineConfig } from "../src/config/index.js";
 import { validateConfig } from "../src/config/validate.js";
 import { createApi } from "../src/core/api.js";
@@ -138,6 +138,18 @@ describe("deployStatus", () => {
     expect(s).toMatchObject({ pending: 0, failed: true });
   });
 
+  it("doesn't wait on a save with no build under a newer failed one", () => {
+    // The older save's build was never reported; the newer build, which
+    // included it, failed. Nothing more is coming for either.
+    const s = status([
+      commit(2, [run("completed", "failure", 1.5, 1)]),
+      commit(2.5),
+      commit(30, [run("completed", "success", 29, 27)]),
+    ]);
+    expect(states(s)).toEqual(["failed", "unknown", "live"]);
+    expect(s).toMatchObject({ pending: 0, failed: true });
+  });
+
   it("doesn't call a build failed while a newer one may fix it", () => {
     const s = status([
       commit(1, [run("in_progress", null, 1)]),
@@ -190,6 +202,9 @@ describe("deployStatus", () => {
     expect(states(status(commits, { check: "Workers Builds: site" }))).toEqual([
       "live",
     ]);
+    expect(states(status(commits, { check: "Workers Builds: site " }))).toEqual(
+      ["live"],
+    );
     expect(deployStatus(commits, { check: "Deploy" })).toEqual({
       available: false,
       reason: "no-builds",
@@ -334,6 +349,44 @@ describe("GitHubSource.recentCommits", () => {
     // Cached for a few seconds, so polling editors share one request.
     await src.recentCommits(10);
     expect(queries).toHaveLength(1);
+  });
+
+  it("asks again after a few seconds, whatever the cache keeps", async () => {
+    graphql = {
+      status: 200,
+      body: {
+        data: {
+          repository: {
+            ref: { target: { history: { nodes: [historyNode] } } },
+          },
+        },
+      },
+    };
+    queries.length = 0;
+    // A cache that never expires anything, as a KV cache keeps entries for
+    // at least a minute.
+    const store = new Map<string, unknown>();
+    const src = new GitHubSource({
+      owner: "o",
+      repo: "r",
+      branch: "main",
+      token: "tok",
+      apiBase: `http://127.0.0.1:${port}/api/v3`,
+      cache: {
+        get: async <T>(key: string) => store.get(key) as T | undefined,
+        set: async (key, value) => void store.set(key, value),
+        delete: async (key) => void store.delete(key),
+      },
+    });
+    await src.recentCommits(10);
+    const later = Date.now() + 6_000;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(later);
+    try {
+      await src.recentCommits(10);
+    } finally {
+      clock.mockRestore();
+    }
+    expect(queries).toHaveLength(2);
   });
 
   it("returns nothing for a branch that doesn't exist", async () => {
