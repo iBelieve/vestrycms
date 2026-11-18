@@ -4,17 +4,23 @@ import {
   ArrowUp,
   ChevronRight,
   ExternalLink,
+  Lock,
   Plus,
   Search,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import type {
   CollectionConfig,
   Field,
   ListColumn,
 } from "../../config/types.js";
-import { basename, fillTemplate, isEditable } from "../../core/paths.js";
+import {
+  basename,
+  fillTemplate,
+  isEditable,
+  isReservedSlug,
+} from "../../core/paths.js";
 import { compareSortValues } from "../../core/values.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
@@ -318,6 +324,18 @@ function EntryTable({
 }) {
   const { col } = props;
   const columns = listColumns(col);
+  const { pinned, rest } = splitPinned(col, entries);
+  const span =
+    columns.before.length +
+    columns.after.length +
+    (columns.extraStatus ? 1 : 0) +
+    2;
+  let variant = "a";
+  try {
+    variant = localStorage.getItem("vestry:mock-pinned") ?? "a";
+  } catch {
+    // prototype only
+  }
   const header = (c: ListColumn) => (
     <SortHeader
       key={c.field}
@@ -344,11 +362,50 @@ function EntryTable({
             <th />
           </tr>
         </thead>
+        {pinned.length > 0 && (
+          <tbody className="v-table__pinned">
+            {variant === "b" && (
+              <SectionRow span={span} title="Special pages">
+                Fixed routes the site depends on. They can't be renamed or
+                deleted.
+              </SectionRow>
+            )}
+            {pinned.map((e) => (
+              <EntryRow
+                key={e.slug}
+                {...props}
+                columns={columns}
+                pinned
+                spacer={tree}
+                row={{
+                  path: e.slug,
+                  depth: 0,
+                  entry: e,
+                  label: e.title,
+                  children: 0,
+                }}
+              />
+            ))}
+          </tbody>
+        )}
+        {pinned.length > 0 && rest.length > 0 && (
+          <tbody className="v-table__divider" aria-hidden>
+            <tr>
+              <td colSpan={span} />
+            </tr>
+          </tbody>
+        )}
         <tbody>
+          {variant === "b" && pinned.length > 0 && rest.length > 0 && (
+            <SectionRow
+              span={span}
+              title={`Other ${col.label.toLowerCase()}`}
+            />
+          )}
           {tree ? (
-            <TreeRows entries={entries} {...props} columns={columns} />
+            <TreeRows entries={rest} {...props} columns={columns} />
           ) : (
-            entries.map((e) => (
+            rest.map((e) => (
               <EntryRow
                 key={e.slug}
                 {...props}
@@ -366,6 +423,42 @@ function EntryTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * The entries at reserved slugs, in the order `reservedSlugs` lists them,
+ * pulled out ahead of the rest.
+ */
+function splitPinned(col: CollectionConfig, entries: EntrySummary[]) {
+  const order = (col.reservedSlugs ?? []).map((r) => r.toLowerCase());
+  const pinned = entries
+    .filter((e) => isReservedSlug(col, e.slug))
+    .sort(
+      (a, b) =>
+        order.indexOf(a.slug.toLowerCase()) -
+        order.indexOf(b.slug.toLowerCase()),
+    );
+  const rest = entries.filter((e) => !isReservedSlug(col, e.slug));
+  return { pinned, rest };
+}
+
+function SectionRow({
+  span,
+  title,
+  children,
+}: {
+  span: number;
+  title: string;
+  children?: ReactNode;
+}) {
+  return (
+    <tr className="v-table__section">
+      <td colSpan={span}>
+        <span className="v-table__section-title">{title}</span>
+        {children && <span className="v-table__section-note">{children}</span>}
+      </td>
+    </tr>
   );
 }
 
@@ -411,10 +504,15 @@ function EntryRow({
   row,
   open,
   onToggle,
+  pinned,
+  spacer,
 }: RowProps & {
   row: TreeRow;
   open?: boolean;
   onToggle?: () => void;
+  pinned?: boolean;
+  /** Line the row up with a tree's rows, which leave room for a toggle. */
+  spacer?: boolean;
 }) {
   const e = row.entry;
   const cells = (list: ListColumn[]) =>
@@ -430,15 +528,17 @@ function EntryRow({
       {cells(columns.before)}
       <td className="v-table__main">
         <div
-          className={cx(onToggle && "v-table__node")}
+          className={cx((onToggle || spacer) && "v-table__node")}
           style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
         >
+          {spacer && <span className="v-table__toggle" />}
           {onToggle && <NodeToggle row={row} open={open} onToggle={onToggle} />}
           <RowLabel
             col={col}
             colKey={colKey}
             row={row}
             folded={!!onToggle && !open}
+            pinned={pinned}
           />
         </div>
       </td>
@@ -494,24 +594,39 @@ function RowLabel({
   colKey,
   row,
   folded,
+  pinned,
 }: {
   col: CollectionConfig;
   colKey: string;
   row: TreeRow;
   /** A closed tree row, which shows how many rows it hides. */
   folded: boolean;
+  pinned?: boolean;
 }) {
   const e = row.entry;
   return (
     <div className="v-table__label">
       {e ? (
-        <Link
-          className="v-table__title"
-          to={entryHref(colKey, e.slug)}
-          title={row.label === e.title ? undefined : e.title}
-        >
-          {row.label}
-        </Link>
+        <span className="v-table__titleline">
+          {pinned && (
+            <span
+              className="v-table__lock"
+              title="Reserved: can't be renamed or deleted"
+            >
+              <Lock />
+            </span>
+          )}
+          <Link
+            className="v-table__title"
+            to={entryHref(colKey, e.slug)}
+            title={row.label === e.title ? undefined : e.title}
+          >
+            {row.label}
+          </Link>
+          {pinned && row.entry && row.entry.slug.includes("/") && (
+            <span className="v-table__path v-mono">{row.entry.slug}</span>
+          )}
+        </span>
       ) : (
         <span className="v-table__folder">{row.label}</span>
       )}
