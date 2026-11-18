@@ -1,5 +1,6 @@
 import type {
   CollectionConfig,
+  PinnedEntry,
   EntryFormat,
   SingletonConfig,
 } from "../config/types.js";
@@ -141,6 +142,30 @@ export function collectionFormat(
  */
 export function isEditable(c: CollectionConfig): boolean {
   return c.editable !== false;
+}
+
+/**
+ * The entries pinned unless `pinned` says otherwise: the home page and the
+ * error pages, by the names Astro gives them in `src/pages/`.
+ */
+const SPECIAL_PAGES: PinnedEntry[] = [
+  { slug: "index", icon: "house" },
+  { slug: "404", icon: "file-question-mark" },
+  { slug: "500", icon: "triangle-alert" },
+];
+
+/**
+ * The entries a collection lists first: its `pinned`, or else, in a
+ * collection of a file per entry named by its slug (`*.mdx`, `**.mdx`), the
+ * home and error pages: `index`, `404` and `500`. A collection kept in one
+ * file, or of files named alike in folders (`**` + `/index.md`), pins none.
+ */
+export function pinnedEntries(c: CollectionConfig): PinnedEntry[] {
+  if (c.pinned)
+    return c.pinned.map((p) => (typeof p === "string" ? { slug: p } : p));
+  const pattern = parsePathPattern(c.path);
+  const fileSlugs = !pattern.single && pattern.suffix.startsWith(".");
+  return fileSlugs ? SPECIAL_PAGES : [];
 }
 
 /**

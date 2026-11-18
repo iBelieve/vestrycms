@@ -33,6 +33,7 @@ import {
   Table,
   Tag,
   TextAlignStart,
+  TriangleAlert,
   Users,
   Video,
   type LucideProps,
@@ -79,6 +80,7 @@ const ICONS: Record<string, IconComponent> = {
   table: Table,
   tag: Tag,
   "text-align-start": TextAlignStart,
+  "triangle-alert": TriangleAlert,
   users: Users,
   video: Video,
 };

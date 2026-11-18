@@ -14,7 +14,12 @@ import type {
   Field,
   ListColumn,
 } from "../../config/types.js";
-import { basename, fillTemplate, isEditable } from "../../core/paths.js";
+import {
+  basename,
+  fillTemplate,
+  isEditable,
+  pinnedEntries,
+} from "../../core/paths.js";
 import { compareSortValues } from "../../core/values.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
@@ -388,7 +393,7 @@ function EntryTable({
 type Pinned = { entry: EntrySummary; icon?: string };
 
 /**
- * The collection's pinned entries, in the order `pinned` gives them,
+ * The collection's pinned entries (`pinnedEntries`), in their order,
  * whatever the sort or view; and the rest, in the list's order. Slugs match
  * ignoring case, as reserved slugs do.
  */
@@ -396,14 +401,13 @@ function splitPinned(
   col: CollectionConfig,
   entries: EntrySummary[],
 ): { pinned: Pinned[]; rest: EntrySummary[] } {
-  if (!col.pinned?.length) return { pinned: [], rest: entries };
-  // Each slug's first place in `pinned`, and its icon.
+  const list = pinnedEntries(col);
+  if (list.length === 0) return { pinned: [], rest: entries };
+  // Each slug's first place in the list, and its icon.
   const order = new Map<string, { rank: number; icon?: string }>();
-  for (const [rank, item] of col.pinned.entries()) {
-    const { slug, icon } = typeof item === "string" ? { slug: item } : item;
+  for (const [rank, { slug, icon }] of list.entries())
     if (!order.has(slug.toLowerCase()))
       order.set(slug.toLowerCase(), { rank, icon });
-  }
   const pinned: (Pinned & { rank: number })[] = [];
   const rest: EntrySummary[] = [];
   for (const entry of entries) {

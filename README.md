@@ -499,23 +499,23 @@ some of them set lists those first, in order, then the rest alphabetically.
 A collection kept as a list in one file lists its entries in the file's
 order.
 
-`pinned` lists a collection's special entries first, above a divider, in
-the order it gives them, whatever the sort or view, so the home page is easy
-to find whatever its title. Each is a slug, or a slug with an icon shown
-before its title (a name from the panel's icon set, as for a collection's
-`icon`, such as `house` or `file-question-mark`):
+A collection's special entries are listed first, above a divider, whatever
+the sort or view, so the home page is easy to find whatever its title. In a
+collection of a file per entry (`*.mdx`, or `**.mdx` with folders), those
+are, when they exist, the home and error pages as Astro names them in
+`src/pages/`: `index` (with a house icon), `404` and `500`. `pinned` names
+them instead, in order, each a slug or a slug with an icon shown before its
+title (a name from the panel's icon set, as for a collection's `icon`):
 
 ```ts
 pages: collection({
-  path: "src/pages/*.mdx",
-  pinned: [
-    { slug: "index", icon: "house" },
-    { slug: "404", icon: "file-question-mark" },
-  ],
+  path: "src/content/pages/**.mdx",
+  pinned: [{ slug: "home", icon: "house" }, "search"],
   …
 }),
 ```
 
+`pinned` replaces the defaults, and `pinned: []` pins nothing.
 In the tree, a pinned entry leaves its folder, and shows its slug after its
 title when it has one (`resources/lectionaries`). A search or filter keeps
 matching pinned entries at the top.

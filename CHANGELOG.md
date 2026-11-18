@@ -7,13 +7,16 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
-- **`pinned`** on a collection lists its special entries first, above a
-  divider, in the order it gives them, whatever the sort or view:
-  `pinned: [{ slug: "index", icon: "house" }, { slug: "404", icon: "file-question-mark" }]`
-  keeps a site's home and 404 pages at the top of Pages, whatever their
-  titles, each with its icon. In a tree they leave their folder and show
+- **Special pages first.** A collection's special entries are listed
+  first, above a divider, whatever the sort or view. In a collection of a
+  file per entry, those are the home and error pages as Astro names them,
+  `index`, `404` and `500`, with icons, so a site's home page is at the top
+  of Pages whatever its title.
+  **`pinned`** on a collection names them instead, each a slug or
+  `{ slug, icon }` (`pinned: [{ slug: "home", icon: "house" }]`), and
+  `pinned: []` turns them off. In a tree they leave their folder and show
   their slug.
-- The `house` and `file-question-mark` icons.
+- The `house`, `file-question-mark` and `triangle-alert` icons.
 
 ## 0.5.0
 
