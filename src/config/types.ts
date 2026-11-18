@@ -374,6 +374,11 @@ export interface CollectionConfig {
   };
   status?: StatusConfig;
   sort?: SortConfig;
+  /**
+   * Columns of the entry list, in order. The title always shows, as the
+   * entry's link with its subtitle or excerpt under it; listing the title
+   * field here only sets its place and label. Defaults to the sort field.
+   */
   columns?: (string | ListColumn)[];
   /** Fields searched by the list filter. Defaults to the title field. */
   searchFields?: string[];
