@@ -420,12 +420,19 @@ export interface CollectionConfig {
    */
   reservedSlugs?: string[];
   /**
-   * Slugs of entries shown first in the entry list, above a divider and in
-   * this order, whatever the sort, view or folder: the site's special pages,
-   * such as `["index", "404"]`. A pinned entry may also be reserved; one
-   * that is shows a lock, wherever it is listed.
+   * The collection's special entries, such as its home and 404 pages,
+   * listed first, above a divider, in this order, whatever the sort, view
+   * or folder. Each is a slug, or a slug with the name of an icon shown
+   * before its title: `[{ slug: "index", icon: "house" }, "404"]`.
    */
-  pinned?: string[];
+  pinned?: (string | PinnedEntry)[];
+}
+
+/** A pinned entry's slug, and the icon shown before its title. */
+export interface PinnedEntry {
+  slug: string;
+  /** An icon name, as for a collection's `icon`. */
+  icon?: string;
 }
 
 export interface SingletonConfig {

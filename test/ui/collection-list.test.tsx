@@ -115,8 +115,12 @@ const config = defineConfig({
       path: "src/content/site/**.md",
       tree: true,
       sort: { field: "title", direction: "asc" },
-      pinned: ["index", "404", "docs/start", "nope"],
-      reservedSlugs: ["index", "docs"],
+      pinned: [
+        { slug: "index", icon: "house" },
+        { slug: "404", icon: "file-question-mark" },
+        "docs/start",
+        "nope",
+      ],
       schema: { title: fields.text() },
     }),
     notes: collection({
@@ -460,13 +464,13 @@ describe("a collection's list", () => {
     await openPanel(config, { url: "/collections/site", files });
     await screen.findByText("Welcome");
     const divider = () => document.querySelector(".v-table__divider");
-    const locked = () =>
-      screen
-        .getAllByRole("img", { name: "Reserved" })
-        .map((lock) => lock.parentElement?.textContent);
-    // In `pinned` order, not by title, then a band, then the tree, which no
-    // longer holds the pinned entry under Docs. Reserved entries have a
-    // lock wherever they are.
+    const icons = () =>
+      [...document.querySelectorAll(".v-table__pin-icon")].map((icon) => [
+        icon.parentElement?.textContent,
+        icon.classList.contains("lucide-house") ? "house" : "other",
+      ]);
+    // In `pinned` order, not by title, with their icons, then a band, then
+    // the tree, which no longer holds the pinned entry under Docs.
     expect(titles()).toEqual([
       "Welcome",
       "Not found",
@@ -476,7 +480,10 @@ describe("a collection's list", () => {
     ]);
     expect(divider()).toBeTruthy();
     expect(screen.getByText("docs/start")).toBeTruthy();
-    expect(locked()).toEqual(["Welcome", "Docs"]);
+    expect(icons()).toEqual([
+      ["Welcome", "house"],
+      ["Not found", "other"],
+    ]);
     expect(screen.getByText("· 1")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Expand Docs" }));
     expect(titles()).toEqual([
@@ -488,8 +495,10 @@ describe("a collection's list", () => {
       "FAQ",
     ]);
 
-    // A sort reorders only the rest, and the list view pins them too.
+    // A sort reorders only the rest, and the list view pins them too,
+    // without the slug, since no entry there sits in a folder.
     await user.click(screen.getByRole("button", { name: "List" }));
+    expect(screen.queryByText("docs/start")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Title" }));
     await user.click(screen.getByRole("button", { name: /Title/ }));
     expect(titles()).toEqual([

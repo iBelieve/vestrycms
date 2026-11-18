@@ -192,16 +192,24 @@ describe("validateConfig", () => {
     ).toThrow("reservedSlugs has undefined, which is not a slug");
   });
 
-  it("accepts pinned slugs, but only a list of slugs", () => {
+  it("accepts pinned slugs, with or without icons, but only slugs", () => {
     expect(() =>
-      validateConfig(posts({ pinned: ["index", "docs/start"] })),
+      validateConfig(
+        posts({ pinned: [{ slug: "index", icon: "house" }, "docs/start"] }),
+      ),
     ).not.toThrow();
     expect(() => validateConfig(posts({ pinned: "index" as never }))).toThrow(
-      "pinned must be a list of slugs",
+      "pinned must be a list of slugs or { slug, icon }",
     );
     expect(() => validateConfig(posts({ pinned: ["/x"] }))).toThrow(
       'pinned has "/x", which is not a slug',
     );
+    expect(() =>
+      validateConfig(posts({ pinned: [{ icon: "house" } as never] })),
+    ).toThrow("pinned has undefined, which is not a slug");
+    expect(() =>
+      validateConfig(posts({ pinned: [{ slug: "404", icon: 4 as never }] })),
+    ).toThrow('pinned icon for "404" must be an icon name');
   });
 
   it("accepts editable only as true or false", () => {

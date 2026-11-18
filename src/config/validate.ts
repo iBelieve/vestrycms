@@ -184,18 +184,38 @@ function checkEditing(what: string, col: CollectionConfig) {
   if (col.editable !== undefined && typeof col.editable !== "boolean")
     fail(`${what} editable must be true or false`);
   checkSlugList(what, "reservedSlugs", col.reservedSlugs);
-  checkSlugList(what, "pinned", col.pinned);
+  checkPinned(what, col.pinned);
 }
 
 /** Every slug in the list must be a slug (a hole or `undefined` included). */
 function checkSlugList(what: string, key: string, slugs: unknown) {
   if (slugs === undefined) return;
   if (!Array.isArray(slugs)) fail(`${what} ${key} must be a list of slugs`);
-  for (const slug of slugs as unknown[])
-    if (typeof slug !== "string" || !isSafeSlug(slug))
-      fail(
-        `${what} ${key} has ${JSON.stringify(slug) ?? "undefined"}, which is not a slug`,
-      );
+  for (const slug of slugs as unknown[]) checkSlug(what, key, slug);
+}
+
+function checkSlug(what: string, key: string, slug: unknown) {
+  if (typeof slug !== "string" || !isSafeSlug(slug))
+    fail(
+      `${what} ${key} has ${JSON.stringify(slug) ?? "undefined"}, which is not a slug`,
+    );
+}
+
+/** Each pinned entry is a slug, or `{ slug, icon? }`. */
+function checkPinned(what: string, pinned: unknown) {
+  if (pinned === undefined) return;
+  if (!Array.isArray(pinned))
+    fail(`${what} pinned must be a list of slugs or { slug, icon }`);
+  for (const item of pinned as unknown[]) {
+    if (typeof item !== "object" || item === null) {
+      checkSlug(what, "pinned", item);
+      continue;
+    }
+    const { slug, icon } = item as { slug?: unknown; icon?: unknown };
+    checkSlug(what, "pinned", slug);
+    if (icon !== undefined && typeof icon !== "string")
+      fail(`${what} pinned icon for "${String(slug)}" must be an icon name`);
+  }
 }
 
 function checkComponent(name: string, component: ComponentConfig) {

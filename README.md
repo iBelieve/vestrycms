@@ -501,21 +501,24 @@ order.
 
 `pinned` lists a collection's special entries first, above a divider, in
 the order it gives them, whatever the sort or view, so the home page is easy
-to find whatever its title:
+to find whatever its title. Each is a slug, or a slug with an icon shown
+before its title (a name from the panel's icon set, as for a collection's
+`icon`, such as `house` or `file-question-mark`):
 
 ```ts
 pages: collection({
   path: "src/pages/*.mdx",
-  pinned: ["index", "404"],
-  reservedSlugs: ["index", "404", "sermons"],
+  pinned: [
+    { slug: "index", icon: "house" },
+    { slug: "404", icon: "file-question-mark" },
+  ],
   …
 }),
 ```
 
 In the tree, a pinned entry leaves its folder, and shows its slug after its
 title when it has one (`resources/lectionaries`). A search or filter keeps
-matching pinned entries at the top. Entries at reserved slugs show a lock
-wherever they are listed.
+matching pinned entries at the top.
 
 ## Dashboard
 

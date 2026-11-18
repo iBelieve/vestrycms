@@ -4,7 +4,6 @@ import {
   ArrowUp,
   ChevronRight,
   ExternalLink,
-  Lock,
   Plus,
   Search,
 } from "lucide-react";
@@ -15,12 +14,7 @@ import type {
   Field,
   ListColumn,
 } from "../../config/types.js";
-import {
-  basename,
-  fillTemplate,
-  isEditable,
-  isReservedSlug,
-} from "../../core/paths.js";
+import { basename, fillTemplate, isEditable } from "../../core/paths.js";
 import { compareSortValues } from "../../core/values.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
@@ -353,14 +347,13 @@ function EntryTable({
         </thead>
         {pinned.length > 0 && (
           <tbody>
-            {pinned.map((e) => (
+            {pinned.map(({ entry, icon }) => (
               <EntryRow
-                key={e.slug}
+                key={entry.slug}
                 {...props}
                 columns={columns}
-                row={flatRow(e)}
-                pinned
-                indent={tree}
+                row={flatRow(entry)}
+                pinned={{ icon, inTree: tree }}
               />
             ))}
           </tbody>
@@ -391,17 +384,35 @@ function EntryTable({
   );
 }
 
+/** A pinned entry and the icon shown before its title. */
+type Pinned = { entry: EntrySummary; icon?: string };
+
 /**
  * The collection's pinned entries, in the order `pinned` gives them,
  * whatever the sort or view; and the rest, in the list's order. Slugs match
  * ignoring case, as reserved slugs do.
  */
-function splitPinned(col: CollectionConfig, entries: EntrySummary[]) {
-  const order = (col.pinned ?? []).map((r) => r.toLowerCase());
-  const rank = (e: EntrySummary) => order.indexOf(e.slug.toLowerCase());
-  const pinned = entries.filter((e) => rank(e) >= 0);
-  pinned.sort((a, b) => rank(a) - rank(b));
-  return { pinned, rest: entries.filter((e) => rank(e) < 0) };
+function splitPinned(
+  col: CollectionConfig,
+  entries: EntrySummary[],
+): { pinned: Pinned[]; rest: EntrySummary[] } {
+  if (!col.pinned?.length) return { pinned: [], rest: entries };
+  // Each slug's first place in `pinned`, and its icon.
+  const order = new Map<string, { rank: number; icon?: string }>();
+  for (const [rank, item] of col.pinned.entries()) {
+    const { slug, icon } = typeof item === "string" ? { slug: item } : item;
+    if (!order.has(slug.toLowerCase()))
+      order.set(slug.toLowerCase(), { rank, icon });
+  }
+  const pinned: (Pinned & { rank: number })[] = [];
+  const rest: EntrySummary[] = [];
+  for (const entry of entries) {
+    const at = order.get(entry.slug.toLowerCase());
+    if (at) pinned.push({ entry, ...at });
+    else rest.push(entry);
+  }
+  pinned.sort((a, b) => a.rank - b.rank);
+  return { pinned, rest };
 }
 
 /** An entry's row in a flat list. */
@@ -463,15 +474,11 @@ function EntryRow({
   open,
   onToggle,
   pinned,
-  indent,
 }: RowProps & {
   row: TreeRow;
   open?: boolean;
   onToggle?: () => void;
-  /** A pinned entry, listed above the rest and outside its folder. */
-  pinned?: boolean;
-  /** Line a row outside the tree up with the tree's, past their toggles. */
-  indent?: boolean;
+  pinned?: PinnedRow;
 }) {
   const e = row.entry;
   const cells = (list: ListColumn[]) =>
@@ -487,10 +494,10 @@ function EntryRow({
       {cells(columns.before)}
       <td className="v-table__main">
         <div
-          className={cx((onToggle || indent) && "v-table__node")}
+          className={cx((onToggle || pinned?.inTree) && "v-table__node")}
           style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
         >
-          {indent && <span className="v-table__toggle" />}
+          {pinned?.inTree && <span className="v-table__toggle" />}
           {onToggle && <NodeToggle row={row} open={open} onToggle={onToggle} />}
           <RowLabel
             col={col}
@@ -560,7 +567,7 @@ function RowLabel({
   row: TreeRow;
   /** A closed tree row, which shows how many rows it hides. */
   folded: boolean;
-  pinned?: boolean;
+  pinned?: PinnedRow;
 }) {
   const e = row.entry;
   return (
@@ -570,7 +577,6 @@ function RowLabel({
           colKey={colKey}
           entry={e}
           label={row.label}
-          reserved={isReservedSlug(col, e.slug)}
           pinned={pinned}
         />
       ) : (
@@ -585,21 +591,27 @@ function RowLabel({
 }
 
 /**
- * The link to an entry: after a lock if the entry is reserved, and before
- * its slug if it is pinned out of its folder.
+ * How a pinned entry's row differs: an icon before its title, and above a
+ * tree, out of its folder, lined up with the tree's rows (past their
+ * toggles) and showing its slug.
+ */
+type PinnedRow = { icon?: string; inTree: boolean };
+
+/**
+ * The link to an entry, with a pinned entry's icon before it and, above a
+ * tree, its slug after it (unless the label already is the slug, as an
+ * untitled entry's is).
  */
 function EntryLink({
   colKey,
   entry,
   label,
-  reserved,
   pinned,
 }: {
   colKey: string;
   entry: EntrySummary;
   label: string;
-  reserved: boolean;
-  pinned?: boolean;
+  pinned?: PinnedRow;
 }) {
   const link = (
     <Link
@@ -610,19 +622,13 @@ function EntryLink({
       {label}
     </Link>
   );
-  const path = pinned && entry.slug.includes("/");
-  if (!reserved && !path) return link;
+  const path =
+    pinned?.inTree && entry.slug.includes("/") && label !== entry.slug;
+  if (!pinned?.icon && !path) return link;
   return (
     <span className="v-table__marked">
-      {reserved && (
-        <span
-          className="v-table__lock"
-          role="img"
-          aria-label="Reserved"
-          title="Reserved: the site depends on this entry, so it can't be renamed or deleted"
-        >
-          <Lock aria-hidden="true" />
-        </span>
+      {pinned?.icon && (
+        <Icon className="v-table__pin-icon" name={pinned.icon} aria-hidden />
       )}
       {link}
       {path && <span className="v-table__path v-mono">{entry.slug}</span>}
