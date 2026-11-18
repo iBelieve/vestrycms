@@ -8,7 +8,7 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import { Fragment, type ReactNode, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import type {
   CollectionConfig,
@@ -325,17 +325,6 @@ function EntryTable({
   const { col } = props;
   const columns = listColumns(col);
   const { pinned, rest } = splitPinned(col, entries);
-  const span =
-    columns.before.length +
-    columns.after.length +
-    (columns.extraStatus ? 1 : 0) +
-    2;
-  let variant = "a";
-  try {
-    variant = localStorage.getItem("vestry:mock-pinned") ?? "a";
-  } catch {
-    // prototype only
-  }
   const header = (c: ListColumn) => (
     <SortHeader
       key={c.field}
@@ -363,45 +352,27 @@ function EntryTable({
           </tr>
         </thead>
         {pinned.length > 0 && (
-          <tbody className="v-table__pinned">
-            {variant === "b" && (
-              <SectionRow span={span} title="Special pages">
-                Fixed routes the site depends on. They can't be renamed or
-                deleted.
-              </SectionRow>
-            )}
+          <tbody>
             {pinned.map((e) => (
               <EntryRow
                 key={e.slug}
                 {...props}
                 columns={columns}
+                row={flatRow(e)}
                 pinned
-                spacer={tree}
-                row={{
-                  path: e.slug,
-                  depth: 0,
-                  entry: e,
-                  label: e.title,
-                  children: 0,
-                }}
+                indent={tree}
               />
             ))}
           </tbody>
         )}
         {pinned.length > 0 && rest.length > 0 && (
-          <tbody className="v-table__divider" aria-hidden>
+          <tbody className="v-table__divider" aria-hidden="true">
             <tr>
-              <td colSpan={span} />
+              <td colSpan={columnCount(columns)} />
             </tr>
           </tbody>
         )}
         <tbody>
-          {variant === "b" && pinned.length > 0 && rest.length > 0 && (
-            <SectionRow
-              span={span}
-              title={`Other ${col.label.toLowerCase()}`}
-            />
-          )}
           {tree ? (
             <TreeRows entries={rest} {...props} columns={columns} />
           ) : (
@@ -410,13 +381,7 @@ function EntryTable({
                 key={e.slug}
                 {...props}
                 columns={columns}
-                row={{
-                  path: e.slug,
-                  depth: 0,
-                  entry: e,
-                  label: e.title,
-                  children: 0,
-                }}
+                row={flatRow(e)}
               />
             ))
           )}
@@ -427,38 +392,31 @@ function EntryTable({
 }
 
 /**
- * The entries at reserved slugs, in the order `reservedSlugs` lists them,
- * pulled out ahead of the rest.
+ * The collection's pinned entries, in the order `pinned` gives them,
+ * whatever the sort or view; and the rest, in the list's order. Slugs match
+ * ignoring case, as reserved slugs do.
  */
 function splitPinned(col: CollectionConfig, entries: EntrySummary[]) {
-  const order = (col.reservedSlugs ?? []).map((r) => r.toLowerCase());
-  const pinned = entries
-    .filter((e) => isReservedSlug(col, e.slug))
-    .sort(
-      (a, b) =>
-        order.indexOf(a.slug.toLowerCase()) -
-        order.indexOf(b.slug.toLowerCase()),
-    );
-  const rest = entries.filter((e) => !isReservedSlug(col, e.slug));
-  return { pinned, rest };
+  const order = (col.pinned ?? []).map((r) => r.toLowerCase());
+  const rank = (e: EntrySummary) => order.indexOf(e.slug.toLowerCase());
+  const pinned = entries.filter((e) => rank(e) >= 0);
+  pinned.sort((a, b) => rank(a) - rank(b));
+  return { pinned, rest: entries.filter((e) => rank(e) < 0) };
 }
 
-function SectionRow({
-  span,
-  title,
-  children,
-}: {
-  span: number;
-  title: string;
-  children?: ReactNode;
-}) {
+/** An entry's row in a flat list. */
+function flatRow(entry: EntrySummary): TreeRow {
+  return { path: entry.slug, depth: 0, entry, label: entry.title, children: 0 };
+}
+
+/** How many cells a row of the table has. */
+function columnCount(columns: Columns): number {
+  // The title and the actions, around the configured columns.
   return (
-    <tr className="v-table__section">
-      <td colSpan={span}>
-        <span className="v-table__section-title">{title}</span>
-        {children && <span className="v-table__section-note">{children}</span>}
-      </td>
-    </tr>
+    columns.before.length +
+    columns.after.length +
+    (columns.extraStatus ? 1 : 0) +
+    2
   );
 }
 
@@ -505,14 +463,15 @@ function EntryRow({
   open,
   onToggle,
   pinned,
-  spacer,
+  indent,
 }: RowProps & {
   row: TreeRow;
   open?: boolean;
   onToggle?: () => void;
+  /** A pinned entry, listed above the rest and outside its folder. */
   pinned?: boolean;
-  /** Line the row up with a tree's rows, which leave room for a toggle. */
-  spacer?: boolean;
+  /** Line a row outside the tree up with the tree's, past their toggles. */
+  indent?: boolean;
 }) {
   const e = row.entry;
   const cells = (list: ListColumn[]) =>
@@ -528,10 +487,10 @@ function EntryRow({
       {cells(columns.before)}
       <td className="v-table__main">
         <div
-          className={cx((onToggle || spacer) && "v-table__node")}
+          className={cx((onToggle || indent) && "v-table__node")}
           style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
         >
-          {spacer && <span className="v-table__toggle" />}
+          {indent && <span className="v-table__toggle" />}
           {onToggle && <NodeToggle row={row} open={open} onToggle={onToggle} />}
           <RowLabel
             col={col}
@@ -607,26 +566,13 @@ function RowLabel({
   return (
     <div className="v-table__label">
       {e ? (
-        <span className="v-table__titleline">
-          {pinned && (
-            <span
-              className="v-table__lock"
-              title="Reserved: can't be renamed or deleted"
-            >
-              <Lock />
-            </span>
-          )}
-          <Link
-            className="v-table__title"
-            to={entryHref(colKey, e.slug)}
-            title={row.label === e.title ? undefined : e.title}
-          >
-            {row.label}
-          </Link>
-          {pinned && row.entry && row.entry.slug.includes("/") && (
-            <span className="v-table__path v-mono">{row.entry.slug}</span>
-          )}
-        </span>
+        <EntryLink
+          colKey={colKey}
+          entry={e}
+          label={row.label}
+          reserved={isReservedSlug(col, e.slug)}
+          pinned={pinned}
+        />
       ) : (
         <span className="v-table__folder">{row.label}</span>
       )}
@@ -635,6 +581,52 @@ function RowLabel({
       )}
       {e && <EntrySubtitle col={col} entry={e} />}
     </div>
+  );
+}
+
+/**
+ * The link to an entry: after a lock if the entry is reserved, and before
+ * its slug if it is pinned out of its folder.
+ */
+function EntryLink({
+  colKey,
+  entry,
+  label,
+  reserved,
+  pinned,
+}: {
+  colKey: string;
+  entry: EntrySummary;
+  label: string;
+  reserved: boolean;
+  pinned?: boolean;
+}) {
+  const link = (
+    <Link
+      className="v-table__title"
+      to={entryHref(colKey, entry.slug)}
+      title={label === entry.title ? undefined : entry.title}
+    >
+      {label}
+    </Link>
+  );
+  const path = pinned && entry.slug.includes("/");
+  if (!reserved && !path) return link;
+  return (
+    <span className="v-table__marked">
+      {reserved && (
+        <span
+          className="v-table__lock"
+          role="img"
+          aria-label="Reserved"
+          title="Reserved: the site depends on this entry, so it can't be renamed or deleted"
+        >
+          <Lock aria-hidden="true" />
+        </span>
+      )}
+      {link}
+      {path && <span className="v-table__path v-mono">{entry.slug}</span>}
+    </span>
   );
 }
 

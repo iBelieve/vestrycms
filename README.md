@@ -499,6 +499,24 @@ some of them set lists those first, in order, then the rest alphabetically.
 A collection kept as a list in one file lists its entries in the file's
 order.
 
+`pinned` lists a collection's special entries first, above a divider, in
+the order it gives them, whatever the sort or view, so the home page is easy
+to find whatever its title:
+
+```ts
+pages: collection({
+  path: "src/pages/*.mdx",
+  pinned: ["index", "404"],
+  reservedSlugs: ["index", "404", "sermons"],
+  …
+}),
+```
+
+In the tree, a pinned entry leaves its folder, and shows its slug after its
+title when it has one (`resources/lectionaries`). A search or filter keeps
+matching pinned entries at the top. Entries at reserved slugs show a lock
+wherever they are listed.
+
 ## Dashboard
 
 Each collection gets a tile with its entry count. Collections whose `sort`

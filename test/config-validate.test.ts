@@ -192,6 +192,18 @@ describe("validateConfig", () => {
     ).toThrow("reservedSlugs has undefined, which is not a slug");
   });
 
+  it("accepts pinned slugs, but only a list of slugs", () => {
+    expect(() =>
+      validateConfig(posts({ pinned: ["index", "docs/start"] })),
+    ).not.toThrow();
+    expect(() => validateConfig(posts({ pinned: "index" as never }))).toThrow(
+      "pinned must be a list of slugs",
+    );
+    expect(() => validateConfig(posts({ pinned: ["/x"] }))).toThrow(
+      'pinned has "/x", which is not a slug',
+    );
+  });
+
   it("accepts editable only as true or false", () => {
     expect(() => validateConfig(posts({ editable: "false" as never }))).toThrow(
       "editable must be true or false",

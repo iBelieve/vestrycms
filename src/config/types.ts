@@ -419,6 +419,13 @@ export interface CollectionConfig {
    * slug under one (`sermons/index`).
    */
   reservedSlugs?: string[];
+  /**
+   * Slugs of entries shown first in the entry list, above a divider and in
+   * this order, whatever the sort, view or folder: the site's special pages,
+   * such as `["index", "404"]`. A pinned entry may also be reserved; one
+   * that is shows a lock, wherever it is listed.
+   */
+  pinned?: string[];
 }
 
 export interface SingletonConfig {

@@ -176,25 +176,25 @@ const REPLACED: Record<string, string> = {
     "remove it, since deleting an entry that others refer to now asks first, or set editable: false to keep entries from being created, deleted or renamed",
 };
 
-/** `editable` (and the settings it replaced) and `reservedSlugs`. */
+/** `editable` (and the settings it replaced), `reservedSlugs` and `pinned`. */
 function checkEditing(what: string, col: CollectionConfig) {
   for (const [old, instead] of Object.entries(REPLACED))
     if (old in col)
       fail(`${what} sets ${old}, which Vestry replaced: ${instead}`);
   if (col.editable !== undefined && typeof col.editable !== "boolean")
     fail(`${what} editable must be true or false`);
-  checkReservedSlugs(what, col.reservedSlugs);
+  checkSlugList(what, "reservedSlugs", col.reservedSlugs);
+  checkSlugList(what, "pinned", col.pinned);
 }
 
-/** Every reserved slug must be a slug (a hole or `undefined` included). */
-function checkReservedSlugs(what: string, slugs: unknown) {
+/** Every slug in the list must be a slug (a hole or `undefined` included). */
+function checkSlugList(what: string, key: string, slugs: unknown) {
   if (slugs === undefined) return;
-  if (!Array.isArray(slugs))
-    fail(`${what} reservedSlugs must be a list of slugs`);
+  if (!Array.isArray(slugs)) fail(`${what} ${key} must be a list of slugs`);
   for (const slug of slugs as unknown[])
     if (typeof slug !== "string" || !isSafeSlug(slug))
       fail(
-        `${what} reservedSlugs has ${JSON.stringify(slug) ?? "undefined"}, which is not a slug`,
+        `${what} ${key} has ${JSON.stringify(slug) ?? "undefined"}, which is not a slug`,
       );
 }
 

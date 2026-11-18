@@ -3,6 +3,17 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Added
+
+- **`pinned`** on a collection lists its special entries first, above a
+  divider, in the order it gives them, whatever the sort or view:
+  `pinned: ["index", "404"]` keeps a site's home and 404 pages at the top
+  of Pages, whatever their titles. In a tree they leave their folder and
+  show their slug.
+- Entries at reserved slugs show a lock in the entry list.
+
 ## 0.5.0
 
 ### Added
