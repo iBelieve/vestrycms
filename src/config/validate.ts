@@ -53,9 +53,7 @@ function checkFilenameDates(
       `${what}: "${nested[0]}" uses storeIn: "filename", which is only for a top-level field`,
     );
   }
-  const keys = Object.keys(schema).filter((key) =>
-    isFilenameDate(schema[key]!),
-  );
+  const keys = Object.keys(schema).filter((key) => isFilenameDate(schema[key]));
   if (!keys.length) return;
   if (!filePerEntry) {
     fail(
@@ -67,7 +65,7 @@ function checkFilenameDates(
       `${what}: only one field can use storeIn: "filename" (found ${keys.join(", ")})`,
     );
   }
-  const field = schema[keys[0]!]!;
+  const field = schema[keys[0]];
   if (field.type === "date" && field.time) {
     fail(
       `${what}: "${keys[0]}" uses storeIn: "filename", which cannot be combined with time`,

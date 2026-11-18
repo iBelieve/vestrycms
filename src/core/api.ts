@@ -177,6 +177,7 @@ export function createApi(options: ApiOptions) {
 
   function resolveDatabase(
     ctx: RequestContext,
+    // oxlint-disable-next-line typescript/no-redundant-type-constituents -- Better Auth's database option includes `any`.
   ): AuthDatabase | { error: string } {
     if (options.auth?.database) return options.auth.database;
     const binding = ctx.bindings?.[databaseBinding];

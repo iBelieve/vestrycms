@@ -49,7 +49,7 @@ function originOf(req: IncomingMessage): string {
     ?.encrypted;
   const proto =
     typeof forwarded === "string"
-      ? forwarded.split(",")[0]!.trim()
+      ? forwarded.split(",")[0].trim()
       : encrypted
         ? "https"
         : "http";

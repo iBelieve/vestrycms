@@ -65,7 +65,7 @@ async function project(files: Record<string, string> = {}): Promise<string> {
 export function fileList(...files: File[]): FileList {
   return Object.assign([...files], {
     item: (i: number) => files[i] ?? null,
-  }) as unknown as FileList;
+  });
 }
 
 /** Picks `files` in a file input. */

@@ -182,9 +182,7 @@ export function TreeInput({
     return typeof v === "string" && v.trim() ? v : "Untitled";
   };
   const detailOf = (data: NodeData) =>
-    detailKey && typeof data[detailKey] === "string"
-      ? (data[detailKey] as string)
-      : "";
+    detailKey && typeof data[detailKey] === "string" ? data[detailKey] : "";
   const activeNode = activeId ? findNode(tree, activeId) : null;
 
   return (

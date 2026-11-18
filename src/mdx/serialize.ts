@@ -80,11 +80,11 @@ export function serializeMdx(
     root.children.unshift({
       type: "mdxjsEsm",
       value: imports.join("\n"),
-    } as MdxjsEsm as unknown as Md.RootContent);
+    });
   }
 
   const mdx = mdxToMarkdown({ quote: '"' });
-  const libFlow = findHandler(mdx as ExtensionLike, "mdxJsxFlowElement");
+  const libFlow = findHandler(mdx, "mdxJsxFlowElement");
   let out = toMarkdown(root, {
     extensions: isMdx ? [mdx, gfmToMarkdown()] : [gfmToMarkdown()],
     bullet: "-",
@@ -151,10 +151,7 @@ function flowElementHandler(lib: Handler): Handler {
       /\s*\/>$/,
       ">",
     );
-    const children = state.containerFlow(
-      el as unknown as Parameters<State["containerFlow"]>[0],
-      info,
-    );
+    const children = state.containerFlow(el, info);
     return `${open}\n\n${children}\n\n</${el.name ?? ""}>`;
   };
 }
@@ -273,7 +270,7 @@ function linesBetween(
     const result = state.join[index](
       left as never,
       right as never,
-      parent as never,
+      parent,
       state,
     );
     if (typeof result === "number") return result;
@@ -367,8 +364,7 @@ const BLOCKS: Record<string, (node: PMNode, used: Uses) => AnyNode | null> = {
   }),
   rawHtml: (node) => ({ type: "html", value: String(node.attrs?.value ?? "") }),
   table,
-  mdxComponent: (node, used) =>
-    jsxElement(node, used, false) as MdxJsxFlowElement,
+  mdxComponent: (node, used) => jsxElement(node, used, false),
   footnoteDefinition: (node, used) => ({
     type: "footnoteDefinition",
     ...footnoteLabel(node),
@@ -787,7 +783,7 @@ function leaf(node: PMNode, used: Uses): AnyNode[] {
     ? LEAVES[node.type]
     : undefined;
   if (convert) return convert(node, used);
-  return node.content ? (inlines(node.content, used) as AnyNode[]) : [];
+  return node.content ? inlines(node.content, used) : [];
 }
 
 /** How each kind of inline node is written, by its type in the editor. */

@@ -7,6 +7,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Fixed
 
+- **Copying a file's path says so only when it worked.** The Assets page
+  reported "Path copied" even when the browser refused clipboard access; it
+  now shows an error instead.
+- **A crop or focal point shows the image it was given.** Switching images
+  quickly could let the previous image finish loading last and set the
+  editor's size from it.
 - **The logo shows before the GitHub App is set up.** A logo kept in the
   repository is now bundled into the build instead of fetched from GitHub,
   so the sign-in page no longer shows a broken image while the

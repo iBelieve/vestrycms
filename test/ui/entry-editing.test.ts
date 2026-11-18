@@ -44,11 +44,11 @@ describe("bodyEnv", () => {
     expect(Object.keys(env.components)).toEqual(["Note"]);
     expect(env.textStyles).toBe(config.textStyles);
     expect(env.imageDirectory).toBeUndefined();
-    expect(env.toRepoPath!("https://example.org/a.png")).toBeNull();
-    expect(env.toRepoPath!("/new.png")).toBe("public/new.png");
-    expect(env.toRepoPath!("./img/b.png")).toBe("src/content/posts/img/b.png");
-    expect(env.toRepoPath!("b.png")).toBeNull();
-    expect(env.toDocPath!("src/content/posts/img/b.png")).toBe("./img/b.png");
+    expect(env.toRepoPath("https://example.org/a.png")).toBeNull();
+    expect(env.toRepoPath("/new.png")).toBe("public/new.png");
+    expect(env.toRepoPath("./img/b.png")).toBe("src/content/posts/img/b.png");
+    expect(env.toRepoPath("b.png")).toBeNull();
+    expect(env.toDocPath("src/content/posts/img/b.png")).toBe("./img/b.png");
     expect(env.resolveImage!("/new.png")).toBe("blob:new");
     expect(env.resolveImage!("./b.png")).toBe("/files/src/content/posts/b.png");
     expect(env.resolveImage!("b.png")).toBe("b.png");
@@ -64,8 +64,8 @@ describe("bodyEnv", () => {
     });
     expect(env.components).toEqual({});
     expect(env.imageDirectory).toBe("public/images");
-    expect(env.toRepoPath!("/images/a.png")).toBe("public/images/a.png");
-    expect(env.toDocPath!("public/images/a.png")).toBe("/images/a.png");
+    expect(env.toRepoPath("/images/a.png")).toBe("public/images/a.png");
+    expect(env.toDocPath("public/images/a.png")).toBe("/images/a.png");
     expect(env.resolveImage!("http://x/a.png")).toBe("http://x/a.png");
   });
 

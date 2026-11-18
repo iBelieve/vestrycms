@@ -25,7 +25,7 @@ describe("the API client", () => {
     expect(await api.updateUser("a/b c", { name: "N" })).toEqual({
       user: { id: "u" },
     });
-    const [url, init] = calls[0]!;
+    const [url, init] = calls[0];
     expect(url).toBe("/admin/api/users/a/b%20c");
     expect(init).toMatchObject({
       method: "PATCH",

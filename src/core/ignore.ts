@@ -61,9 +61,9 @@ function toRegExp(pattern: string): RegExp {
  * next token starts.
  */
 function translate(body: string, i: number): [string, number] {
-  const char = body[i]!;
+  const char = body[i];
   if (char === "\\" && i + 1 < body.length)
-    return [escapeChar(body[i + 1]!), i + 2];
+    return [escapeChar(body[i + 1]), i + 2];
   if (char === "*") return star(body, i);
   if (char === "?") return ["[^/]", i + 1];
   if (char === "[") return characterClass(body, i);

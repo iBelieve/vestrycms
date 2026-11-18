@@ -56,7 +56,7 @@ describe("sign-in", () => {
     const first = auth.lastCode();
 
     // A wrong code, a new code, and a different address.
-    const code = screen.getByPlaceholderText("123456") as HTMLInputElement;
+    const code = screen.getByPlaceholderText<HTMLInputElement>("123456");
     expect(document.activeElement).toBe(code);
     await user.type(code, "12a3 4567");
     expect(code.value).toBe("123456");
@@ -155,9 +155,9 @@ describe("the users page", () => {
     // Invite someone.
     await user.click(screen.getByRole("button", { name: /Invite user/ }));
     let dialog = screen.getByRole("dialog");
-    const send = within(dialog).getByRole("button", {
+    const send = within(dialog).getByRole<HTMLButtonElement>("button", {
       name: "Send invitation",
-    }) as HTMLButtonElement;
+    });
     expect(send.disabled).toBe(true);
     await user.type(
       within(dialog).getByPlaceholderText("colleague@example.org"),
@@ -235,11 +235,8 @@ describe("the users page", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/always an admin/)).toBeTruthy();
     expect(
-      (
-        within(dialog).getByRole("radio", {
-          name: /Editor/,
-        }) as HTMLInputElement
-      ).disabled,
+      within(dialog).getByRole<HTMLInputElement>("radio", { name: /Editor/ })
+        .disabled,
     ).toBe(true);
     await user.type(within(dialog).getByRole("textbox"), "Owner");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));

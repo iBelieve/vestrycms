@@ -90,13 +90,19 @@ function failure(status: number, data: unknown): ApiError {
 export function createClient(basePath: string) {
   const prefix = `${basePath.replace(/\/$/, "")}/api`;
 
-  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async function request<T>(
+    path: string,
+    // Plain headers only: spreading a `Headers` object would drop them.
+    init: Omit<RequestInit, "headers"> & {
+      headers?: Record<string, string>;
+    } = {},
+  ): Promise<T> {
     const res = await fetch(`${prefix}${path}`, {
       ...init,
       headers: {
         Accept: "application/json",
         ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...(init.headers ?? {}),
+        ...init.headers,
       },
       credentials: "same-origin",
     });

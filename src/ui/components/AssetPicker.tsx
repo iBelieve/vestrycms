@@ -156,7 +156,9 @@ export function AssetPicker({
                   hidden
                   multiple={!deferUploads}
                   accept={accept?.map((a) => `.${a}`).join(",")}
-                  onChange={(e) => e.target.files && upload(e.target.files)}
+                  onChange={(e) => {
+                    if (e.target.files) void upload(e.target.files);
+                  }}
                 />
                 <Button
                   size="sm"
@@ -179,16 +181,15 @@ export function AssetPicker({
               onDrop={(e) => {
                 e.preventDefault();
                 setOver(false);
-                if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
+                if (e.dataTransfer.files.length)
+                  void upload(e.dataTransfer.files);
               }}
             >
               Drop files here to upload{accept ? ` (${accept.join(", ")})` : ""}
             </div>
           )}
           {query.isLoading && <Loading />}
-          {query.error && (
-            <Alert kind="error">{(query.error as Error).message}</Alert>
-          )}
+          {query.error && <Alert kind="error">{query.error.message}</Alert>}
           {query.data && (
             <>
               {query.data.folders.length > 0 && (

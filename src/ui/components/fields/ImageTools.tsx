@@ -41,26 +41,37 @@ interface Fitted {
   display: { width: number; height: number };
 }
 
+type Loaded =
+  | { src: string; natural: { width: number; height: number } }
+  | { src: string; error: true };
+
 /** Load the image, track its natural size, and fit it into the available width. */
 function useFittedImage(src: string | null, maxHeight: number) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [natural, setNatural] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  const [error, setError] = useState(false);
 
+  // What loaded is kept with its `src`, so a new image starts out unloaded
+  // without the effect resetting state.
   useEffect(() => {
-    setNatural(null);
-    setError(false);
     if (!src) return;
     const img = new Image();
     img.onload = () =>
-      setNatural({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => setError(true);
+      setLoaded({
+        src,
+        natural: { width: img.naturalWidth, height: img.naturalHeight },
+      });
+    img.onerror = () => setLoaded({ src, error: true });
     img.src = src;
+    // An image that finishes after `src` moved on must not count.
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
   }, [src]);
+  const current = loaded?.src === src ? loaded : null;
+  const natural = current && "natural" in current ? current.natural : null;
+  const error = current !== null && "error" in current;
 
   useLayoutEffect(() => {
     const el = containerRef.current;

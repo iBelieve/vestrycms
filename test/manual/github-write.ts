@@ -17,7 +17,7 @@ const api = async (path: string, init: RequestInit = {}) => {
       Accept: "application/vnd.github+json",
       "User-Agent": "vestry-test",
       "Content-Type": "application/json",
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
   if (!res.ok && res.status !== 204)

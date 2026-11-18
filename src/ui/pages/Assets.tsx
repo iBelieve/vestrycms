@@ -60,9 +60,9 @@ export function AssetsPage() {
         "success",
         `Uploaded ${res.paths.length} file${res.paths.length === 1 ? "" : "s"}`,
       );
-      qc.invalidateQueries({ queryKey: ["assets", key] });
+      void qc.invalidateQueries({ queryKey: ["assets", key] });
     },
-    onError: (e) => toast("error", (e as Error).message),
+    onError: (e) => toast("error", e.message),
   });
 
   const remove = useMutation({
@@ -71,9 +71,9 @@ export function AssetsPage() {
       toast("success", "File deleted");
       setConfirmDelete(null);
       setSelected(null);
-      qc.invalidateQueries({ queryKey: ["assets", key] });
+      void qc.invalidateQueries({ queryKey: ["assets", key] });
     },
-    onError: (e) => toast("error", (e as Error).message),
+    onError: (e) => toast("error", e.message),
   });
 
   if (!container)
@@ -148,7 +148,7 @@ export function AssetsPage() {
           </span>
         </div>
         {q.isLoading && <Loading />}
-        {q.error && <Alert kind="error">{(q.error as Error).message}</Alert>}
+        {q.error && <Alert kind="error">{q.error.message}</Alert>}
         {q.data && (
           <>
             {q.data.folders.length > 0 && (
@@ -227,8 +227,10 @@ export function AssetsPage() {
               </Button>
               <Button
                 onClick={() => {
-                  navigator.clipboard.writeText(selectedItem.path);
-                  toast("success", "Path copied");
+                  navigator.clipboard.writeText(selectedItem.path).then(
+                    () => toast("success", "Path copied"),
+                    () => toast("error", "Couldn't copy the path"),
+                  );
                 }}
               >
                 <Copy /> Copy path

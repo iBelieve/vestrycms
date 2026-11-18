@@ -123,10 +123,10 @@ describe("nodeToFetchHandler", () => {
     expect(await response.text()).toBe("got hello");
     expect(response.headers.get("x-reply")).toBe("yes");
     expect(response.headers.getSetCookie()).toEqual(["a=1", "b=2"]);
-    expect(seen[0]!.url).toMatch(
+    expect(seen[0].url).toMatch(
       /^https:\/\/127\.0\.0\.1:\d+\/admin\/api\/x\?y=1$/,
     );
-    expect(seen[0]!.headers.get("x-test")).toBe("1");
+    expect(seen[0].headers.get("x-test")).toBe("1");
   });
 
   it("sends a response without a body", async () => {
@@ -163,8 +163,8 @@ describe("nodeToFetchHandler", () => {
     );
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(204);
-    expect(seen[0]!.url).toBe("https://localhost:4321/admin/api/config");
-    expect(seen[0]!.headers.get("origin")).toBe("https://localhost:4321");
+    expect(seen[0].url).toBe("https://localhost:4321/admin/api/config");
+    expect(seen[0].headers.get("origin")).toBe("https://localhost:4321");
   });
 
   it("hands errors to the next middleware", async () => {
@@ -301,7 +301,7 @@ describe("the integration", () => {
       addWatchFile: (file: string) => registered.watched.push(file),
       logger: { info: (line: string) => registered.logs.push(line) },
     });
-    return { ...registered, plugin: registered.plugins[0]! };
+    return { ...registered, plugin: registered.plugins[0] };
   }
 
   it("injects the control panel's routes and watches the config file", async () => {
@@ -387,7 +387,7 @@ describe("the integration", () => {
 
   it("serves the API from the project directory in dev", async () => {
     const { plugin, logs } = setUp("dev");
-    const handler = middleware(plugin)!;
+    const handler = middleware(plugin);
     expect(logs).toEqual([
       "Control panel at /admin (editing local files, no sign-in)",
     ]);
@@ -408,7 +408,7 @@ describe("the integration", () => {
   it("keeps dev users in SQLite with sign-in required", async () => {
     vi.stubEnv("VESTRY_MODE", "auth");
     const { plugin, logs } = setUp("dev");
-    const handler = middleware(plugin)!;
+    const handler = middleware(plugin);
     expect(logs).toEqual([
       "Control panel at /admin (editing local files, sign-in required)",
     ]);

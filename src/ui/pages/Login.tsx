@@ -37,6 +37,7 @@ export function LoginPage() {
         email: email.trim(),
         type: "sign-in",
       });
+      // oxlint-disable-next-line typescript/only-throw-error -- Better Auth's error; the catch reads its `code`.
       if (result.error) throw result.error;
       setCode("");
       setStep("code");
@@ -58,6 +59,7 @@ export function LoginPage() {
         email: email.trim(),
         otp: code,
       });
+      // oxlint-disable-next-line typescript/only-throw-error -- Better Auth's error; the catch reads its `code`.
       if (result.error) throw result.error;
       // Once the config reloads with a user, the /login route redirects to `next`.
       await refresh();
@@ -90,7 +92,7 @@ export function LoginPage() {
             <Alert kind="error">{client.setupError}</Alert>
           </>
         ) : step === "email" ? (
-          <form onSubmit={requestCode} className="v-login__form">
+          <form onSubmit={(e) => void requestCode(e)} className="v-login__form">
             <p>
               Enter your email address and we'll send you a code to sign in.
             </p>
@@ -118,7 +120,7 @@ export function LoginPage() {
             </button>
           </form>
         ) : (
-          <form onSubmit={verify} className="v-login__form">
+          <form onSubmit={(e) => void verify(e)} className="v-login__form">
             <p>
               If <strong>{email}</strong> can edit this site, we've emailed it a
               six-digit code. It expires in 10 minutes.
@@ -166,8 +168,10 @@ export function LoginPage() {
                 type="button"
                 className="v-link"
                 disabled={busy}
-                onClick={async () => {
-                  if (await requestCode()) setNotice("We sent a new code.");
+                onClick={() => {
+                  void requestCode().then((sent) => {
+                    if (sent) setNotice("We sent a new code.");
+                  });
                 }}
               >
                 Send a new code

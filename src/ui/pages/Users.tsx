@@ -35,7 +35,7 @@ export function UsersPage() {
     enabled: me.role === "admin" && client.auth,
   });
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["users"] });
+    void queryClient.invalidateQueries({ queryKey: ["users"] });
 
   const resend = useMutation({
     mutationFn: (u: PublicUser) => api.resendInvite(u.id),
@@ -316,7 +316,11 @@ function UserForm({
         </>
       }
     >
-      <form id="v-user-form" onSubmit={submit} className="v-fields">
+      <form
+        id="v-user-form"
+        onSubmit={(e) => void submit(e)}
+        className="v-fields"
+      >
         {!user && (
           <label className="v-field">
             <span className="v-field__label">Email</span>

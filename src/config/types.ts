@@ -82,7 +82,7 @@ export interface BooleanField extends FieldBase<"boolean"> {
 
 export interface DateField extends FieldBase<"date"> {
   /** Use "now" to default new entries to today, in the editor's time zone. */
-  default?: string | "now";
+  default?: "now" | (string & {});
   /**
    * Allow an optional wall-clock time. The value stays `YYYY-MM-DD` when no
    * time is set and becomes `YYYY-MM-DDTHH:mm` when one is.
@@ -112,7 +112,7 @@ export interface DatetimeField extends FieldBase<"datetime"> {
    */
   storage?: "local" | "iso";
   /** Use "now" to default new entries to the current time. */
-  default?: string | "now";
+  default?: "now" | (string & {});
   /**
    * Automatically set the field to the current time whenever the entry is
    * saved (e.g. `updatedDate`). The field is shown read-only.

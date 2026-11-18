@@ -744,16 +744,16 @@ function useSave({
         client.mode === "local" ? "Saved to disk" : "Saved and committed",
       );
       doc.saved(res.data, res.sha, res.sent);
-      qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
-      qc.invalidateQueries({ queryKey: ["assets"] });
+      void qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
+      void qc.invalidateQueries({ queryKey: ["assets"] });
       // The editor opens on what is cached, so the cache must not keep the
       // version from before this save.
       if (kind === "singleton") {
-        qc.invalidateQueries({ queryKey: ["singleton", collectionKey] });
+        void qc.invalidateQueries({ queryKey: ["singleton", collectionKey] });
         return;
       }
       if (!isNew && res.slug === slug) {
-        qc.invalidateQueries({ queryKey: ["entry", collectionKey, slug] });
+        void qc.invalidateQueries({ queryKey: ["entry", collectionKey, slug] });
         return;
       }
       // A new or renamed entry now lives at a different address, where its
@@ -776,7 +776,7 @@ function useSave({
         key: draftKey(kind, collectionKey, res.slug),
         draft,
       };
-      navigate(entryHref(collectionKey, res.slug), { replace: true });
+      void navigate(entryHref(collectionKey, res.slug), { replace: true });
     },
     onError: (e) => toast("error", saveErrorMessage(e, Boolean(slugs.dateKey))),
   });
@@ -816,12 +816,12 @@ function useRemove(collectionKey: string, slug: string | null) {
     mutationFn: () => api.deleteEntry(collectionKey, slug!),
     onSuccess: () => {
       toast("success", "Entry deleted");
-      qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
+      void qc.invalidateQueries({ queryKey: ["entries", collectionKey] });
       // Not to be opened again from the cache.
       qc.removeQueries({ queryKey: ["entry", collectionKey, slug] });
-      navigate(`/collections/${collectionKey}`);
+      void navigate(`/collections/${collectionKey}`);
     },
-    onError: (e) => toast("error", (e as Error).message),
+    onError: (e) => toast("error", e.message),
   });
 }
 
