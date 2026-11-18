@@ -124,7 +124,8 @@ for development). Vestry adds invitations, the config-listed admins, a
 `lastLoginAt` field and the last-admin guards on top of the plugins.
 
 Commits are made through a GitHub App installed on the repository with
-**Contents: read and write**. Commits are made by the app's bot, with the
+**Contents: read and write**, plus **Checks: read-only** for the
+[build status](#build-status). Commits are made by the app's bot, with the
 editor credited as a co-author (`Co-authored-by: Name <email>`), so GitHub
 shows both and the editor's account never needs push access.
 
@@ -186,7 +187,7 @@ Routes injected into the site:
 
 - `/admin/[...path]` – the control panel shell (on-demand, no auth needed to
   load the shell; data comes from the API).
-- `/admin/api/[...path]` – JSON API. `config`, `status`, `collections/:key`,
+- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `collections/:key`,
   `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
   `singletons/:key`, `assets/:container`,
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
@@ -499,6 +500,45 @@ Each collection gets a tile with its entry count. Collections whose `sort`
 field is a date or datetime also get a "Recent …" list; set `recent: false`
 to hide it, `recent: true` to show it for other collections, or a number to
 change how many entries appear.
+
+## Build status
+
+Every save is a commit, and a site that builds from its repository (such as
+Cloudflare Workers Builds) is live only once that commit's build deploys.
+The top bar shows where the latest saves are: **Publishing** while a build
+is coming or running, **Live** once it has deployed, **Couldn't publish** if the
+newest build failed, and **Not live** if its build was cancelled or never
+reported, or an older build deployed after it. It opens the last ten
+commits on the branch in sections: **Waiting to publish** (queued, or going
+out with a newer build that hasn't started), **Publishing now** (building, or
+going out with a build that is running; with a progress bar timed from
+recent builds), **Not published** (a build that failed, was cancelled or
+never ran, or was replaced by an older one) and **On the site**. Each links
+to its build log. Toasts say when changes you watched publishing go live.
+
+The status is read from the check runs the host posts on each commit
+(Workers Builds names them `Workers Builds: <worker>`, Pages
+`Cloudflare Pages`), with one GitHub GraphQL request that is cached for five
+seconds, so it survives a reload and includes saves made elsewhere. The
+panel asks every five seconds while something is publishing and every
+minute otherwise. It needs no Cloudflare credentials, but the GitHub App
+needs the **Checks: read-only** permission; without it admins see "Build
+status off" and nobody else sees anything.
+
+Every build deploys the whole tree, so a live commit makes every commit
+before it live too. Workers Builds skips a queued build when a newer one is
+queued, so saves in quick succession are shown as going out with the newer
+build. When builds run side by side and finish out of order, the one that
+deployed last is the one on the site.
+
+```ts
+deploys: { check: "Workers Builds: website" }, // a repository with several Workers
+deploys: false, // off
+```
+
+`check` matches check runs whose name starts with it; by default any
+`Workers Builds` or `Cloudflare Pages` run counts. In `astro dev` nothing is
+built, so the status is hidden.
 
 ## Image crop and focal point
 

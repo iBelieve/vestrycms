@@ -11,6 +11,13 @@ while Vestry is below 1.0, a minor version may change behaviour.
   as `["index", "404"]` for pages at fixed routes, or the names of its other
   routes. An entry at one can't be renamed or deleted, and no other entry
   can be created at or renamed to one, in any letter case.
+- **Build status in the top bar.** After a save, the panel shows whether
+  it is publishing, live, or failed to build, and lists recent saves with
+  their builds and which one is on the site. It reads the check runs
+  Cloudflare Workers Builds and Pages post on each commit, so it survives a
+  reload and handles several saves in quick succession. The GitHub App needs
+  the **Checks: read-only** permission; `deploys` in the config picks the
+  check (`{ check: "Workers Builds: website" }`) or turns it off (`false`).
 
 ### Changed
 

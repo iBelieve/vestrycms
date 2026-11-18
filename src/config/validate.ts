@@ -103,6 +103,7 @@ export function validateConfig(config: VestryConfig) {
     fail("config.repo.owner and config.repo.name are required");
   }
   checkTemplate("commitMessage", config.commitMessage);
+  checkDeploys(config.deploys);
 
   for (const [key, col] of Object.entries(config.collections ?? {}))
     checkCollection(config, `collection "${key}"`, col);
@@ -123,6 +124,17 @@ export function validateConfig(config: VestryConfig) {
   } catch {
     fail("config must be JSON-serializable (no functions)");
   }
+}
+
+function checkDeploys(deploys: VestryConfig["deploys"]) {
+  if (deploys === undefined || deploys === false) return;
+  if (typeof deploys !== "object" || deploys === null)
+    fail("deploys must be false or an object");
+  if (
+    deploys.check !== undefined &&
+    (typeof deploys.check !== "string" || !deploys.check.trim())
+  )
+    fail("deploys.check must be a check run name (or the start of one)");
 }
 
 function checkCollection(
