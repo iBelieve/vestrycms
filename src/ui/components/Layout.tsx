@@ -166,12 +166,11 @@ export function Shell({ children }: { children: ReactNode }) {
                 {client.auth && (
                   <button
                     className="v-menu__item"
-                    onClick={() => {
+                    onClick={async () => {
                       close();
-                      void authClient
-                        .signOut()
-                        .then(() => refresh())
-                        .then(() => navigate("/login"));
+                      await authClient.signOut();
+                      await refresh();
+                      await navigate("/login");
                     }}
                   >
                     <LogOut />

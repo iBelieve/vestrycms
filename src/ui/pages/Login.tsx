@@ -92,7 +92,7 @@ export function LoginPage() {
             <Alert kind="error">{client.setupError}</Alert>
           </>
         ) : step === "email" ? (
-          <form onSubmit={(e) => void requestCode(e)} className="v-login__form">
+          <form onSubmit={requestCode} className="v-login__form">
             <p>
               Enter your email address and we'll send you a code to sign in.
             </p>
@@ -120,7 +120,7 @@ export function LoginPage() {
             </button>
           </form>
         ) : (
-          <form onSubmit={(e) => void verify(e)} className="v-login__form">
+          <form onSubmit={verify} className="v-login__form">
             <p>
               If <strong>{email}</strong> can edit this site, we've emailed it a
               six-digit code. It expires in 10 minutes.
@@ -168,10 +168,8 @@ export function LoginPage() {
                 type="button"
                 className="v-link"
                 disabled={busy}
-                onClick={() => {
-                  void requestCode().then((sent) => {
-                    if (sent) setNotice("We sent a new code.");
-                  });
+                onClick={async () => {
+                  if (await requestCode()) setNotice("We sent a new code.");
                 }}
               >
                 Send a new code

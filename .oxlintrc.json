@@ -12,7 +12,11 @@
     "react/refs": "off",
     "typescript/await-thenable": "error",
     "typescript/no-floating-promises": "error",
-    "typescript/no-misused-promises": "error",
+    // Async event handlers are fine: React ignores what they return.
+    "typescript/no-misused-promises": [
+      "error",
+      { "checksVoidReturn": { "attributes": false } }
+    ],
     "typescript/only-throw-error": "error",
     "typescript/no-unnecessary-type-assertion": "error",
     // Content and settings arrive as `unknown`; `String(value)` is the

@@ -296,7 +296,7 @@ export function ErrorState({
                 size="xs"
                 icon
                 className="v-error-card__copy"
-                onClick={() => void copy()}
+                onClick={copy}
                 aria-label={copied ? "Copied" : "Copy error details"}
                 title={copied ? "Copied" : "Copy error details"}
               >

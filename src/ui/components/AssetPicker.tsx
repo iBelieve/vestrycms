@@ -156,9 +156,7 @@ export function AssetPicker({
                   hidden
                   multiple={!deferUploads}
                   accept={accept?.map((a) => `.${a}`).join(",")}
-                  onChange={(e) => {
-                    if (e.target.files) void upload(e.target.files);
-                  }}
+                  onChange={(e) => e.target.files && upload(e.target.files)}
                 />
                 <Button
                   size="sm"

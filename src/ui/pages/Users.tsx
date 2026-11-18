@@ -316,11 +316,7 @@ function UserForm({
         </>
       }
     >
-      <form
-        id="v-user-form"
-        onSubmit={(e) => void submit(e)}
-        className="v-fields"
-      >
+      <form id="v-user-form" onSubmit={submit} className="v-fields">
         {!user && (
           <label className="v-field">
             <span className="v-field__label">Email</span>
