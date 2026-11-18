@@ -53,9 +53,12 @@ function browser() {
   const absorb = (res: Response) => {
     for (const c of res.headers.getSetCookie()) {
       const [pair, ...attrs] = c.split(";");
-      const [k, v] = pair.split("=");
+      // A value may hold "=" itself (base64 padding).
+      const eq = pair.indexOf("=");
+      const k = eq === -1 ? pair : pair.slice(0, eq);
+      const v = eq === -1 ? "" : pair.slice(eq + 1);
       if (attrs.some((a) => /max-age=0/i.test(a))) cookies.delete(k.trim());
-      else cookies.set(k.trim(), v ?? "");
+      else cookies.set(k.trim(), v);
     }
     return res;
   };

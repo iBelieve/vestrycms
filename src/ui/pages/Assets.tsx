@@ -226,11 +226,15 @@ export function AssetsPage() {
                 <Trash /> Delete
               </Button>
               <Button
-                onClick={() => {
-                  navigator.clipboard.writeText(selectedItem.path).then(
-                    () => toast("success", "Path copied"),
-                    () => toast("error", "Couldn't copy the path"),
-                  );
+                onClick={async () => {
+                  // `navigator.clipboard` is missing outside a secure context
+                  // (the dev server over plain HTTP), so this can throw too.
+                  try {
+                    await navigator.clipboard.writeText(selectedItem.path);
+                    toast("success", "Path copied");
+                  } catch {
+                    toast("error", "Couldn't copy the path");
+                  }
                 }}
               >
                 <Copy /> Copy path

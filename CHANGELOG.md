@@ -16,7 +16,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 - **A date or datetime field's `default` is `"now"` or nothing.** The type
   used to accept any string, which hid `"now"` from editor autocomplete;
-  a fixed date was never a useful default.
+  a fixed date was never a useful default. Any other value is now an error
+  when the integration loads, instead of being ignored.
 - **Vestry has a logo.** The control panel's top bar shows it when the site
   sets no `logo`, the browser tab uses it as the favicon, and the README
   carries it. `assets/` holds the light (`logo.svg`, brown-grey `#2d2622`

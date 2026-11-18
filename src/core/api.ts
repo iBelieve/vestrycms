@@ -175,13 +175,14 @@ export function createApi(options: ApiOptions) {
     return resendMailer({ apiKey, from: mail.from });
   }
 
+  // Wrapped, because Better Auth's database type includes `any`, which would
+  // swallow the error case in a plain `AuthDatabase | { error }` union.
   function resolveDatabase(
     ctx: RequestContext,
-    // oxlint-disable-next-line typescript/no-redundant-type-constituents -- Better Auth's database option includes `any`.
-  ): AuthDatabase | { error: string } {
-    if (options.auth?.database) return options.auth.database;
+  ): { database: AuthDatabase } | { error: string } {
+    if (options.auth?.database) return { database: options.auth.database };
     const binding = ctx.bindings?.[databaseBinding];
-    if (isD1Like(binding)) return binding as AuthDatabase;
+    if (isD1Like(binding)) return { database: binding as AuthDatabase };
     return {
       error: `No ${databaseBinding} D1 binding. Add it to wrangler.jsonc so Vestry can store users and sessions.`,
     };
@@ -203,8 +204,8 @@ export function createApi(options: ApiOptions) {
   ): VestryAuth | { error: string } {
     const cached = authByOrigin.get(url.origin);
     if (cached) return cached;
-    const database = resolveDatabase(ctx);
-    if ("error" in database) return database;
+    const resolved = resolveDatabase(ctx);
+    if ("error" in resolved) return resolved;
     const mailer = resolveMailer();
     if ("error" in mailer) return mailer;
     const secret = resolveSecret();
@@ -219,7 +220,7 @@ export function createApi(options: ApiOptions) {
         ? config.siteUrl.replace(/\/$/, "")
         : url.origin;
     const created = createVestryAuth({
-      database,
+      database: resolved.database,
       mailer,
       secret,
       baseURL: url.origin,
