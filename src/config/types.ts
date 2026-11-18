@@ -505,6 +505,17 @@ export interface AuthConfig {
   tablePrefix?: string;
 }
 
+export interface DeploysConfig {
+  /**
+   * The check run that reports the site's build and deploy: runs whose name
+   * starts with this. Defaults to Cloudflare's, `Workers Builds` (Workers
+   * Builds names its runs `Workers Builds: <worker>`) and `Cloudflare Pages`.
+   * Name one Worker, e.g. `Workers Builds: website`, when a repository
+   * builds several.
+   */
+  check?: string;
+}
+
 export interface MailConfig {
   /**
    * `resend` sends through Resend (API key in `VESTRY_RESEND_API_KEY`);
@@ -555,4 +566,10 @@ export interface VestryConfig {
   auth?: AuthConfig;
   /** Outbound email for sign-in codes and invitations. Required in production. */
   mail?: MailConfig;
+  /**
+   * Show the build and deploy status of recent saves, read from the check
+   * runs the host posts on each commit (the GitHub App needs Checks: read).
+   * On by default; `false` turns it off.
+   */
+  deploys?: false | DeploysConfig;
 }

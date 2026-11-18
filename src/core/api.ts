@@ -13,6 +13,12 @@ import {
   type VestryAuth,
 } from "./auth.js";
 import type { Cache } from "./cache.js";
+import {
+  DEPLOY_HISTORY,
+  deployStatus,
+  deploysConfig,
+  type DeployStatus,
+} from "./deploys.js";
 import type { BuildIndex } from "./index-types.js";
 import { MailError, consoleMailer, resendMailer, type Mailer } from "./mail.js";
 import { isRole, type PublicUser, type Role } from "./roles.js";
@@ -345,6 +351,8 @@ export function createApi(options: ApiOptions) {
 
     const baseSource = resolveSource();
     if ("error" in baseSource) return error(baseSource.error, 500, "setup");
+    if (segments[0] === "deploys" && method === "GET")
+      return json(await deploys(config, baseSource, user));
     const source = user.email
       ? withAuthor(baseSource, { name: user.name, email: user.email })
       : baseSource;
@@ -688,6 +696,30 @@ async function resendInvite(admin: UserAdmin, id: string): Promise<Response> {
   if (!target) return error("User not found.", 404, "not_found");
   await admin.vestryAuth.sendInvite(admin.user, target);
   return json({ user: target });
+}
+
+// ---------------------------------------------------------------- deploys
+
+/** The build and deploy status of the branch's recent commits. */
+async function deploys(
+  config: VestryConfig,
+  source: ContentSource,
+  user: PublicUser,
+): Promise<DeployStatus> {
+  const settings = deploysConfig(config);
+  if (!settings) return { available: false, reason: "disabled" };
+  if (!source.recentCommits) return { available: false, reason: "local" };
+  try {
+    const commits = await source.recentCommits(DEPLOY_HISTORY);
+    return deployStatus(commits, {
+      check: settings.check,
+      email: user.email,
+    });
+  } catch (e) {
+    if (e instanceof SourceError && e.code === "checks_forbidden")
+      return { available: false, reason: "permission" };
+    throw e;
+  }
 }
 
 // ---------------------------------------------------------------- content

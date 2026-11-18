@@ -8,6 +8,8 @@ import {
   type ContentSource,
   type FileChange,
   type FileData,
+  type SourceCheckRun,
+  type SourceCommit,
   type SourceInfo,
   type TreeEntry,
 } from "../source.js";
@@ -97,7 +99,7 @@ export class GitHubSource implements ContentSource {
     init: RequestInit & { etag?: string; raw?: boolean } = {},
   ): Promise<{ status: number; data: T; etag?: string }> {
     const headers = requestHeaders(init, await this.#token());
-    const url = `${this.#apiBase}${path}`;
+    const url = /^https?:/.test(path) ? path : `${this.#apiBase}${path}`;
     let res = await fetch(url, { ...init, headers });
     const { token } = this.opts;
     if (
@@ -334,11 +336,50 @@ export class GitHubSource implements ContentSource {
       checked: Date.now(),
     };
     await this.#cache.set(this.#headKey(branch), newHead, 3600);
+    await this.#cache.delete(this.#commitsKey(branch));
     await this.#cache.set(
       `gh:${this.repoPath}:commit:${commit.sha}`,
       newTree.sha,
     );
     return { sha: commit.sha, url: commit.html_url };
+  }
+
+  #commitsKey(branch: string) {
+    return `gh:${this.repoPath}:recent:${branch}`;
+  }
+
+  /**
+   * The branch's latest commits with their check runs, in one GraphQL
+   * request. Cached for a few seconds, so several editors polling share it;
+   * a commit of ours clears it. Reading check runs needs the app's Checks
+   * permission: without it this throws a 403 `checks_forbidden`.
+   */
+  async recentCommits(limit: number): Promise<SourceCommit[]> {
+    const branch = await this.branch();
+    const key = this.#commitsKey(branch);
+    const cached = await this.#cache.get<{
+      limit: number;
+      commits: SourceCommit[];
+    }>(key);
+    if (cached && cached.limit >= limit) return cached.commits.slice(0, limit);
+    const { data } = await this.#request<GraphQLResponse<RecentCommitsData>>(
+      graphqlUrl(this.#apiBase),
+      {
+        method: "POST",
+        body: JSON.stringify({
+          query: RECENT_COMMITS_QUERY,
+          variables: {
+            owner: this.opts.owner,
+            name: this.opts.repo,
+            ref: `refs/heads/${branch}`,
+            limit,
+          },
+        }),
+      },
+    );
+    const commits = readRecentCommits(data);
+    await this.#cache.set(key, { limit, commits }, 5);
+    return commits;
   }
 }
 
@@ -417,4 +458,132 @@ async function responseError(
     res.status,
     ERROR_CODES[res.status] ?? "github_error",
   );
+}
+
+// ------------------------------------------------------------ check runs
+
+const RECENT_COMMITS_QUERY = `query($owner: String!, $name: String!, $ref: String!, $limit: Int!) {
+  repository(owner: $owner, name: $name) {
+    ref(qualifiedName: $ref) {
+      target {
+        ... on Commit {
+          history(first: $limit) {
+            nodes {
+              oid
+              messageHeadline
+              message
+              committedDate
+              url
+              author { name email }
+              checkSuites(first: 10) {
+                nodes {
+                  checkRuns(first: 10) {
+                    nodes { name status conclusion startedAt completedAt detailsUrl }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+
+interface GraphQLResponse<T> {
+  data?: T | null;
+  errors?: { type?: string; message: string; path?: (string | number)[] }[];
+}
+
+interface RecentCommitsData {
+  repository: {
+    ref: {
+      target: {
+        history?: {
+          nodes: {
+            oid: string;
+            messageHeadline: string;
+            message: string;
+            committedDate: string;
+            url: string | null;
+            author: { name: string | null; email: string | null } | null;
+            checkSuites: {
+              nodes: {
+                checkRuns: {
+                  nodes: {
+                    name: string;
+                    status: string;
+                    conclusion: string | null;
+                    startedAt: string | null;
+                    completedAt: string | null;
+                    detailsUrl: string | null;
+                  }[];
+                } | null;
+              }[];
+            } | null;
+          }[];
+        };
+      } | null;
+    } | null;
+  } | null;
+}
+
+/** GitHub's GraphQL endpoint for a REST API base (GitHub Enterprise serves it at `/api/graphql`). */
+function graphqlUrl(apiBase: string): string {
+  return apiBase.endsWith("/api/v3")
+    ? `${apiBase.slice(0, -"/v3".length)}/graphql`
+    : `${apiBase}/graphql`;
+}
+
+/** The commits in a recent-commits response, or the error it reports. */
+function readRecentCommits(
+  response: GraphQLResponse<RecentCommitsData>,
+): SourceCommit[] {
+  const errors = response.errors ?? [];
+  if (errors.some((e) => e.type === "FORBIDDEN")) {
+    throw new SourceError(
+      "The GitHub App cannot read check runs. Give it the Checks: Read-only permission.",
+      403,
+      "checks_forbidden",
+    );
+  }
+  const history = response.data?.repository?.ref?.target?.history;
+  if (!history) {
+    if (errors.length) {
+      throw new SourceError(
+        `GitHub GraphQL: ${errors[0].message}`,
+        502,
+        "github_error",
+      );
+    }
+    return [];
+  }
+  return history.nodes.map((node) => ({
+    sha: node.oid,
+    title: node.messageHeadline,
+    message: node.message,
+    date: node.committedDate,
+    url: node.url,
+    author: {
+      name: node.author?.name ?? "Unknown",
+      email: node.author?.email ?? null,
+    },
+    checks: (node.checkSuites?.nodes ?? []).flatMap((suite) =>
+      (suite.checkRuns?.nodes ?? []).map((run): SourceCheckRun => ({
+        name: run.name,
+        status: checkStatus(run.status),
+        conclusion: run.conclusion?.toLowerCase() ?? null,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        url: run.detailsUrl,
+      })),
+    ),
+  }));
+}
+
+/** GraphQL's check status as the REST names: anything not yet running is queued. */
+function checkStatus(status: string): SourceCheckRun["status"] {
+  if (status === "COMPLETED") return "completed";
+  if (status === "IN_PROGRESS") return "in_progress";
+  return "queued";
 }

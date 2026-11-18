@@ -55,6 +55,31 @@ export interface SourceInfo {
   url?: string;
 }
 
+/** A check run on a commit, as the source reports it. */
+export interface SourceCheckRun {
+  name: string;
+  status: "queued" | "in_progress" | "completed";
+  /** Lowercase GitHub conclusion (`success`, `failure`, …) once completed. */
+  conclusion: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  /** Link to the build (Cloudflare's dashboard for Workers Builds). */
+  url: string | null;
+}
+
+/** A commit on the branch, newest first, with its check runs. */
+export interface SourceCommit {
+  sha: string;
+  /** First line of the message. */
+  title: string;
+  /** The full message (for its `Co-authored-by` trailers). */
+  message: string;
+  date: string;
+  url: string | null;
+  author: { name: string; email: string | null };
+  checks: SourceCheckRun[];
+}
+
 export interface ContentSource {
   info(): SourceInfo;
   /** Current head commit SHA. Local sources return a synthetic value. */
@@ -65,6 +90,11 @@ export interface ContentSource {
   read(path: string): Promise<FileData | null>;
   /** Apply a set of changes as one commit. */
   commit(changes: FileChange[], options: CommitOptions): Promise<CommitInfo>;
+  /**
+   * The branch's latest commits, newest first, with their check runs. For
+   * the deploy status; sources without builds leave it out.
+   */
+  recentCommits?(limit: number): Promise<SourceCommit[]>;
 }
 
 export class SourceError extends Error {
@@ -141,5 +171,6 @@ export function withAuthor(
     read: (path) => source.read(path),
     commit: (changes, options) =>
       source.commit(changes, { author, ...options }),
+    recentCommits: source.recentCommits?.bind(source),
   };
 }

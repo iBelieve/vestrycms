@@ -1,4 +1,5 @@
 import type { ClientConfig } from "../core/api.js";
+import type { DeployStatus } from "../core/deploys.js";
 import type { PublicUser, Role } from "../core/roles.js";
 import type {
   AssetItem,
@@ -11,6 +12,7 @@ import type {
 
 export type {
   ClientConfig,
+  DeployStatus,
   EntryDetail,
   EntryReference,
   SaveEntryInput,
@@ -120,6 +122,8 @@ export function createClient(basePath: string) {
       `${prefix}/file?path=${encodeURIComponent(path)}${sha ? `&v=${sha}` : ""}`,
     config: () => request<ClientConfig>("/config"),
     status: () => request<{ head: string }>("/status"),
+    /** Build and deploy status of the branch's recent commits. */
+    deploys: () => request<DeployStatus>("/deploys"),
     listUsers: () => request<{ users: PublicUser[] }>("/users"),
     inviteUser: (input: { email: string; name?: string; role: Role }) =>
       request<{ user: PublicUser; mailError?: string }>("/users", {
