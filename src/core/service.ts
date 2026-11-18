@@ -8,6 +8,7 @@ import type {
 } from "../config/types.js";
 import {
   applyAutoFields,
+  compareSortValues,
   filenameDateKey,
   referencesCollection,
   rewriteReferences,
@@ -1035,29 +1036,10 @@ function sortEntries(
   if (!field) return [...entries].sort(bySlug);
   return [...entries].sort(
     (a, b) =>
-      compareField(a.data[field], b.data[field], dir) ||
+      compareSortValues(a.data[field], b.data[field], dir) ||
       a.title.localeCompare(b.title) ||
       bySlug(a, b),
   );
-}
-
-/** Compares two sort values in direction `dir`, with missing ones last. */
-function compareField(a: unknown, b: unknown, dir: number): number {
-  const am = isMissing(a);
-  const bm = isMissing(b);
-  if (am || bm) return am === bm ? 0 : am ? 1 : -1;
-  const av = sortable(a);
-  const bv = sortable(b);
-  return av < bv ? -dir : av > bv ? dir : 0;
-}
-
-const isMissing = (v: unknown) => v === undefined || v === null || v === "";
-
-function sortable(v: unknown): string | number {
-  if (v instanceof Date) return v.getTime();
-  if (typeof v === "number") return v;
-  if (typeof v === "boolean") return v ? 1 : 0;
-  return String(v ?? "");
 }
 
 function makeExcerpt(body: string): string | undefined {

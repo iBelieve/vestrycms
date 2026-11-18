@@ -3,7 +3,7 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
-## Unreleased
+## 0.5.0
 
 ### Added
 
@@ -36,7 +36,16 @@ while Vestry is below 1.0, a minor version may change behaviour.
   the warning replaces it.
 - **Entries without a sort value come last,** and entries with the same
   value go by title. A collection sorted by `order` used to list the entries
-  without one first, ties in slug order.
+  without one first, ties in slug order. Clicking a column header sorts the
+  same way, and now compares numbers as numbers (`9` before `10`).
+
+### Fixed
+
+- **Scrolling inside a long menu no longer closes it.** A menu closes when
+  the page scrolls, so that it doesn't float away from its button, but
+  scrolling the menu itself closed it too, so the end of a long Insert menu
+  (a site with many components) couldn't be reached. Scrolling past a
+  menu's end no longer scrolls the page behind it either.
 
 ## 0.4.0
 

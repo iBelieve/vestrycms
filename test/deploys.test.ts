@@ -227,6 +227,16 @@ describe("deployStatus", () => {
     ]);
   });
 
+  it("credits a person's own commit to them, whatever its co-author", () => {
+    const own = commit(5, [run("completed", "success", 4, 2)]);
+    own.author = { name: "Michael", email: "m@example.org" };
+    own.message = "Fix things\n\nCo-authored-by: Claude <noreply@example.org>";
+    const s = status([own], { email: "m@example.org" });
+    expect(s.commits.map((c) => [c.author, c.mine])).toEqual([
+      ["Michael", true],
+    ]);
+  });
+
   it("takes the typical time from save to live, and of a build, from past builds", () => {
     const s = status([
       commit(10, [run("completed", "success", 9, 8)]),

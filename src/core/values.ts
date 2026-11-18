@@ -1,6 +1,7 @@
 /**
  * Value transforms shared by the server and the control panel: asset path
- * normalisation and automatic fields. Pure functions, no I/O.
+ * normalisation, automatic fields and the order of sort values. Pure
+ * functions, no I/O.
  */
 import type { CollectionConfig, Field, Schema } from "../config/types.js";
 import {
@@ -393,4 +394,35 @@ export function rewriteReferences(
     return value;
   });
   return changed ? next : null;
+}
+
+/**
+ * Compares two values of a sort field in direction `dir` (1 or -1): numbers
+ * and dates as such, the rest as text, and missing values (none, "", or a
+ * list of nothing else) last whatever the direction. A field that mixes
+ * numbers and text (`123` and `123a`) puts the numbers first.
+ */
+export function compareSortValues(a: unknown, b: unknown, dir: number): number {
+  const am = isMissing(a);
+  const bm = isMissing(b);
+  if (am || bm) return am === bm ? 0 : am ? 1 : -1;
+  const av = sortable(a);
+  const bv = sortable(b);
+  // `<` between a number and text compares NaN, which would make the order
+  // depend on where the entries started.
+  if (typeof av !== typeof bv) return typeof av === "number" ? -dir : dir;
+  return av < bv ? -dir : av > bv ? dir : 0;
+}
+
+/** What a list shows as "—": no value, "", or a list of only those. */
+const isMissing = (v: unknown): boolean =>
+  Array.isArray(v)
+    ? v.every(isMissing)
+    : v === undefined || v === null || v === "";
+
+function sortable(v: unknown): string | number {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number") return v;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  return String(v ?? "");
 }

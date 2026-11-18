@@ -158,13 +158,26 @@ const ToastContext = createContext<
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // Each toast's dismissal, cleared if the panel unmounts first.
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
   const push = useCallback((kind: Toast["kind"], message: ReactNode) => {
     const id = Date.now() + Math.random();
     setToasts((t) => [...t, { id, kind, message }]);
-    setTimeout(
-      () => setToasts((t) => t.filter((x) => x.id !== id)),
+    const timer = setTimeout(
+      () => {
+        timers.current.delete(timer);
+        setToasts((t) => t.filter((x) => x.id !== id));
+      },
       kind === "error" ? 8000 : 4000,
     );
+    timers.current.add(timer);
   }, []);
   return (
     <ToastContext.Provider value={push}>
