@@ -5,6 +5,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ## Unreleased
 
+### Changed
+
+- **A date or datetime field's `default` is `"now"` or nothing.** The type
+  used to accept any string, which hid `"now"` from editor autocomplete;
+  a fixed date was never a useful default.
+
 ### Fixed
 
 - **Menus use the control panel's font.** Row and account menus (and the

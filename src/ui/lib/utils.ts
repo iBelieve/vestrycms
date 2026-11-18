@@ -123,12 +123,9 @@ const DEFAULTS: {
   number: (field) => field.default ?? null,
   boolean: (field) => field.default ?? false,
   // "now" is the editor's own date and time, not UTC's.
-  date: (field) =>
-    field.default === "now" ? localDate(new Date()) : (field.default ?? ""),
+  date: (field) => (field.default === "now" ? localDate(new Date()) : ""),
   datetime: (field) =>
-    field.default === "now"
-      ? datetimeValue(field, new Date())
-      : (field.default ?? ""),
+    field.default === "now" ? datetimeValue(field, new Date()) : "",
   select: (field) =>
     field.default ?? (field.clearable ? "" : (field.options[0]?.value ?? "")),
   multiselect: (field) => field.default ?? [],
