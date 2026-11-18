@@ -302,12 +302,14 @@ In a collection kept as a list in one file, an entry's slug is its id field
 the same way: the editor asks first, and references to it, in the list and
 in other files, are updated in the same commit.
 
-Some slugs can't change. A collection with `create: false` doesn't allow
-renaming either, since a rename puts an entry at a new address (with
-`delete: false` alone, renames are still allowed: they take the references
-along, which a deletion would break). `reservedSlugs` names slugs the site
-depends on, such as pages kept at fixed routes or names its other routes
-already use:
+Deleting an entry that others refer to asks first, naming them, since
+their references would then point at nothing.
+
+`editable: false` keeps a collection's set of entries as the site has it:
+their fields and bodies can still be edited, but entries can't be created,
+deleted or renamed. For individual entries, `reservedSlugs` names slugs the
+site depends on, such as pages kept at fixed routes or names its other
+routes already use:
 
 ```ts
 pages: collection({

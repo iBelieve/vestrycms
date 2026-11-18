@@ -204,7 +204,7 @@ describe("fixed and reserved slugs", () => {
       fixed: collection({
         label: "Fixed",
         path: "src/fixed/*.md",
-        create: false,
+        editable: false,
         schema: { title: fields.text() },
       }),
       menus: collection({
@@ -317,13 +317,17 @@ describe("fixed and reserved slugs", () => {
     expect(await pages.getEntry("menus", "footer")).toBe(null);
   });
 
-  it("refuses to create or rename entries where creating is off", async () => {
+  it("refuses to create, rename or delete entries of a collection that isn't editable", async () => {
     await expect(
       pages.saveEntry("fixed", null, { data: { title: "Two" } }),
     ).rejects.toMatchObject({ status: 403, code: "forbidden" });
     await expect(
       pages.saveEntry("fixed", "one", { data: { title: "One" }, slug: "uno" }),
     ).rejects.toMatchObject({ status: 403, code: "forbidden" });
+    await expect(pages.deleteEntry("fixed", "one")).rejects.toMatchObject({
+      status: 403,
+      code: "forbidden",
+    });
     const saved = await pages.saveEntry("fixed", "one", {
       data: { title: "Uno" },
     });

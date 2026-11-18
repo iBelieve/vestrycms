@@ -13,11 +13,11 @@ import type {
 } from "../../config/types.js";
 import { serializeEntry } from "../../core/entries.js";
 import {
-  canRename,
   collectionFormat,
   dirname,
   entryPath,
   fillTemplate,
+  isEditable,
   isReservedSlug,
   isSafeSlug,
   normalizePath,
@@ -115,15 +115,14 @@ export function slugBox(
 
 /**
  * Why an existing entry's slug can't change, if it can't: its collection
- * doesn't allow creating entries (a rename puts one at a new address), or
- * its slug is reserved.
+ * isn't `editable`, or its slug is reserved.
  */
 export function slugFixed(
   collection: CollectionConfig | null,
   slug: string | null,
 ): string | null {
   if (!collection || slug === null) return null;
-  if (!canRename(collection))
+  if (!isEditable(collection))
     return "This collection doesn't allow renaming entries.";
   if (isReservedSlug(collection, slug))
     return "This entry's slug is reserved, so it can't be renamed.";
@@ -138,7 +137,7 @@ export function canDelete(
   return (
     collection !== null &&
     slug !== null &&
-    collection.delete !== false &&
+    isEditable(collection) &&
     !isReservedSlug(collection, slug)
   );
 }

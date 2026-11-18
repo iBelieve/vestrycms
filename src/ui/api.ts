@@ -155,7 +155,7 @@ export function createClient(basePath: string) {
         `/collections/${enc(collection)}/entries/${enc(slug)}`,
         { method: "PUT", body: JSON.stringify(input) },
       ),
-    /** Entries that refer to this one, which a rename would update. */
+    /** Entries that refer to this one, which a rename updates and a deletion breaks. */
     references: (collection: string, slug: string) =>
       request<{ references: EntryReference[] }>(
         `/collections/${enc(collection)}/references?slug=${enc(slug)}`,

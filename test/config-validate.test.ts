@@ -172,6 +172,14 @@ describe("validateConfig", () => {
     ).toThrow(/component "Event": "date" has default/);
   });
 
+  it("rejects create and delete, which editable replaced", () => {
+    expect(() => validateConfig(posts({ editable: false }))).not.toThrow();
+    for (const old of ["create", "delete"])
+      expect(() => validateConfig(posts({ [old]: false }))).toThrow(
+        `sets ${old}, which Vestry replaced`,
+      );
+  });
+
   it("accepts reserved slugs, but only slugs", () => {
     expect(() =>
       validateConfig(posts({ reservedSlugs: ["index", "404"] })),

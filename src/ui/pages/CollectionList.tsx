@@ -70,7 +70,7 @@ export function CollectionListPage() {
       <TopBar
         title={col.label}
         actions={
-          col.create !== false && (
+          col.editable !== false && (
             <Link
               to={`/collections/${key}/new`}
               className="v-btn v-btn--primary"
@@ -257,7 +257,7 @@ function NoEntries({
       icon={<Icon name={col.icon ?? "files"} />}
       title={searching ? "No matches" : `No ${col.label.toLowerCase()} yet`}
     >
-      {!searching && col.create !== false && (
+      {!searching && col.editable !== false && (
         <p>
           <Link to={`/collections/${collectionKey}/new`} className="v-btn">
             <Plus /> Create the first {col.singular?.toLowerCase() ?? "entry"}

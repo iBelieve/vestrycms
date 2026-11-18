@@ -136,14 +136,11 @@ export function collectionFormat(
 }
 
 /**
- * Whether an entry may be renamed. A collection that doesn't allow creating
- * entries (`create: false`, like a site's pages, whose slugs are its routes)
- * fixes their slugs too, since a rename puts an entry at a new address.
- * `delete: false` alone doesn't: a rename takes the references along, which
- * a deletion would break.
+ * Whether entries can be created, deleted and renamed (`editable`, true
+ * unless set to `false`).
  */
-export function canRename(c: CollectionConfig): boolean {
-  return c.create !== false;
+export function isEditable(c: CollectionConfig): boolean {
+  return c.editable !== false;
 }
 
 /**

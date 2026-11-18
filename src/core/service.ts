@@ -27,8 +27,8 @@ import {
 import type { BuildIndex } from "./index-types.js";
 import {
   basename,
-  canRename,
   collectionFormat,
+  isEditable,
   isReservedSlug,
   dirname,
   entryPath,
@@ -660,7 +660,7 @@ export class ContentService {
 
   async deleteEntry(key: string, slug: string): Promise<{ commit: string }> {
     const col = this.collection(key);
-    if (col.delete === false)
+    if (!isEditable(col))
       throw new SourceError(
         "Deleting is disabled for this collection",
         403,
@@ -954,7 +954,7 @@ export class ContentService {
 
 /** Refuses a new entry where the collection doesn't allow creating them. */
 function refuseCreate(col: CollectionConfig): void {
-  if (col.create === false)
+  if (!isEditable(col))
     throw new SourceError(
       "Creating entries is disabled for this collection",
       403,
@@ -964,9 +964,9 @@ function refuseCreate(col: CollectionConfig): void {
 
 /** Refuses to rename entry `slug` when its slug is fixed. */
 function refuseRename(col: CollectionConfig, slug: string): void {
-  if (!canRename(col))
+  if (!isEditable(col))
     throw new SourceError(
-      "Renaming is disabled for this collection, because it doesn't allow creating entries",
+      "Renaming is disabled for this collection",
       403,
       "forbidden",
     );

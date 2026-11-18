@@ -153,6 +153,17 @@ function checkCollection(
     fail(`${what} sets tree, which needs a "**" wildcard in its path`);
   }
   checkTemplate(`${what} commitMessage`, col.commitMessage);
+  checkEditing(what, col);
+}
+
+/** `editable` (and the settings it replaced) and `reservedSlugs`. */
+function checkEditing(what: string, col: CollectionConfig) {
+  // Vestry 0.4's two settings, which `editable` replaced.
+  for (const old of ["create", "delete"])
+    if (old in col)
+      fail(
+        `${what} sets ${old}, which Vestry replaced: set editable: false to keep entries from being created, deleted or renamed`,
+      );
   if (col.reservedSlugs !== undefined && !Array.isArray(col.reservedSlugs))
     fail(`${what} reservedSlugs must be a list of slugs`);
   const unsafe = col.reservedSlugs?.find(

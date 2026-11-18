@@ -14,12 +14,18 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Changed
 
-- **`create: false` stops renames too.** Since 0.3 the Slug box renamed
-  entries even in a collection that didn't allow creating them, which could
-  move a site's home or 404 page off its route. The Slug box is now
-  read-only there, and the API refuses a rename or a new entry, including
-  a save to a slug that has no entry yet. (The API used to accept a new
-  entry; only the panel hid the button.)
+- **`editable: false` replaces `create: false` and `delete: false`,** and
+  stops renames too. Since 0.3 the Slug box renamed entries even in a
+  collection that didn't allow creating or deleting them, which could move
+  a site's home or 404 page off its route. In a collection that isn't
+  editable, the Slug box is read-only, there is no New or Delete button, and
+  the API refuses a new entry, a rename or a deletion, including a save to
+  a slug that has no entry yet. (The API used to accept a new entry; only
+  the panel hid the button.) A config that still sets `create` or `delete`
+  fails at startup with a message saying what to use instead.
+- **Deleting an entry that others refer to asks first,** naming them (as a
+  rename already did). `delete: false` was the way to protect such entries;
+  the warning replaces it.
 - **Entries without a sort value come last,** and entries with the same
   value go by title. A collection sorted by `order` used to list the entries
   without one first, ties in slug order.

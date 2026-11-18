@@ -281,11 +281,10 @@ function EntryForm(props: EntryFormProps) {
         />
       )}
       {form.confirmDelete && (
-        <ConfirmDialog
-          title={`Delete “${display.titleValue}”?`}
-          message="The file will be removed from the repository in a new commit."
-          confirmLabel="Delete"
-          danger
+        <DeleteDialog
+          collectionKey={props.collectionKey}
+          slug={props.slug!}
+          title={display.titleValue}
           busy={remove.isPending}
           onCancel={() => form.setConfirmDelete(false)}
           onConfirm={() => remove.mutate()}
@@ -1228,6 +1227,83 @@ function EntryMeta({
   );
 }
 
+/** Entries that refer to one, at most eight of them by name. */
+function ReferenceList({ references }: { references: EntryReference[] }) {
+  return (
+    <ul className="v-reference-list">
+      {references.slice(0, 8).map((r) => (
+        <li key={`${r.kind}:${r.key}:${r.slug}`}>
+          {r.kind === "collection" ? `${r.label}: ${r.title}` : r.label}
+        </li>
+      ))}
+      {references.length > 8 && <li>and {references.length - 8} more</li>}
+    </ul>
+  );
+}
+
+const referCount = (n: number) =>
+  n === 1 ? "1 other entry refers" : `${n} other entries refer`;
+
+/**
+ * Confirms a deletion, first looking up the entries that refer to this one,
+ * whose references would then point at nothing.
+ */
+function DeleteDialog({
+  collectionKey,
+  slug,
+  title,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  collectionKey: string;
+  slug: string;
+  title: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { api } = useVestry();
+  const lookup = useQuery({
+    queryKey: ["references", collectionKey, slug],
+    queryFn: () => api.references(collectionKey, slug),
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const references = lookup.data?.references ?? [];
+  const removed =
+    "The file will be removed from the repository in a new commit.";
+  return (
+    <ConfirmDialog
+      title={`Delete “${title}”?`}
+      message={
+        lookup.isPending ? (
+          "Checking for entries that refer to it…"
+        ) : references.length ? (
+          <>
+            {referCount(references.length)} to this one, and would then point at
+            an entry that no longer exists:
+            <ReferenceList references={references} />
+            {removed}
+          </>
+        ) : (
+          <>
+            {lookup.isError &&
+              "The entries that refer to it couldn't be checked. "}
+            {removed}
+          </>
+        )
+      }
+      confirmLabel={references.length ? "Delete anyway" : "Delete"}
+      danger
+      busy={busy}
+      confirmDisabled={lookup.isPending}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    />
+  );
+}
+
 function RenameDialog({
   references,
   busy,
@@ -1244,18 +1320,9 @@ function RenameDialog({
       title="Rename this entry?"
       message={
         <>
-          {references.length === 1
-            ? "1 other entry refers"
-            : `${references.length} other entries refer`}{" "}
-          to this one and will be updated in the same commit:
-          <ul className="v-reference-list">
-            {references.slice(0, 8).map((r) => (
-              <li key={`${r.kind}:${r.key}:${r.slug}`}>
-                {r.kind === "collection" ? `${r.label}: ${r.title}` : r.label}
-              </li>
-            ))}
-            {references.length > 8 && <li>and {references.length - 8} more</li>}
-          </ul>
+          {referCount(references.length)} to this one and will be updated in the
+          same commit:
+          <ReferenceList references={references} />
         </>
       }
       confirmLabel="Rename and update"

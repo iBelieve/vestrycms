@@ -47,7 +47,6 @@ const config = defineConfig({
       label: "Authors",
       path: "src/content/authors/*.md",
       body: false,
-      delete: false,
       schema: {
         title: fields.text(),
         mentor: fields.reference({ collection: "authors" }),
@@ -74,7 +73,7 @@ const config = defineConfig({
       label: "Rules",
       path: "src/content/rules/*.md",
       body: false,
-      create: false,
+      editable: false,
       schema: { title: fields.text() },
     }),
     links: collection({
@@ -357,7 +356,6 @@ describe("an existing entry", () => {
       files,
     });
     await screen.findByDisplayValue("Ann");
-    expect(screen.queryByTitle("Delete")).toBeNull();
     fireEvent.change(slugInput(), { target: { value: "anna" } });
     expect(
       screen.getByText("Renames the file to src/content/authors/anna.md"),
@@ -507,6 +505,26 @@ describe("an existing entry", () => {
     );
   });
 
+  it("names the entries that refer to it before it is deleted", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/authors/ann",
+      files,
+    });
+    await screen.findByDisplayValue("Ann");
+    await user.click(screen.getByTitle("Delete"));
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByText("Delete anyway");
+    expect(dialog.textContent).toContain("2 other entries refer to this one");
+    expect(dialog.textContent).toContain("Posts: Hello");
+    expect(dialog.textContent).toContain("Authors: Bob");
+    await user.click(within(dialog).getByText("Delete anyway"));
+    await screen.findByText("Entry deleted");
+    await expect(read(root, "src/content/authors/ann.md")).rejects.toThrow(
+      /ENOENT/,
+    );
+  });
+
   it("is not saved over a newer version", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {
@@ -597,14 +615,14 @@ describe("a fixed slug", () => {
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("can't be renamed where creating entries is off", async () => {
+  it("can't be renamed or deleted where the collection isn't editable", async () => {
     await openPanel(config, { url: "/collections/rules/first", files });
     await screen.findByDisplayValue("First");
     expect(screen.queryByPlaceholderText("auto")).toBeNull();
     expect(
       screen.getByText("This collection doesn't allow renaming entries."),
     ).toBeTruthy();
-    expect(screen.getByTitle("Delete")).toBeTruthy();
+    expect(screen.queryByTitle("Delete")).toBeNull();
   });
 });
 

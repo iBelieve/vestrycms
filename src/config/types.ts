@@ -405,13 +405,12 @@ export interface CollectionConfig {
    */
   recent?: boolean | number;
   /**
-   * Allow creating new entries in the control panel (default true). With
-   * `false`, entries can't be renamed either, since a rename puts an entry
-   * at a new address.
+   * `false` keeps the set of entries as the site has it: their fields and
+   * bodies can be edited, but entries can't be created, deleted or renamed
+   * in the control panel (default true). For entries the site depends on
+   * one by one, see `reservedSlugs`.
    */
-  create?: boolean;
-  /** Allow deleting entries (default true). */
-  delete?: boolean;
+  editable?: boolean;
   /**
    * Slugs the site depends on, such as pages kept at fixed routes
    * (`["index", "404"]`) or names its other routes already use. An entry
