@@ -1,4 +1,7 @@
-# Vestry CMS
+<h1>
+  <img src="assets/icon.svg" alt="" width="48" align="absmiddle" />
+  Vestry CMS
+</h1>
 
 A git-backed CMS for [Astro](https://astro.build), built as an Astro
 integration. Content, assets and configuration live in your repository;
@@ -91,9 +94,9 @@ the browser), so it cannot contain functions.
 
 `name` titles the control panel; `logo` (a repository path such as
 `src/assets/logo-reverse.svg`, or an absolute URL) replaces it in the dark
-top bar, so a light or reverse variant works best. A repository logo is
-bundled into the build, so the sign-in page shows it even before the GitHub
-App is set up.
+top bar (a warm brown-grey, `#2d2622`), so a light or reverse variant works
+best. A repository logo is bundled into the build, so the sign-in page shows
+it even before the GitHub App is set up.
 
 ### Sign-in and users
 

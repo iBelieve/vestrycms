@@ -12,6 +12,24 @@ while Vestry is below 1.0, a minor version may change behaviour.
   `tree: "only"` to nest its entries by folder, with collapsible rows and
   each child's title shortened by what it repeats from its parent's.
 
+### Changed
+
+- **Vestry has a logo.** The control panel's top bar shows it when the site
+  sets no `logo`, the browser tab uses it as the favicon, and the README
+  carries it. `assets/` holds the light (`logo.svg`, brown-grey `#2d2622`
+  with an orange `#ff791b` sparkle), dark-background (`logo-reverse.svg`)
+  and square (`icon.svg`) versions.
+- **The panel takes its colours from the logo.** The top bar, the tile
+  behind the site logo on the sign-in page, and toasts move from navy slate
+  (`#0f172a` and `#1e293b`) to a warm brown-grey on the sparkle's hue
+  (`#2d2622`), and the page backgrounds and hover greys warm to match.
+  Buttons, links, the selected sidebar item, the active editor tools, focus
+  rings and the invitation email's button turn from blue to burnt orange
+  (`#c2410c`, the logo's orange darkened until white text on it passes WCAG
+  AA). Info alerts stay blue. Drafts, warnings and raw MDX blocks move from
+  amber to a yellower gold (`#a16207`) so they don't read as actions; draft
+  text contrast rises from 3.1:1 to 4.8:1.
+
 ### Fixed
 
 - **Menus use the control panel's font.** Row and account menus (and the

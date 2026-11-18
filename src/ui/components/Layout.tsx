@@ -17,6 +17,7 @@ import { useVestry } from "../context.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./ui.js";
 import { logoSrc } from "../lib/logo.js";
+import { VestryMark } from "./VestryMark.js";
 import { initials } from "../lib/utils.js";
 
 export interface Crumb {
@@ -90,7 +91,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <img className="v-chrome__logo" src={logo} alt={name} />
           ) : (
             <>
-              <span className="v-chrome__mark">V</span>
+              <VestryMark className="v-chrome__mark" />
               <span className="v-chrome__name">{name}</span>
             </>
           )}
