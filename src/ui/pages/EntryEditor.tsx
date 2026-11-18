@@ -23,6 +23,7 @@ import type {
 } from "../../config/types.js";
 import {
   collectionFormat,
+  isEditable,
   parsePathPattern,
   type PathPattern,
 } from "../../core/paths.js";
@@ -68,10 +69,9 @@ import {
   sectionFields,
   sendSave,
   slugBox,
-  slugHint,
-  canDelete,
   slugError,
   slugFixed,
+  slugHint,
 } from "./entry-editing.js";
 
 export function CollectionEntryPage() {
@@ -88,6 +88,14 @@ export function CollectionEntryPage() {
 
 export function NewEntryPage() {
   const { collection = "" } = useParams();
+  const col = useVestry().config.collections?.[collection];
+  // The API refuses a new entry here, so there is no form to fill in.
+  if (col && !isEditable(col))
+    return (
+      <NotFoundState title={`New entries can't be added to ${col.label}`}>
+        This collection doesn't allow creating entries.
+      </NotFoundState>
+    );
   return (
     <EntryEditor
       kind="collection"
@@ -723,12 +731,14 @@ function useSlug({
   /** Saving will move an existing entry to a different file. */
   const renaming =
     kind === "collection" && !isNew && !!finalSlug && finalSlug !== slug;
-  const fixed = isNew ? null : slugFixed(collection, slug);
+  // A new entry has no slug yet, so nothing about it is fixed.
+  const fixed = slugFixed(collection, slug);
   return {
     finalSlug,
     /** Why the slug box is read-only, if it is. */
     fixed,
-    deletable: canDelete(collection, slug),
+    /** An existing entry can be deleted where its slug could change. */
+    deletable: collection !== null && slug !== null && fixed === null,
     dateKey,
     setTyped,
     latestTyped: () => latestTyped.current,

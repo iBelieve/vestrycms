@@ -129,19 +129,6 @@ export function slugFixed(
   return null;
 }
 
-/** Whether entry `slug` of `collection` may be deleted. */
-export function canDelete(
-  collection: CollectionConfig | null,
-  slug: string | null,
-): boolean {
-  return (
-    collection !== null &&
-    slug !== null &&
-    isEditable(collection) &&
-    !isReservedSlug(collection, slug)
-  );
-}
-
 /**
  * What's wrong with the slug the entry will be saved under, if anything.
  * A reserved slug can't be taken; a fixed one can't change, though a list
@@ -169,10 +156,15 @@ export function slugError({
 }): string | null {
   if (!changing) return slugProblem(kind, pattern, finalSlug);
   if (fixed) return fixed;
-  // A new list entry has no slug yet: it takes the id its form holds.
+  // A new list entry has no slug yet: it takes the id its form holds, or
+  // one derived from its fields when it holds none, as the server does.
   const taken =
     collection && pattern.single
-      ? listId(collection, data) || finalSlug
+      ? listId(collection, data) ||
+        finalSlug ||
+        (data[collection.idField ?? "id"] == null
+          ? derivedSlug(collection, data)
+          : "")
       : finalSlug;
   if (collection && taken && isReservedSlug(collection, taken))
     return `"${taken}" is a reserved slug.`;

@@ -615,6 +615,20 @@ describe("a fixed slug", () => {
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("can't be taken by an id a new list entry derives from its title", async () => {
+    await openPanel(config, { url: "/collections/links/new", files });
+    await screen.findByLabelText("Id");
+    fireEvent.change(titleInput(), { target: { value: "Contact" } });
+    expect(screen.getByText('"contact" is a reserved slug.')).toBeTruthy();
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("has no form for a new entry where the collection isn't editable", async () => {
+    await openPanel(config, { url: "/collections/rules/new", files });
+    await screen.findByText("New entries can't be added to Rules");
+    expect(screen.queryByRole("button", { name: /^Create/ })).toBeNull();
+  });
+
   it("can't be renamed or deleted where the collection isn't editable", async () => {
     await openPanel(config, { url: "/collections/rules/first", files });
     await screen.findByDisplayValue("First");

@@ -187,6 +187,15 @@ describe("validateConfig", () => {
     expect(() => validateConfig(posts({ reservedSlugs: ["../x"] }))).toThrow(
       'reservedSlugs has "../x", which is not a slug',
     );
+    expect(() =>
+      validateConfig(posts({ reservedSlugs: [undefined as never] })),
+    ).toThrow("reservedSlugs has undefined, which is not a slug");
+  });
+
+  it("accepts editable only as true or false", () => {
+    expect(() => validateConfig(posts({ editable: "false" as never }))).toThrow(
+      "editable must be true or false",
+    );
   });
 
   it("still requires the repository", () => {

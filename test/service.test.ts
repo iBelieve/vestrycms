@@ -376,6 +376,27 @@ describe("sorting", () => {
       "about",
       "zeta",
     ]);
+    // Missing values stay last when the order is reversed too.
+    const reversed = new ContentService(
+      defineConfig({
+        ...sortConfig,
+        collections: {
+          pages: {
+            ...sortConfig.collections!.pages,
+            sort: { field: "order", direction: "desc" },
+          },
+        },
+      }),
+      new LocalSource(sortRoot),
+      { builtAt: "", files: {} },
+    );
+    expect((await reversed.listEntries("pages")).map((e) => e.slug)).toEqual([
+      "second",
+      "first-a",
+      "first-b",
+      "about",
+      "zeta",
+    ]);
   });
 });
 
