@@ -3,7 +3,7 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
-## Unreleased
+## 0.4.0
 
 ### Added
 
