@@ -254,212 +254,17 @@ function LoadError({
 }
 
 /** The editor itself, for an entry that is loaded (or new). */
-function EntryForm({
-  kind,
-  collectionKey,
-  slug,
-  isNew,
-  col,
-  entry,
-  draft,
-}: {
-  kind: Kind;
-  collectionKey: string;
-  slug: string | null;
-  isNew: boolean;
-  col: Entry;
-  entry?: EntryDetail;
-  draft?: Draft;
-}) {
-  const { config, api } = useVestry();
-  const collection = kind === "collection" ? (col as CollectionConfig) : null;
-  const doc = useDocument(col, entry, draft);
-  const { state, setData, uploads } = doc;
-  const [errors, setErrors] = useState<ValidationError[]>([]);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const pattern = useMemo(() => parsePathPattern(col.path), [col]);
-  const slugs = useSlug({
-    kind,
-    collection,
-    pattern,
-    slug,
-    isNew,
-    state,
-    draft,
-  });
-  const { finalSlug, renaming } = slugs;
-
-  // Ask before leaving the page with anything unsaved, a rename included.
-  const unsaved = doc.dirty || renaming;
-  useLeaveWarning(unsaved);
-
-  const filePath = entryFile(kind, col, pattern, finalSlug);
-  const saving = useSave({
-    kind,
-    collectionKey,
-    slug,
-    isNew,
-    col,
-    pattern,
-    filePath,
-    doc,
-    slugs,
-    setErrors,
-  });
-  const remove = useRemove(collectionKey, slug);
-
-  const display = entryDisplay({
-    kind,
-    col,
-    data: state.data,
-    isNew,
-    slug: finalSlug,
-    siteUrl: config.siteUrl,
-  });
-  const placement = fieldPlacement(col, display.editable);
-  const fieldSet = (props: FieldSetProps) => (
-    <FieldSet
-      {...props}
-      values={state.data}
-      onChange={setData}
-      errors={errors}
-      ctx={{
-        addUpload: doc.addUpload,
-        pendingUploads: uploads,
-        isNew,
-        siblings: state.data,
-      }}
-    />
-  );
-  const sectionCard = (section: Exclude<EditorSection, "body">, i: number) => {
-    const inSection = (key: string) =>
-      section.fields.includes(key) && display.editable(key);
-    if (!placement.hasVisible(inSection)) return null;
-    const { schema, hideLabels } = sectionFields(col, section, fieldLabel);
-    return (
-      <Card
-        key={`section-${i}`}
-        title={section.label}
-        note={section.description}
-      >
-        {fieldSet({ schema, filter: inSection, hideLabels })}
-      </Card>
-    );
-  };
-  const bodyCard = (
-    <BodyCard
-      key="body"
-      col={col}
-      filePath={filePath}
-      config={config}
-      fileUrl={api.fileUrl}
-      doc={doc}
-    />
-  );
-  const uploadCount = Object.keys(uploads).length;
-
+function EntryForm(props: EntryFormProps) {
+  const form = useEntryForm(props);
+  const { display, saving, remove } = form;
   return (
     <>
-      <TopBar
-        status={
-          display.isPublished === null ? null : statusOf(display.isPublished)
-        }
-        crumbs={
-          collection
-            ? [{ label: collection.label, to: `/collections/${collectionKey}` }]
-            : undefined
-        }
-        title={
-          isNew
-            ? `New ${collection?.singular ?? "entry"}`
-            : display.titleValue || finalSlug
-        }
-        actions={
-          <EditorActions
-            unsaved={unsaved}
-            previewHref={display.previewHref}
-            canDelete={
-              kind === "collection" && !isNew && collection!.delete !== false
-            }
-            onDelete={() => setConfirmDelete(true)}
-            onSave={() => void saving.requestSave()}
-            saving={saving.save.isPending}
-            saveDisabled={
-              saving.save.isPending ||
-              !!slugs.error ||
-              (!unsaved && !isNew && uploadCount === 0)
-            }
-            isNew={isNew}
-          />
-        }
-      />
+      <EntryTopBar form={form} />
       <div className="v-page">
-        {errors.length > 0 && <ErrorList errors={errors} />}
+        {form.errors.length > 0 && <ErrorList errors={form.errors} />}
         <div className="v-editor-layout">
-          <div className="v-stack" style={{ gap: 20 }}>
-            {display.titleInput && (
-              <TitleCard
-                value={display.titleValue}
-                placeholder={`${fieldLabel(display.titleInput, col.schema[display.titleInput])}…`}
-                onChange={(title) =>
-                  setData((data) => ({
-                    ...data,
-                    [display.titleInput!]: title,
-                  }))
-                }
-                autoFocus={isNew}
-                error={
-                  errors.find((e) => e.path === display.titleInput)?.message
-                }
-              />
-            )}
-            {placement.sections.map((section, i) =>
-              section === "body"
-                ? bodyCard
-                : section.sidebar
-                  ? null
-                  : sectionCard(section, i),
-            )}
-            {placement.hasVisible(placement.isMain) && (
-              <Card title="Details">
-                {fieldSet({ schema: col.schema, filter: placement.isMain })}
-              </Card>
-            )}
-            {!placement.bodyPlaced && bodyCard}
-          </div>
-          <aside className="v-editor-sidebar v-stack">
-            {(display.statusField || collection) && (
-              <PublishCard
-                isPublished={display.isPublished}
-                onPublish={publishToggle(display, state.data, setData)}
-              >
-                {collection && (
-                  <SlugField
-                    pattern={pattern}
-                    slug={finalSlug}
-                    box={slugs.box}
-                    onChange={slugs.setTyped}
-                    error={slugs.error}
-                    hint={slugHint(pattern, finalSlug, isNew, renaming)}
-                  />
-                )}
-                {entry && (
-                  <EntryMeta path={entry.path} col={col} data={state.data} />
-                )}
-              </PublishCard>
-            )}
-            {placement.sections.map((section, i) =>
-              section !== "body" && section.sidebar
-                ? sectionCard(section, i)
-                : null,
-            )}
-            {placement.hasVisible(placement.isSidebar) && (
-              <Card>
-                {fieldSet({ schema: col.schema, filter: placement.isSidebar })}
-              </Card>
-            )}
-            {uploadCount > 0 && <UploadsNote count={uploadCount} />}
-          </aside>
+          <EntryMain form={form} />
+          <EntrySidebar form={form} />
         </div>
       </div>
       {saving.renameReferences && (
@@ -473,18 +278,284 @@ function EntryForm({
           }}
         />
       )}
-      {confirmDelete && (
+      {form.confirmDelete && (
         <ConfirmDialog
           title={`Delete “${display.titleValue}”?`}
           message="The file will be removed from the repository in a new commit."
           confirmLabel="Delete"
           danger
           busy={remove.isPending}
-          onCancel={() => setConfirmDelete(false)}
+          onCancel={() => form.setConfirmDelete(false)}
           onConfirm={() => remove.mutate()}
         />
       )}
     </>
+  );
+}
+
+interface EntryFormProps {
+  kind: Kind;
+  collectionKey: string;
+  slug: string | null;
+  isNew: boolean;
+  col: Entry;
+  entry?: EntryDetail;
+  draft?: Draft;
+}
+
+/** Everything the editor's parts share: the document, its slug, saving and how it displays. */
+function useEntryForm(props: EntryFormProps) {
+  const { kind, collectionKey, slug, isNew, col, entry, draft } = props;
+  const { config } = useVestry();
+  const collection = kind === "collection" ? (col as CollectionConfig) : null;
+  const doc = useDocument(col, entry, draft);
+  const [errors, setErrors] = useState<ValidationError[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const pattern = useMemo(() => parsePathPattern(col.path), [col]);
+  const slugs = useSlug({
+    kind,
+    collection,
+    pattern,
+    slug,
+    isNew,
+    state: doc.state,
+    draft,
+  });
+
+  // Ask before leaving the page with anything unsaved, a rename included.
+  const unsaved = doc.dirty || slugs.renaming;
+  useLeaveWarning(unsaved);
+
+  const filePath = entryFile(kind, col, pattern, slugs.finalSlug);
+  const saving = useSave({
+    kind,
+    collectionKey,
+    slug,
+    isNew,
+    col,
+    pattern,
+    filePath,
+    doc,
+    slugs,
+    setErrors,
+  });
+  const remove = useRemove(collectionKey, slug);
+  const display = entryDisplay({
+    kind,
+    col,
+    data: doc.state.data,
+    isNew,
+    slug: slugs.finalSlug,
+    siteUrl: config.siteUrl,
+  });
+  return {
+    ...props,
+    collection,
+    doc,
+    errors,
+    confirmDelete,
+    setConfirmDelete,
+    pattern,
+    slugs,
+    unsaved,
+    filePath,
+    saving,
+    remove,
+    display,
+    placement: fieldPlacement(col, display.editable),
+    uploadCount: Object.keys(doc.uploads).length,
+  };
+}
+
+type EntryFormModel = ReturnType<typeof useEntryForm>;
+
+function EntryTopBar({ form }: { form: EntryFormModel }) {
+  const { collection, display, isNew, saving, slugs, unsaved } = form;
+  return (
+    <TopBar
+      status={
+        display.isPublished === null ? null : statusOf(display.isPublished)
+      }
+      crumbs={
+        collection
+          ? [
+              {
+                label: collection.label,
+                to: `/collections/${form.collectionKey}`,
+              },
+            ]
+          : undefined
+      }
+      title={
+        isNew
+          ? `New ${collection?.singular ?? "entry"}`
+          : display.titleValue || slugs.finalSlug
+      }
+      actions={
+        <EditorActions
+          unsaved={unsaved}
+          previewHref={display.previewHref}
+          canDelete={
+            !isNew && collection !== null && collection.delete !== false
+          }
+          onDelete={() => form.setConfirmDelete(true)}
+          onSave={() => void saving.requestSave()}
+          saving={saving.save.isPending}
+          saveDisabled={
+            saving.save.isPending ||
+            !!slugs.error ||
+            (!unsaved && !isNew && form.uploadCount === 0)
+          }
+          isNew={isNew}
+        />
+      }
+    />
+  );
+}
+
+/** The title, the body and the fields that aren't in the sidebar. */
+function EntryMain({ form }: { form: EntryFormModel }) {
+  const { col, display, placement, doc } = form;
+  const titleKey = display.titleInput;
+  return (
+    <div className="v-stack" style={{ gap: 20 }}>
+      {titleKey && (
+        <TitleCard
+          value={display.titleValue}
+          placeholder={`${fieldLabel(titleKey, col.schema[titleKey])}…`}
+          onChange={(title) =>
+            doc.setData((data) => ({ ...data, [titleKey]: title }))
+          }
+          autoFocus={form.isNew}
+          error={form.errors.find((e) => e.path === titleKey)?.message}
+        />
+      )}
+      {placement.sections.map((section, i) =>
+        section === "body" ? (
+          <EntryBody key="body" form={form} />
+        ) : section.sidebar ? null : (
+          <SectionCard key={`section-${i}`} form={form} section={section} />
+        ),
+      )}
+      {placement.hasVisible(placement.isMain) && (
+        <Card title="Details">
+          <EntryFields
+            form={form}
+            schema={col.schema}
+            filter={placement.isMain}
+          />
+        </Card>
+      )}
+      {!placement.bodyPlaced && <EntryBody form={form} />}
+    </div>
+  );
+}
+
+/** Publishing, the slug, and the sidebar's fields. */
+function EntrySidebar({ form }: { form: EntryFormModel }) {
+  const { col, collection, display, placement, doc, slugs } = form;
+  return (
+    <aside className="v-editor-sidebar v-stack">
+      {(display.statusField || collection) && (
+        <PublishCard
+          isPublished={display.isPublished}
+          onPublish={publishToggle(display, doc.state.data, doc.setData)}
+        >
+          {collection && (
+            <SlugField
+              pattern={form.pattern}
+              slug={slugs.finalSlug}
+              box={slugs.box}
+              onChange={slugs.setTyped}
+              error={slugs.error}
+              hint={slugHint(
+                form.pattern,
+                slugs.finalSlug,
+                form.isNew,
+                slugs.renaming,
+              )}
+            />
+          )}
+          {form.entry && (
+            <EntryMeta path={form.entry.path} col={col} data={doc.state.data} />
+          )}
+        </PublishCard>
+      )}
+      {placement.sections.map((section, i) =>
+        section !== "body" && section.sidebar ? (
+          <SectionCard key={`section-${i}`} form={form} section={section} />
+        ) : null,
+      )}
+      {placement.hasVisible(placement.isSidebar) && (
+        <Card>
+          <EntryFields
+            form={form}
+            schema={col.schema}
+            filter={placement.isSidebar}
+          />
+        </Card>
+      )}
+      {form.uploadCount > 0 && <UploadsNote count={form.uploadCount} />}
+    </aside>
+  );
+}
+
+/** A configured section's fields in a card, unless none of them shows. */
+function SectionCard({
+  form,
+  section,
+}: {
+  form: EntryFormModel;
+  section: Exclude<EditorSection, "body">;
+}) {
+  const inSection = (key: string) =>
+    section.fields.includes(key) && form.display.editable(key);
+  if (!form.placement.hasVisible(inSection)) return null;
+  const { schema, hideLabels } = sectionFields(form.col, section, fieldLabel);
+  return (
+    <Card title={section.label} note={section.description}>
+      <EntryFields
+        form={form}
+        schema={schema}
+        filter={inSection}
+        hideLabels={hideLabels}
+      />
+    </Card>
+  );
+}
+
+/** The entry's fields that pass `filter`, editing its data. */
+function EntryFields({
+  form,
+  ...props
+}: FieldSetProps & { form: EntryFormModel }) {
+  const { doc } = form;
+  return (
+    <FieldSet
+      {...props}
+      values={doc.state.data}
+      onChange={doc.setData}
+      errors={form.errors}
+      ctx={{
+        addUpload: doc.addUpload,
+        pendingUploads: doc.uploads,
+        isNew: form.isNew,
+        siblings: doc.state.data,
+      }}
+    />
+  );
+}
+
+function EntryBody({ form }: { form: EntryFormModel }) {
+  const { config, api } = useVestry();
+  return (
+    <BodyCard
+      col={form.col}
+      filePath={form.filePath}
+      config={config}
+      fileUrl={api.fileUrl}
+      doc={form.doc}
+    />
   );
 }
 

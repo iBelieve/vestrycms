@@ -272,6 +272,11 @@ describe("a collection's list", () => {
     expect(titles()).toEqual(["Beta", "Alpha"]);
     await user.click(screen.getByRole("button", { name: "Extra" }));
     expect(titles()).toEqual(["Alpha", "Beta"]);
+    // The status column sorts by the status it shows (drafts first).
+    await user.click(screen.getByRole("button", { name: "Status" }));
+    expect(titles()).toEqual(["Beta", "Alpha"]);
+    await user.click(screen.getByRole("button", { name: "Status" }));
+    expect(titles()).toEqual(["Alpha", "Beta"]);
   });
 
   it("shows a status column of its own, and no new button where creating is off", async () => {

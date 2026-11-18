@@ -26,11 +26,11 @@ main consumer; keep it free of site-specific code.
   `pnpm build` and `npm pack --dry-run`. CI runs the tests as
   `pnpm test:coverage` and then `pnpm health`.
 - `pnpm health` (Fallow's `health --complexity`, reading `coverage/` from
-  `pnpm test:coverage`) fails on a function with a CRAP score of 30 or more
-  that `fallow-health-baseline.json` doesn't list at that severity. Fix a new
-  finding with tests or a simpler function; re-save the baseline
-  (`pnpm health:baseline`, which runs the tests with coverage first) only
-  when renaming a listed function or when the maintainer accepts the risk.
+  `pnpm test:coverage`) fails on any function with cyclomatic complexity
+  over 20, cognitive complexity over 15 (Fallow also counts JSX
+  conditionals, many hooks and many props) or a CRAP score of 30 or more.
+  There is no baseline: split the function (smaller components, a custom
+  hook, a pure helper) or, for CRAP, test it.
 - `pnpm lint` runs oxlint (`.oxlintrc.json`: the correctness rules plus the
   React hooks and promise rules) with type-aware rules on (`options.typeAware`).
   The type-aware backend is `tsrs`, pinned to an exact beta version; it is a

@@ -72,15 +72,163 @@ export function TreeInput({
   ctx?: FieldContext;
   path: string;
 }) {
-  const key = field.childrenKey ?? "children";
-  const maxDepth = field.maxDepth ?? 99;
-  const labelKey = field.itemLabel ?? "title";
-  const detailKey =
-    field.itemDetail ??
-    Object.keys(field.fields).find(
-      (k) => k !== labelKey && field.fields[k].type === "text",
-    );
+  const keys = treeKeys(field);
+  const { tree, latest, commit } = useTreeValue(value, keys.children, onChange);
+  const { collapsed, expand, toggle } = useCollapsed();
+  const [editing, setEditing] = useState<string | null>(null);
+  const drag = useTreeDrag(tree, collapsed, keys.maxDepth);
 
+  const onDragEnd = (e: DragEndEvent) => {
+    const projection = drag.end();
+    const next = e.over && dropNode(tree, String(e.active.id), projection);
+    if (!next) return;
+    commit(next);
+    expand(projection!.parentId);
+  };
+
+  const update = (id: string, change: (data: NodeData) => NodeData) =>
+    commit(
+      mapTree(latest.current, (n) =>
+        n.id === id ? { ...n, data: change(n.data) } : n,
+      ),
+    );
+  const remove = (id: string) => {
+    commit(removeNode(latest.current, id));
+    if (editing === id) setEditing(null);
+  };
+  const add = (parentId: string | null) => {
+    const node: TreeNode = {
+      id: newId(),
+      data: defaultValues(field.fields),
+      children: [],
+    };
+    const current = latest.current;
+    const parent = parentId ? findNode(current, parentId) : null;
+    commit(
+      insertNode(
+        current,
+        parentId,
+        parent ? parent.children.length : current.length,
+        node,
+      ),
+    );
+    expand(parentId);
+    setEditing(node.id);
+  };
+
+  return (
+    <div className="v-tree">
+      <DndContext
+        sensors={drag.sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e: DragStartEvent) => {
+          drag.start(String(e.active.id));
+          setEditing(null);
+        }}
+        onDragMove={(e: DragMoveEvent) => drag.move(e.delta.x)}
+        onDragOver={(e: DragOverEvent) =>
+          drag.over(e.over ? String(e.over.id) : null)
+        }
+        onDragEnd={onDragEnd}
+        onDragCancel={() => drag.end()}
+      >
+        <SortableContext
+          items={drag.visible.map((i) => i.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {drag.visible.length === 0 && (
+            <div className="v-tree__empty">No items yet.</div>
+          )}
+          {drag.visible.map((item) => (
+            <TreeRow
+              key={item.id}
+              item={item}
+              depth={drag.depthOf(item)}
+              view={{
+                label: nodeLabel(item.data, keys.label),
+                detail: nodeDetail(item.data, keys.detail),
+                collapsed: collapsed.has(item.id),
+                editing: editing === item.id,
+                canAddChild: item.depth + 1 < keys.maxDepth,
+              }}
+              actions={{
+                onToggle: () => toggle(item.id),
+                onEdit: () => setEditing(editing === item.id ? null : item.id),
+                onAddChild: () => add(item.id),
+                onRemove: () => remove(item.id),
+              }}
+            >
+              {editing === item.id && (
+                <div className="v-tree__form">
+                  <FieldSet
+                    schema={field.fields}
+                    values={item.data}
+                    onChange={(change) => update(item.id, change)}
+                    errors={errors}
+                    ctx={ctx}
+                    pathPrefix={`${path}.${item.id}`}
+                  />
+                </div>
+              )}
+            </TreeRow>
+          ))}
+        </SortableContext>
+        {createPortal(
+          <DragOverlay className="v-portal" dropAnimation={null}>
+            {drag.activeId && (
+              <DragGhost
+                node={findNode(tree, drag.activeId)}
+                labelKey={keys.label}
+              />
+            )}
+          </DragOverlay>,
+          document.body,
+        )}
+      </DndContext>
+      <Button size="sm" className="v-list__add" onClick={() => add(null)}>
+        <Plus />{" "}
+        {field.addLabel ?? `Add ${fieldLabel("item", field).toLowerCase()}`}
+      </Button>
+    </div>
+  );
+}
+
+/** The field's settings, with their defaults. */
+function treeKeys(field: TreeField) {
+  const label = field.itemLabel ?? "title";
+  return {
+    children: field.childrenKey ?? "children",
+    maxDepth: field.maxDepth ?? 99,
+    label,
+    // By default the detail is the first text field other than the label.
+    detail:
+      field.itemDetail ??
+      Object.keys(field.fields).find(
+        (k) => k !== label && field.fields[k].type === "text",
+      ),
+  };
+}
+
+function nodeLabel(data: NodeData, labelKey: string): string {
+  const v = data[labelKey];
+  return typeof v === "string" && v.trim() ? v : "Untitled";
+}
+
+function nodeDetail(data: NodeData, detailKey: string | undefined): string {
+  const v = detailKey ? data[detailKey] : undefined;
+  return typeof v === "string" ? v : "";
+}
+
+/**
+ * The tree being edited, with ids on its nodes. `commit` saves a change and
+ * reports it without ids; a new `value` from outside replaces the tree
+ * unless it is the one last reported.
+ */
+function useTreeValue(
+  value: unknown,
+  key: string,
+  onChange: (v: NodeData[]) => void,
+) {
   const [tree, setTree] = useState<TreeNode[]>(() => annotate(value, key));
   // The tree as last changed, so that two changes at once both count.
   const latest = useRef(tree);
@@ -100,67 +248,12 @@ export function TreeInput({
     lastEmitted.current = JSON.stringify(plain);
     onChange(plain);
   };
+  return { tree, latest, commit };
+}
 
+/** Which nodes have their children hidden. */
+function useCollapsed() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [editing, setEditing] = useState<string | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
-  const [offsetX, setOffsetX] = useState(0);
-
-  const flat = useMemo(() => flatten(tree, collapsed), [tree, collapsed]);
-  // While dragging, the active node's descendants travel with it and are hidden.
-  const visible = useMemo(() => {
-    if (!activeId) return flat;
-    const node = findNode(tree, activeId);
-    const hidden = new Set(node ? descendantIds(node) : []);
-    return flat.filter((i) => !hidden.has(i.id));
-  }, [flat, activeId, tree]);
-  const projection =
-    activeId && overId
-      ? getProjection(visible, activeId, overId, offsetX, maxDepth)
-      : null;
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-  );
-
-  const onDragEnd = (e: DragEndEvent) => {
-    setActiveId(null);
-    setOverId(null);
-    setOffsetX(0);
-    const next = e.over && dropNode(tree, String(e.active.id), projection);
-    if (!next) return;
-    commit(next);
-    expand(projection!.parentId);
-  };
-
-  const update = (id: string, change: (data: NodeData) => NodeData) =>
-    commit(
-      mapTree(latest.current, (n) =>
-        n.id === id ? { ...n, data: change(n.data) } : n,
-      ),
-    );
-  const remove = (id: string) => {
-    commit(removeNode(tree, id));
-    if (editing === id) setEditing(null);
-  };
-  const add = (parentId: string | null) => {
-    const node: TreeNode = {
-      id: newId(),
-      data: defaultValues(field.fields),
-      children: [],
-    };
-    const parent = parentId ? findNode(tree, parentId) : null;
-    commit(
-      insertNode(
-        tree,
-        parentId,
-        parent ? parent.children.length : tree.length,
-        node,
-      ),
-    );
-    expand(parentId);
-    setEditing(node.id);
-  };
   /** Shows a node's children. */
   const expand = (id: string | null) =>
     id &&
@@ -176,131 +269,107 @@ export function TreeInput({
       else n.add(id);
       return n;
     });
+  return { collapsed, expand, toggle };
+}
 
-  const labelOf = (data: NodeData) => {
-    const v = data[labelKey];
-    return typeof v === "string" && v.trim() ? v : "Untitled";
+/**
+ * Drag state: the rows to show (the dragged node's descendants travel with
+ * it and are hidden), and where the dragged node would land, nested by how
+ * far it has moved sideways.
+ */
+function useTreeDrag(
+  tree: TreeNode[],
+  collapsed: Set<string>,
+  maxDepth: number,
+) {
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const [offsetX, setOffsetX] = useState(0);
+  const flat = useMemo(() => flatten(tree, collapsed), [tree, collapsed]);
+  const visible = useMemo(() => {
+    if (!activeId) return flat;
+    const node = findNode(tree, activeId);
+    const hidden = new Set(node ? descendantIds(node) : []);
+    return flat.filter((i) => !hidden.has(i.id));
+  }, [flat, activeId, tree]);
+  const projection =
+    activeId && overId
+      ? getProjection(visible, activeId, overId, offsetX, maxDepth)
+      : null;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
+  return {
+    sensors,
+    visible,
+    activeId,
+    /** The depth to draw a row at: the dragged one at its projected depth. */
+    depthOf: (item: FlatNode) =>
+      activeId === item.id && projection ? projection.depth : item.depth,
+    start: (id: string) => {
+      setActiveId(id);
+      setOverId(id);
+    },
+    move: setOffsetX,
+    over: setOverId,
+    /** Ends the drag, returning where the node would land. */
+    end: () => {
+      setActiveId(null);
+      setOverId(null);
+      setOffsetX(0);
+      return projection;
+    },
   };
-  const detailOf = (data: NodeData) =>
-    detailKey && typeof data[detailKey] === "string" ? data[detailKey] : "";
-  const activeNode = activeId ? findNode(tree, activeId) : null;
+}
 
+/** What follows the pointer while dragging: the node's label and how many travel with it. */
+function DragGhost({
+  node,
+  labelKey,
+}: {
+  node: TreeNode | null;
+  labelKey: string;
+}) {
+  if (!node) return null;
   return (
-    <div className="v-tree">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={(e: DragStartEvent) => {
-          setActiveId(String(e.active.id));
-          setOverId(String(e.active.id));
-          setEditing(null);
-        }}
-        onDragMove={(e: DragMoveEvent) => setOffsetX(e.delta.x)}
-        onDragOver={(e: DragOverEvent) =>
-          setOverId(e.over ? String(e.over.id) : null)
-        }
-        onDragEnd={onDragEnd}
-        onDragCancel={() => {
-          setActiveId(null);
-          setOverId(null);
-          setOffsetX(0);
-        }}
-      >
-        <SortableContext
-          items={visible.map((i) => i.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {visible.length === 0 && (
-            <div className="v-tree__empty">No items yet.</div>
-          )}
-          {visible.map((item) => (
-            <TreeRow
-              key={item.id}
-              item={item}
-              depth={
-                activeId === item.id && projection
-                  ? projection.depth
-                  : item.depth
-              }
-              label={labelOf(item.data)}
-              detail={detailOf(item.data)}
-              collapsed={collapsed.has(item.id)}
-              editing={editing === item.id}
-              canAddChild={item.depth + 1 < maxDepth}
-              onToggle={() => toggle(item.id)}
-              onEdit={() => setEditing(editing === item.id ? null : item.id)}
-              onAddChild={() => add(item.id)}
-              onRemove={() => remove(item.id)}
-            >
-              {editing === item.id && (
-                <div className="v-tree__form">
-                  <FieldSet
-                    schema={field.fields}
-                    values={item.data}
-                    onChange={(change) => update(item.id, change)}
-                    errors={errors}
-                    ctx={ctx}
-                    pathPrefix={`${path}.${item.id}`}
-                  />
-                </div>
-              )}
-            </TreeRow>
-          ))}
-        </SortableContext>
-        {createPortal(
-          <DragOverlay className="v-portal" dropAnimation={null}>
-            {activeNode && (
-              <div className="v-tree__item v-tree__ghost">
-                <span className="v-list__handle">
-                  <GripVertical />
-                </span>
-                <span className="v-tree__label">
-                  {labelOf(activeNode.data)}
-                </span>
-                {activeNode.children.length > 0 && (
-                  <span className="v-tree__count">
-                    +{descendantIds(activeNode).length}
-                  </span>
-                )}
-              </div>
-            )}
-          </DragOverlay>,
-          document.body,
-        )}
-      </DndContext>
-      <Button size="sm" className="v-list__add" onClick={() => add(null)}>
-        <Plus />{" "}
-        {field.addLabel ?? `Add ${fieldLabel("item", field).toLowerCase()}`}
-      </Button>
+    <div className="v-tree__item v-tree__ghost">
+      <span className="v-list__handle">
+        <GripVertical />
+      </span>
+      <span className="v-tree__label">{nodeLabel(node.data, labelKey)}</span>
+      {node.children.length > 0 && (
+        <span className="v-tree__count">+{descendantIds(node).length}</span>
+      )}
     </div>
   );
 }
 
-function TreeRow({
-  item,
-  depth,
-  label,
-  detail,
-  collapsed,
-  editing,
-  canAddChild,
-  onToggle,
-  onEdit,
-  onAddChild,
-  onRemove,
-  children,
-}: {
-  item: FlatNode;
-  depth: number;
+type RowView = {
   label: string;
   detail: string;
   collapsed: boolean;
   editing: boolean;
   canAddChild: boolean;
+};
+
+type RowActions = {
   onToggle: () => void;
   onEdit: () => void;
   onAddChild: () => void;
   onRemove: () => void;
+};
+
+function TreeRow({
+  item,
+  depth,
+  view,
+  actions,
+  children,
+}: {
+  item: FlatNode;
+  depth: number;
+  view: RowView;
+  actions: RowActions;
   children?: React.ReactNode;
 }) {
   const {
@@ -318,7 +387,7 @@ function TreeRow({
       className={cx(
         "v-tree__row",
         isDragging && "is-placeholder",
-        editing && "is-editing",
+        view.editing && "is-editing",
       )}
       style={
         {
@@ -346,58 +415,82 @@ function TreeRow({
         >
           <GripVertical />
         </span>
-        {item.childCount > 0 ? (
-          <button
-            type="button"
-            className="v-tree__toggle"
-            onClick={onToggle}
-            title={collapsed ? "Expand" : "Collapse"}
-          >
-            {collapsed ? <ChevronRight /> : <ChevronDown />}
-          </button>
-        ) : (
-          <span className="v-tree__toggle v-tree__toggle--leaf" />
-        )}
-        <button type="button" className="v-tree__text" onClick={onEdit}>
-          <span className="v-tree__label">{label}</span>
-          {detail && <span className="v-tree__detail">{detail}</span>}
-          {collapsed && item.childCount > 0 && (
+        <TreeToggle
+          childCount={item.childCount}
+          collapsed={view.collapsed}
+          onToggle={actions.onToggle}
+        />
+        <button type="button" className="v-tree__text" onClick={actions.onEdit}>
+          <span className="v-tree__label">{view.label}</span>
+          {view.detail && <span className="v-tree__detail">{view.detail}</span>}
+          {view.collapsed && item.childCount > 0 && (
             <span className="v-tree__count">{item.childCount}</span>
           )}
         </button>
-        <div className="v-list__actions">
-          {canAddChild && (
-            <Button
-              variant="ghost"
-              size="xs"
-              icon
-              title="Add child"
-              onClick={onAddChild}
-            >
-              <CornerDownRight />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="xs"
-            icon
-            title={editing ? "Done" : "Edit"}
-            onClick={onEdit}
-          >
-            <Pencil />
-          </Button>
-          <Button
-            variant="ghost"
-            size="xs"
-            icon
-            title="Remove"
-            onClick={onRemove}
-          >
-            <Trash />
-          </Button>
-        </div>
+        <RowButtons view={view} actions={actions} />
       </div>
       {children}
+    </div>
+  );
+}
+
+/** Shows or hides a node's children; a spacer for a node without any. */
+function TreeToggle({
+  childCount,
+  collapsed,
+  onToggle,
+}: {
+  childCount: number;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  if (childCount === 0) {
+    return <span className="v-tree__toggle v-tree__toggle--leaf" />;
+  }
+  return (
+    <button
+      type="button"
+      className="v-tree__toggle"
+      onClick={onToggle}
+      title={collapsed ? "Expand" : "Collapse"}
+    >
+      {collapsed ? <ChevronRight /> : <ChevronDown />}
+    </button>
+  );
+}
+
+function RowButtons({ view, actions }: { view: RowView; actions: RowActions }) {
+  return (
+    <div className="v-list__actions">
+      {view.canAddChild && (
+        <Button
+          variant="ghost"
+          size="xs"
+          icon
+          title="Add child"
+          onClick={actions.onAddChild}
+        >
+          <CornerDownRight />
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="xs"
+        icon
+        title={view.editing ? "Done" : "Edit"}
+        onClick={actions.onEdit}
+      >
+        <Pencil />
+      </Button>
+      <Button
+        variant="ghost"
+        size="xs"
+        icon
+        title="Remove"
+        onClick={actions.onRemove}
+      >
+        <Trash />
+      </Button>
     </div>
   );
 }

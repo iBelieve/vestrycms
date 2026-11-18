@@ -55,9 +55,15 @@ while Vestry is below 1.0, a minor version may change behaviour.
   "1 items": option labels, formatted dates, Yes or No, and file names. A
   `multiselect` column shows its option labels, and a list of objects
   counts them in proper English.
-- **Copying a file's path says so only when it worked.** The Assets page
-  reported "Path copied" even when the browser refused clipboard access; it
-  now shows an error instead.
+- **Sorting a collection by its Status column works.** It sorted by a
+  `status` value the entries don't have, so the order never changed.
+- **Uploading the same file again after a failed upload works.** The
+  upload buttons now clear their file choice, and an empty choice is
+  ignored instead of reporting a rejected file type or uploading nothing.
+- **"Copy path" says when copying fails** instead of claiming the path was
+  copied.
+- **The asset picker keeps showing its files when a refresh fails**, with
+  the error above them.
 - **A crop or focal point shows the image it was given.** Switching images
   quickly could let the previous image finish loading last and set the
   editor's size from it.

@@ -42,6 +42,7 @@ import {
   cx,
   defaultValue,
   fieldLabel,
+  IMAGE_EXTENSIONS,
   isImagePath,
   summarize,
   type ValidationError,
@@ -595,47 +596,19 @@ function DatetimeInput({
 }
 
 function AssetInput(props: FieldProps) {
-  const { api } = useVestry();
   const field = props.field as Extract<Field, { type: "image" | "file" }>;
   const value = (props.value as string) ?? "";
   const [open, setOpen] = useState(false);
-  const pending = props.ctx?.pendingUploads?.[value];
-  const isImage = field.type === "image" || isImagePath(value);
-  const previewUrl = value
-    ? pending
-      ? pending.previewUrl
-      : /^https?:/.test(value)
-        ? value
-        : api.fileUrl(value)
-    : null;
-  const accept =
-    field.accept ??
-    (field.type === "image"
-      ? ["jpg", "jpeg", "png", "gif", "webp", "avif", "svg"]
-      : undefined);
+  const isImage = field.type === "image";
   return (
     <div className="v-image-field">
-      <div className="v-image-field__preview">
-        {previewUrl && isImage ? (
-          <img src={previewUrl} alt="" />
-        ) : (
-          <ImageIcon />
-        )}
-      </div>
+      <AssetPreview
+        value={value}
+        pending={props.ctx?.pendingUploads?.[value]}
+        image={isImage}
+      />
       <div className="v-image-field__info">
-        {value ? (
-          <div className="v-image-field__path">
-            <strong style={{ color: "var(--v-text)" }}>
-              {basename(value)}
-            </strong>
-            <br />
-            {value.slice(0, value.length - basename(value).length)}
-          </div>
-        ) : (
-          <div className="v-muted" style={{ marginBottom: 8 }}>
-            No file selected
-          </div>
-        )}
+        <AssetPath value={value} />
         <div className="v-image-field__actions">
           <Button
             size="sm"
@@ -659,9 +632,9 @@ function AssetInput(props: FieldProps) {
       {open && (
         <AssetPicker
           directory={field.directory}
-          accept={accept}
+          accept={field.accept ?? (isImage ? IMAGE_EXTENSIONS : undefined)}
           allowUpload={field.upload !== false}
-          title={field.type === "image" ? "Choose an image" : "Choose a file"}
+          title={isImage ? "Choose an image" : "Choose a file"}
           deferUploads={Boolean(props.ctx?.addUpload)}
           onClose={() => setOpen(false)}
           onPick={(path, upload) => {
@@ -671,6 +644,55 @@ function AssetInput(props: FieldProps) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * A thumbnail of the chosen file when it is an image (an upload waiting to
+ * be saved, a URL or a repository file), or a placeholder icon.
+ */
+function AssetPreview({
+  value,
+  pending,
+  image,
+}: {
+  value: string;
+  pending?: { previewUrl: string };
+  /** Whether the field holds images, whatever the file's name. */
+  image: boolean;
+}) {
+  const { api } = useVestry();
+  const src = !value
+    ? null
+    : (pending?.previewUrl ??
+      (/^https?:/.test(value) ? value : api.fileUrl(value)));
+  return (
+    <div className="v-image-field__preview">
+      {src && (image || isImagePath(value)) ? (
+        <img src={src} alt="" />
+      ) : (
+        <ImageIcon />
+      )}
+    </div>
+  );
+}
+
+/** The chosen file's name, over the folder it is in. */
+function AssetPath({ value }: { value: string }) {
+  if (!value) {
+    return (
+      <div className="v-muted" style={{ marginBottom: 8 }}>
+        No file selected
+      </div>
+    );
+  }
+  const name = basename(value);
+  return (
+    <div className="v-image-field__path">
+      <strong style={{ color: "var(--v-text)" }}>{name}</strong>
+      <br />
+      {value.slice(0, value.length - name.length)}
     </div>
   );
 }
