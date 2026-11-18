@@ -13,10 +13,12 @@ import type {
 } from "../../config/types.js";
 import { serializeEntry } from "../../core/entries.js";
 import {
+  canRename,
   collectionFormat,
   dirname,
   entryPath,
   fillTemplate,
+  isReservedSlug,
   isSafeSlug,
   normalizePath,
   relativePath,
@@ -109,6 +111,65 @@ export function slugBox(
       ? slug.slice(0, slug.length - value.length)
       : "";
   return { value, prefix };
+}
+
+/**
+ * Why an existing entry's slug can't change, if it can't: its collection
+ * doesn't allow creating entries (a rename puts one at a new address), or
+ * its slug is reserved.
+ */
+export function slugFixed(
+  collection: CollectionConfig | null,
+  slug: string | null,
+): string | null {
+  if (!collection || slug === null) return null;
+  if (!canRename(collection))
+    return "This collection doesn't allow renaming entries.";
+  if (isReservedSlug(collection, slug))
+    return "This entry's slug is reserved, so it can't be renamed.";
+  return null;
+}
+
+/** Whether entry `slug` of `collection` may be deleted. */
+export function canDelete(
+  collection: CollectionConfig | null,
+  slug: string | null,
+): boolean {
+  return (
+    collection !== null &&
+    slug !== null &&
+    collection.delete !== false &&
+    !isReservedSlug(collection, slug)
+  );
+}
+
+/**
+ * What's wrong with the slug the entry will be saved under, if anything.
+ * A reserved slug can't be taken; a fixed one can't change, though a list
+ * entry's id or a date kept in the file name can still try to change it.
+ */
+export function slugError({
+  kind,
+  collection,
+  pattern,
+  finalSlug,
+  fixed,
+  changing,
+}: {
+  kind: Kind;
+  collection: CollectionConfig | null;
+  pattern: PathPattern;
+  finalSlug: string;
+  /** Why the current slug can't change, if it can't. */
+  fixed: string | null;
+  /** The entry is new, or saving it renames it. */
+  changing: boolean;
+}): string | null {
+  if (!changing) return slugProblem(kind, pattern, finalSlug);
+  if (fixed) return fixed;
+  if (collection && finalSlug && isReservedSlug(collection, finalSlug))
+    return `"${finalSlug}" is reserved for one of the site's own pages.`;
+  return slugProblem(kind, pattern, finalSlug);
 }
 
 /** Why a collection entry cannot be saved under `slug`, if it cannot. */

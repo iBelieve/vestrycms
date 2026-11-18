@@ -2,7 +2,7 @@
  * Checks a Vestry config when the integration loads, so a mistake is an
  * error at startup rather than something the control panel quietly ignores.
  */
-import { parsePathPattern, templateError } from "../core/paths.js";
+import { isSafeSlug, parsePathPattern, templateError } from "../core/paths.js";
 import type {
   CollectionConfig,
   ComponentConfig,
@@ -153,6 +153,9 @@ function checkCollection(
     fail(`${what} sets tree, which needs a "**" wildcard in its path`);
   }
   checkTemplate(`${what} commitMessage`, col.commitMessage);
+  const unsafe = col.reservedSlugs?.find((slug) => !isSafeSlug(slug));
+  if (unsafe !== undefined)
+    fail(`${what} reservedSlugs has "${unsafe}", which is not a slug`);
 }
 
 function checkComponent(name: string, component: ComponentConfig) {

@@ -27,7 +27,9 @@ import {
 import type { BuildIndex } from "./index-types.js";
 import {
   basename,
+  canRename,
   collectionFormat,
+  isReservedSlug,
   dirname,
   entryPath,
   extname,
@@ -317,6 +319,12 @@ export class ContentService {
         keepWallClock: true,
       }),
     };
+    if (slug === null && col.create === false)
+      throw new SourceError(
+        "Creating entries is disabled for this collection",
+        403,
+        "forbidden",
+      );
     return save.pattern.single
       ? this.saveListEntry(save)
       : this.saveFileEntry(save);
@@ -332,6 +340,8 @@ export class ContentService {
     // A changed id renames the entry: every reference to the old one, in
     // this list and in other files, follows it in the same commit.
     const renamedFrom = !isNew && index !== -1 && id !== slug ? slug : null;
+    if (renamedFrom) refuseRename(col, renamedFrom);
+    if (isNew || renamedFrom) refuseReserved(col, id);
     const text = serializeEntryList(
       format,
       renamedFrom
@@ -428,6 +438,8 @@ export class ContentService {
     const path = entryPath(pattern, finalSlug);
     const renamedFrom =
       !isNew && finalSlug !== slug ? entryPath(pattern, slug) : null;
+    if (renamedFrom) refuseRename(col, slug!);
+    if (isNew || renamedFrom) refuseReserved(col, finalSlug);
     await this.checkSaveTarget(save, path, renamedFrom);
     // An entry that refers to itself follows its own rename. (A file composed
     // by the client, `raw`, has had the same done to it there.)
@@ -646,6 +658,12 @@ export class ContentService {
     if (col.delete === false)
       throw new SourceError(
         "Deleting is disabled for this collection",
+        403,
+        "forbidden",
+      );
+    if (isReservedSlug(col, slug))
+      throw new SourceError(
+        `"${slug}" is a reserved slug, so it can't be deleted`,
         403,
         "forbidden",
       );
@@ -930,6 +948,32 @@ export class ContentService {
 }
 
 /** A list's entries with every reference to entry `from` of `key` moved to `to`. */
+/** Refuses to rename entry `slug` when its slug is fixed. */
+function refuseRename(col: CollectionConfig, slug: string): void {
+  if (!canRename(col))
+    throw new SourceError(
+      "Renaming is disabled for this collection, because it doesn't allow creating entries",
+      403,
+      "forbidden",
+    );
+  if (isReservedSlug(col, slug))
+    throw new SourceError(
+      `"${slug}" is a reserved slug, so it can't be renamed`,
+      403,
+      "forbidden",
+    );
+}
+
+/** Refuses to put an entry at a reserved slug. */
+function refuseReserved(col: CollectionConfig, slug: string): void {
+  if (isReservedSlug(col, slug))
+    throw new SourceError(
+      `"${slug}" is reserved for one of the site's own pages`,
+      409,
+      "exists",
+    );
+}
+
 function renameInList(
   schema: Schema,
   items: Record<string, unknown>[],

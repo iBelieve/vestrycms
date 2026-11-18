@@ -172,6 +172,15 @@ describe("validateConfig", () => {
     ).toThrow(/component "Event": "date" has default/);
   });
 
+  it("accepts reserved slugs, but only slugs", () => {
+    expect(() =>
+      validateConfig(posts({ reservedSlugs: ["index", "404"] })),
+    ).not.toThrow();
+    expect(() => validateConfig(posts({ reservedSlugs: ["../x"] }))).toThrow(
+      'reservedSlugs has "../x", which is not a slug',
+    );
+  });
+
   it("still requires the repository", () => {
     expect(() => validateConfig({ repo: { owner: "", name: "" } })).toThrow(
       /repo\.owner/,

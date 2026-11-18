@@ -69,7 +69,9 @@ import {
   sendSave,
   slugBox,
   slugHint,
-  slugProblem,
+  canDelete,
+  slugError,
+  slugFixed,
 } from "./entry-editing.js";
 
 export function CollectionEntryPage() {
@@ -395,9 +397,7 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
         <EditorActions
           unsaved={unsaved}
           previewHref={display.previewHref}
-          canDelete={
-            !isNew && collection !== null && collection.delete !== false
-          }
+          canDelete={form.slugs.deletable}
           onDelete={() => form.setConfirmDelete(true)}
           onSave={() => void saving.requestSave()}
           saving={saving.save.isPending}
@@ -466,6 +466,7 @@ function EntrySidebar({ form }: { form: EntryFormModel }) {
               pattern={form.pattern}
               slug={slugs.finalSlug}
               box={slugs.box}
+              fixed={slugs.fixed}
               onChange={slugs.setTyped}
               error={slugs.error}
               hint={slugHint(
@@ -720,16 +721,28 @@ function useSlug({
     data: state.data,
     dateKey,
   });
+  /** Saving will move an existing entry to a different file. */
+  const renaming =
+    kind === "collection" && !isNew && !!finalSlug && finalSlug !== slug;
+  const fixed = isNew ? null : slugFixed(collection, slug);
   return {
     finalSlug,
+    /** Why the slug box is read-only, if it is. */
+    fixed,
+    deletable: !isNew && canDelete(collection, slug),
     dateKey,
     setTyped,
     latestTyped: () => latestTyped.current,
     box: slugBox(finalSlug, typed, dateKey),
-    error: slugProblem(kind, pattern, finalSlug),
-    /** Saving will move an existing entry to a different file. */
-    renaming:
-      kind === "collection" && !isNew && !!finalSlug && finalSlug !== slug,
+    error: slugError({
+      kind,
+      collection,
+      pattern,
+      finalSlug,
+      fixed,
+      changing: isNew || renaming,
+    }),
+    renaming,
   };
 }
 type Slugs = ReturnType<typeof useSlug>;
@@ -1125,6 +1138,7 @@ function SlugField({
   pattern,
   slug,
   box,
+  fixed,
   onChange,
   error,
   hint,
@@ -1132,6 +1146,8 @@ function SlugField({
   pattern: PathPattern;
   slug: string;
   box: { value: string; prefix: string };
+  /** Why the slug can't change, if it can't. */
+  fixed: string | null;
   onChange: (value: string) => void;
   error: string | null;
   hint: string | null;
@@ -1139,8 +1155,13 @@ function SlugField({
   return (
     <div>
       <label className="v-field__label">Slug</label>
-      {pattern.single ? (
-        <input className="v-input v-input--mono" readOnly value={slug} />
+      {pattern.single || fixed ? (
+        <input
+          className="v-input v-input--mono"
+          readOnly
+          value={slug}
+          aria-describedby={fixed ? "v-slug-fixed" : undefined}
+        />
       ) : (
         <div className="v-slug">
           {box.prefix && (
@@ -1161,6 +1182,11 @@ function SlugField({
         </div>
       )}
       {error && <div className="v-field__error">{error}</div>}
+      {fixed && !error && (
+        <div id="v-slug-fixed" className="v-field__hint">
+          {fixed}
+        </div>
+      )}
       {hint && (
         <div className="v-field__hint v-mono" style={{ fontSize: 11.5 }}>
           {hint}

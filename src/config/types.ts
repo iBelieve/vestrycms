@@ -404,10 +404,21 @@ export interface CollectionConfig {
    * points at a date/datetime field. A number sets how many entries to show.
    */
   recent?: boolean | number;
-  /** Allow creating new entries in the control panel (default true). */
+  /**
+   * Allow creating new entries in the control panel (default true). With
+   * `false`, entries can't be renamed either, since a rename puts an entry
+   * at a new address.
+   */
   create?: boolean;
   /** Allow deleting entries (default true). */
   delete?: boolean;
+  /**
+   * Slugs the site depends on, such as pages kept at fixed routes
+   * (`["index", "404"]`) or names its other routes already use. An entry
+   * at one can't be renamed or deleted, and no other entry can be created
+   * at or renamed to one.
+   */
+  reservedSlugs?: string[];
 }
 
 export interface SingletonConfig {
