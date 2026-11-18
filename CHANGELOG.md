@@ -11,11 +11,15 @@ while Vestry is below 1.0, a minor version may change behaviour.
   sets no `logo`, the browser tab uses it as the favicon, and the README
   carries it. `assets/` holds the light (`logo.svg`), dark-background
   (`logo-reverse.svg`) and square (`icon.svg`) versions.
-- **The panel's dark colour is the logo's ink, `#292638`.** The top bar, the
-  tile behind the site logo on the sign-in page, and toasts move from navy
-  slate (`#0f172a` and `#1e293b`) to this violet slate, and the top bar's
-  greys take the same hue. A site logo designed for the old bar still reads:
-  the new colour is as dark as the old sign-in tile.
+- **The panel takes its colours from the logo.** The top bar, the tile
+  behind the site logo on the sign-in page, and toasts move from navy slate
+  (`#0f172a` and `#1e293b`) to a warm brown-grey on the sparkle's hue
+  (`#2d2622`), and the page backgrounds warm to match. Buttons, links, the
+  selected sidebar item and focus rings turn from blue to burnt orange
+  (`#c2410c`, the logo's orange darkened until white text on it passes WCAG
+  AA). Drafts and other warnings move from amber to a yellower gold
+  (`#a16207`) so they don't read as actions; their text contrast rises from
+  3.1:1 to 4.8:1.
 
 ### Fixed
 

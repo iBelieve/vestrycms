@@ -8,8 +8,8 @@
   --v-serif: Georgia, "Times New Roman", serif;
 
   /* Outer body (behind the sidebar) and the inner panel the pages sit on. */
-  --v-bg: #e9ecf1;
-  --v-panel: #f8f9fb;
+  --v-bg: #ece9e6;
+  --v-panel: #faf9f7;
   --v-surface: #ffffff;
   --v-surface-muted: #f9fafb;
   --v-border: #e5e7eb;
@@ -17,14 +17,16 @@
   --v-text: #111827;
   --v-text-muted: #6b7280;
   --v-text-faint: #9ca3af;
-  --v-primary: #2563eb;
-  --v-primary-hover: #1d4ed8;
-  --v-primary-soft: #eff6ff;
-  --v-primary-ring: rgba(37, 99, 235, 0.25);
+  /* The logo's orange (#ff791b) darkened until white text on it passes AA. */
+  --v-primary: #c2410c;
+  --v-primary-hover: #9a3412;
+  --v-primary-soft: #fff7ed;
+  --v-primary-ring: rgba(234, 88, 12, 0.28);
   --v-success: #16a34a;
   --v-success-soft: #ecfdf5;
-  --v-warning: #d97706;
-  --v-warning-soft: #fffbeb;
+  /* Yellower than the primary orange, so drafts don't read as actions. */
+  --v-warning: #a16207;
+  --v-warning-soft: #fefce8;
   --v-danger: #dc2626;
   --v-danger-soft: #fef2f2;
   --v-radius: 8px;
@@ -35,12 +37,12 @@
   --v-shadow-lg: 0 20px 40px -12px rgba(16, 24, 40, 0.25);
   --v-sidebar-width: 248px;
   --v-topbar-height: 56px;
-  /* Vestry's ink (the logo's #292638); the chrome greys share its hue. */
-  --v-chrome: #292638;
-  --v-chrome-text: #e6e4ee;
-  --v-chrome-muted: #a19eb4;
-  --v-chrome-faint: #5c5873;
-  --v-chrome-raised: #3e3a52;
+  /* A warm brown-grey on the logo orange's hue; the chrome greys share it. */
+  --v-chrome: #2d2622;
+  --v-chrome-text: #ede8e4;
+  --v-chrome-muted: #b3a89f;
+  --v-chrome-faint: #665b53;
+  --v-chrome-raised: #463d37;
   --v-chrome-height: 52px;
   --v-frame-inset: 8px;
 }
@@ -147,7 +149,7 @@ body {
   display: block;
   width: 24px;
   height: 26px;
-  color: #f4f3f8;
+  color: #f6f1ec;
   flex: none;
 }
 .v-chrome__logo {
@@ -1043,13 +1045,13 @@ a.v-chrome__chip:hover {
 }
 .v-alert--warning {
   background: var(--v-warning-soft);
-  border-color: #fde68a;
-  color: #92400e;
+  border-color: #fef08a;
+  color: #854d0e;
 }
 .v-alert--info {
   background: var(--v-primary-soft);
-  border-color: #bfdbfe;
-  color: #1e40af;
+  border-color: #fed7aa;
+  color: #9a3412;
 }
 
 /* toasts */
@@ -1088,7 +1090,7 @@ a.v-chrome__chip:hover {
   background: #7f1d1d;
 }
 .v-toast a {
-  color: #93c5fd;
+  color: #fdba74;
 }
 @keyframes v-toast-in {
   from {
@@ -1685,7 +1687,7 @@ a.v-chrome__chip:hover {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(37, 99, 235, 0.12);
+  background: rgba(234, 88, 12, 0.12);
   pointer-events: none;
 }
 .v-prose .column-resize-handle {
@@ -2166,8 +2168,8 @@ a.v-chrome__chip:hover {
   place-items: center;
   padding: 24px;
   background:
-    radial-gradient(1200px 600px at 20% -10%, #e0e7ff 0%, transparent 60%),
-    radial-gradient(900px 500px at 100% 100%, #dbeafe 0%, transparent 55%),
+    radial-gradient(1200px 600px at 20% -10%, #ffedd5 0%, transparent 60%),
+    radial-gradient(900px 500px at 100% 100%, #fde4d0 0%, transparent 55%),
     var(--v-bg);
 }
 .v-login__card {
@@ -2519,7 +2521,7 @@ a.v-chrome__chip:hover {
   height: 28px;
   margin: -14px 0 0 -14px;
   border-radius: 50%;
-  background: rgba(37, 99, 235, 0.85);
+  background: rgba(194, 65, 12, 0.85);
   border: 2px solid #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   display: grid;
