@@ -33,8 +33,11 @@
     {
       "files": ["test/**"],
       "rules": {
-        // Testing Library's `findBy*` queries are the assertions.
-        "vitest/expect-expect": "off",
+        // Testing Library's `findBy*` queries fail when nothing matches.
+        "vitest/expect-expect": [
+          "error",
+          { "assertFunctionNames": ["expect", "*.findBy*"] }
+        ],
         "vitest/require-mock-type-parameters": "off",
         // Stubbing DOM methods (`Range.prototype.x ??= …`) and calling
         // Tiptap commands trip it without being method extraction.
