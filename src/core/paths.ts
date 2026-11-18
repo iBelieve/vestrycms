@@ -153,6 +153,26 @@ export function isReservedSlug(c: CollectionConfig, slug: string): boolean {
   return c.reservedSlugs?.some((r) => r.toLowerCase() === s) ?? false;
 }
 
+/**
+ * Why no entry may be put at `slug`, if none may: it is reserved, or it is
+ * under a reserved slug (`sermons/index` under `sermons`), whose route the
+ * entry would share or sit below. Case is ignored, as in `isReservedSlug`.
+ */
+export function reservedSlugProblem(
+  c: CollectionConfig,
+  slug: string,
+): string | null {
+  const s = slug.toLowerCase();
+  const reserved = c.reservedSlugs?.find((r) => {
+    const lower = r.toLowerCase();
+    return s === lower || s.startsWith(`${lower}/`);
+  });
+  if (reserved === undefined) return null;
+  return s === reserved.toLowerCase()
+    ? `"${slug}" is a reserved slug`
+    : `"${slug}" is under the reserved slug "${reserved}"`;
+}
+
 export function slugify(input: string): string {
   return input
     .normalize("NFKD")

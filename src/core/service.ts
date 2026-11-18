@@ -30,6 +30,7 @@ import {
   collectionFormat,
   isEditable,
   isReservedSlug,
+  reservedSlugProblem,
   dirname,
   entryPath,
   extname,
@@ -978,10 +979,10 @@ function refuseRename(col: CollectionConfig, slug: string): void {
     );
 }
 
-/** Refuses to put an entry at a reserved slug. */
+/** Refuses to put an entry at, or under, a reserved slug. */
 function refuseReserved(col: CollectionConfig, slug: string): void {
-  if (isReservedSlug(col, slug))
-    throw new SourceError(`"${slug}" is a reserved slug`, 409, "exists");
+  const problem = reservedSlugProblem(col, slug);
+  if (problem) throw new SourceError(problem, 409, "exists");
 }
 
 /** A list's entries with every reference to entry `from` of `key` moved to `to`. */
