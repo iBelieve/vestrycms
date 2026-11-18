@@ -63,10 +63,7 @@ describe("the tree model", () => {
     expect(findNode(tree, "nope")).toBeNull();
     expect(
       titles(
-        mapTree(tree, (n) => ({
-          ...n,
-          data: { title: `${String(n.data.title)}!` },
-        })),
+        mapTree(tree, (n) => ({ ...n, data: { title: `${n.data.title}!` } })),
       ),
     ).toEqual(["Home!", ["About!", ["Team!", "History!"]], "Contact!"]);
   });
