@@ -9,8 +9,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 - **Vestry has a logo.** The control panel's top bar shows it when the site
   sets no `logo`, the browser tab uses it as the favicon, and the README
-  carries it. `assets/` holds the light (`logo.svg`), dark-background
-  (`logo-reverse.svg`) and square (`icon.svg`) versions.
+  carries it. `assets/` holds the light (`logo.svg`, brown-grey `#2d2622`
+  with an orange `#ff791b` sparkle), dark-background (`logo-reverse.svg`)
+  and square (`icon.svg`) versions.
 - **The panel takes its colours from the logo.** The top bar, the tile
   behind the site logo on the sign-in page, and toasts move from navy slate
   (`#0f172a` and `#1e293b`) to a warm brown-grey on the sparkle's hue
