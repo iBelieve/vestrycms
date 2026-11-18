@@ -21,16 +21,23 @@ main consumer; keep it free of site-specific code.
   `src/integration/client-deps.ts` against the compiled UI's bare imports.
 - `pnpm dev` – build, then `tsc --watch` (for a site linked with
   `pnpm link`).
-- `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `pnpm fallow` – what
-  CI (`.github/workflows/ci.yml`) runs, plus `pnpm build` and
-  `npm pack --dry-run`. CI runs the tests as `pnpm test:coverage` and then
-  `pnpm health`.
+- `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `pnpm lint`,
+  `pnpm fallow` – what CI (`.github/workflows/ci.yml`) runs, plus
+  `pnpm build` and `npm pack --dry-run`. CI runs the tests as
+  `pnpm test:coverage` and then `pnpm health`.
 - `pnpm health` (Fallow's `health --complexity`, reading `coverage/` from
   `pnpm test:coverage`) fails on any function with cyclomatic complexity
   over 20, cognitive complexity over 15 (Fallow also counts JSX
   conditionals, many hooks and many props) or a CRAP score of 30 or more.
   There is no baseline: split the function (smaller components, a custom
   hook, a pure helper) or, for CRAP, test it.
+- `pnpm lint` runs oxlint (`.oxlintrc.json`: the correctness rules plus the
+  React hooks and promise rules) with type-aware rules on (`options.typeAware`).
+  The type-aware backend is `tsrs`, pinned to an exact beta version; it is a
+  drop-in for `oxlint-tsgolint` if it ever misbehaves. `pnpm lint --fix`
+  applies the safe fixes. Disable a rule on one line with
+  `// oxlint-disable-next-line <rule> -- why`, as in `Login.tsx`. `tsc` stays
+  the type check (`pnpm typecheck`).
 - `pnpm fallow` (Fallow's `dead-code`) fails on unused files, exports and
   dependencies, and on import cycles. Remove what is really unused, or record a
   deliberate exception in `.fallowrc.json` or with a

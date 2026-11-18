@@ -526,6 +526,7 @@ pnpm build       # src/ → dist/ (tsc, plus admin.astro, styles.css, env.d.ts)
 pnpm typecheck
 pnpm test
 pnpm format:check
+pnpm lint        # oxlint, with type-aware rules
 pnpm fallow      # unused files, exports and dependencies; import cycles
 pnpm test:coverage
 pnpm health      # complexity, and CRAP scores from that coverage
@@ -539,6 +540,12 @@ exactly the packages the control panel imports in the browser. The
 integration pre-bundles those through Vite's optimizer: an installed Astro
 integration is excluded from it, and dev would otherwise serve CommonJS
 dependencies such as `react/jsx-runtime` raw.
+
+`pnpm lint` runs [oxlint](https://oxc.rs/docs/guide/usage/linter) with
+its type-aware rules, which CI enforces; `.oxlintrc.json` holds the rules and
+why each one that is off is off. The type information comes from
+[tsrs](https://github.com/oxc-project/tsrs), a Rust port of the TypeScript
+compiler.
 
 `pnpm fallow` runs [Fallow](https://fallow.tools/docs/)'s dead-code check,
 which CI enforces; `.fallowrc.json` holds its exceptions.

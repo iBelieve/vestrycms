@@ -1,11 +1,23 @@
 // @vitest-environment jsdom
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { openPanel } from "./harness.js";
 import { collection, defineConfig, fields } from "../../src/config/index.js";
+import { CropInput } from "../../src/ui/components/fields/ImageTools.js";
+import {
+  VestryContext,
+  type VestryContextValue,
+} from "../../src/ui/context.js";
 
 /** An image that "loads" at 400 × 300, or fails for a broken address. */
 class FakeImage {
@@ -225,5 +237,53 @@ describe("the image tools", () => {
     fireEvent.pointerCancel(stage, { pointerId: 1 });
     await user.click(within(field("Focus")).getByTitle("Back to centre"));
     expect(bar("Focus")).toBe("50% 50%");
+  });
+
+  it("size a crop from the image it shows, not one that loads late", () => {
+    // Images that load only when told to: a.png at 400 × 300, others 200 × 100.
+    const loads = new Map<string, () => void>();
+    class SlowImage {
+      naturalWidth = 0;
+      naturalHeight = 0;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(value: string) {
+        loads.set(value, () => {
+          const big = value.includes("a.png");
+          this.naturalWidth = big ? 400 : 200;
+          this.naturalHeight = big ? 300 : 100;
+          this.onload?.();
+        });
+      }
+    }
+    vi.stubGlobal("Image", SlowImage);
+    const onChange = vi.fn();
+    const crop = (image: string) => (
+      <VestryContext.Provider value={{} as VestryContextValue}>
+        <CropInput
+          field={fields.crop({ image: "image" })}
+          value={undefined}
+          onChange={onChange}
+          siblings={{ image }}
+        />
+      </VestryContext.Provider>
+    );
+    const a = "https://example.org/a.png";
+    const b = "https://example.org/b.png";
+    const view = render(crop(a));
+    view.rerender(crop(b));
+    expect(screen.getByText("Loading image…")).toBeTruthy();
+    // The new image loads first, then the one it replaced.
+    act(() => loads.get(b)!());
+    act(() => loads.get(a)!());
+    expect(
+      document.querySelector(".v-image-tool__bar .v-mono")!.textContent,
+    ).toMatch(/image 200 × 100/);
+    expect(onChange).toHaveBeenLastCalledWith({
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 100,
+    });
   });
 });

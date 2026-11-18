@@ -123,12 +123,9 @@ const DEFAULTS: {
   number: (field) => field.default ?? null,
   boolean: (field) => field.default ?? false,
   // "now" is the editor's own date and time, not UTC's.
-  date: (field) =>
-    field.default === "now" ? localDate(new Date()) : (field.default ?? ""),
+  date: (field) => (field.default === "now" ? localDate(new Date()) : ""),
   datetime: (field) =>
-    field.default === "now"
-      ? datetimeValue(field, new Date())
-      : (field.default ?? ""),
+    field.default === "now" ? datetimeValue(field, new Date()) : "",
   select: (field) =>
     field.default ?? (field.clearable ? "" : (field.options[0]?.value ?? "")),
   multiselect: (field) => field.default ?? [],
@@ -305,7 +302,7 @@ function objectSummary(obj: Record<string, unknown>, field?: Field): string {
   const itemLabel = field?.type === "array" ? field.itemLabel : undefined;
   if (itemLabel && obj[itemLabel] !== undefined) return String(obj[itemLabel]);
   for (const k of ["title", "label", "name", "heading", "id"]) {
-    if (typeof obj[k] === "string" && obj[k]) return obj[k] as string;
+    if (typeof obj[k] === "string" && obj[k]) return obj[k];
   }
   const first = Object.values(obj).find((v) => typeof v === "string" && v);
   return first ? String(first) : "";
@@ -343,7 +340,7 @@ export function cssToStyle(css: string | undefined): CSSProperties {
           .replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
     style[key] = value;
   }
-  return style as CSSProperties;
+  return style;
 }
 
 export function deepEqual(a: unknown, b: unknown): boolean {
@@ -357,7 +354,7 @@ export function initials(nameOrEmail: string): string {
     .split(/[\s._-]+/)
     .filter(Boolean);
   const first = parts[0]?.[0] ?? "?";
-  const last = parts.length > 1 ? parts[parts.length - 1]![0] : "";
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return `${first}${last ?? ""}`.toUpperCase();
 }
 

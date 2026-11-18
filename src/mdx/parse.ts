@@ -67,7 +67,7 @@ export function parseMdx(
   });
   const ctx: Ctx = { imports: {}, definitions: new Map() };
   collectDefinitions(tree, ctx);
-  const content = blocks(tree.children as AnyNode[], ctx);
+  const content = blocks(tree.children, ctx);
   return {
     doc: {
       type: "doc",
@@ -131,17 +131,17 @@ function block(node: AnyNode, ctx: Ctx): PMNode | PMNode[] | null {
 const BLOCKS: ByType<[ctx: Ctx], PMNode | PMNode[] | null> = {
   paragraph: (node, ctx) => ({
     type: "paragraph",
-    content: inlines(node.children as AnyNode[], ctx),
+    content: inlines(node.children, ctx),
   }),
   heading: (node, ctx) => ({
     type: "heading",
     attrs: { level: node.depth },
-    content: lineInlines(node.children as AnyNode[], ctx),
+    content: lineInlines(node.children, ctx),
   }),
   thematicBreak: () => ({ type: "horizontalRule" }),
   blockquote: (node, ctx) => ({
     type: "blockquote",
-    content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
+    content: ensureBlocks(blocks(node.children, ctx)),
   }),
   list,
   code: (node) => ({
@@ -155,7 +155,7 @@ const BLOCKS: ByType<[ctx: Ctx], PMNode | PMNode[] | null> = {
   footnoteDefinition: (node, ctx) => ({
     type: "footnoteDefinition",
     attrs: footnoteAttrs(node),
-    content: ensureBlocks(blocks(node.children as AnyNode[], ctx)),
+    content: ensureBlocks(blocks(node.children, ctx)),
   }),
   mdxJsxFlowElement: jsxBlock,
   mdxFlowExpression: (node) => ({
@@ -190,7 +190,7 @@ function footnoteAttrs(node: Md.FootnoteDefinition | Md.FootnoteReference) {
 }
 
 function listItem(item: Md.ListItem, ctx: Ctx): PMNode {
-  const content = ensureBlocks(blocks(item.children as AnyNode[], ctx));
+  const content = ensureBlocks(blocks(item.children, ctx));
   return {
     type: "listItem",
     attrs:
@@ -458,7 +458,7 @@ const INLINES: ByType<[ctx: Ctx, marks: PMMark[]], PMNode[]> = {
     }),
   linkReference: (node, ctx, marks) => {
     const def = ctx.definitions.get(node.identifier.toLowerCase());
-    if (!def) return inlines(node.children as AnyNode[], ctx, marks);
+    if (!def) return inlines(node.children, ctx, marks);
     return markedChildren(node, ctx, marks, {
       type: "link",
       attrs: { href: def.url, title: def.title ?? null },

@@ -72,8 +72,7 @@ const field = (label: string) =>
   screen
     .getByText(label, { selector: "label" })
     .closest(".v-field") as HTMLElement;
-const input = (label: string) =>
-  screen.getByLabelText(label) as HTMLInputElement;
+const input = (label: string) => screen.getByLabelText<HTMLInputElement>(label);
 
 describe("the field inputs", () => {
   it("edit each type of value", async () => {

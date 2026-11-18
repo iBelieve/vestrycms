@@ -53,9 +53,12 @@ function browser() {
   const absorb = (res: Response) => {
     for (const c of res.headers.getSetCookie()) {
       const [pair, ...attrs] = c.split(";");
-      const [k, v] = pair!.split("=");
-      if (attrs.some((a) => /max-age=0/i.test(a))) cookies.delete(k!.trim());
-      else cookies.set(k!.trim(), v ?? "");
+      // A value may hold "=" itself (base64 padding).
+      const eq = pair.indexOf("=");
+      const k = eq === -1 ? pair : pair.slice(0, eq);
+      const v = eq === -1 ? "" : pair.slice(eq + 1);
+      if (attrs.some((a) => /max-age=0/i.test(a))) cookies.delete(k.trim());
+      else cookies.set(k.trim(), v);
     }
     return res;
   };
@@ -141,8 +144,8 @@ describe("sign-in with an emailed code", () => {
     // Same answer as for an unknown address, so it reveals nothing.
     expect(r).toEqual(strangerAnswer);
     expect(mailer.sent).toHaveLength(1);
-    expect(mailer.sent[0]!.to).toBe("owner@example.org");
-    ownerCode = codeFrom(mailer.sent[0]!.text);
+    expect(mailer.sent[0].to).toBe("owner@example.org");
+    ownerCode = codeFrom(mailer.sent[0].text);
   });
 
   it("rejects a wrong code", async () => {

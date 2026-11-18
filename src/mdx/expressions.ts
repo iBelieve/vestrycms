@@ -73,7 +73,7 @@ const LITERALS: {
 function propertyEntry(p: ES.Property | ES.SpreadElement): [string, unknown] {
   if (p.type !== "Property" || p.kind !== "init" || p.method || p.computed)
     throw new NotLiteral();
-  return [propertyKey(p.key), literal(p.value as ES.Node)];
+  return [propertyKey(p.key), literal(p.value)];
 }
 
 function propertyKey(key: ES.Property["key"]): string {

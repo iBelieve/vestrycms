@@ -68,7 +68,7 @@ export function nameFromEmail(email: string): string {
   const pretty = local
     .split(/[._-]+/)
     .filter(Boolean)
-    .map((p) => p[0]!.toUpperCase() + p.slice(1))
+    .map((p) => p[0].toUpperCase() + p.slice(1))
     .join(" ");
   // Commit authors need a non-empty name; fall back to the address itself.
   return pretty || local || email;

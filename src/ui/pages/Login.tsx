@@ -29,6 +29,7 @@ export function LoginPage() {
         email: email.trim(),
         type: "sign-in",
       });
+      // oxlint-disable-next-line typescript/only-throw-error -- Better Auth's error; the catch reads its `code`.
       if (result.error) throw result.error;
       setCode("");
       setStep("code");
@@ -50,6 +51,7 @@ export function LoginPage() {
         email: email.trim(),
         otp: code,
       });
+      // oxlint-disable-next-line typescript/only-throw-error -- Better Auth's error; the catch reads its `code`.
       if (result.error) throw result.error;
       // Once the config reloads with a user, the /login route redirects to `next`.
       await refresh();

@@ -14,6 +14,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Changed
 
+- **A date or datetime field's `default` is `"now"` or nothing.** The type
+  used to accept any string, which hid `"now"` from editor autocomplete;
+  a fixed date was never a useful default. Any other value is now an error
+  when the integration loads, instead of being ignored.
 - **Vestry has a logo.** The control panel's top bar shows it when the site
   sets no `logo`, the browser tab uses it as the favicon, and the README
   carries it. `assets/` holds the light (`logo.svg`, brown-grey `#2d2622`
@@ -60,6 +64,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
   copied.
 - **The asset picker keeps showing its files when a refresh fails**, with
   the error above them.
+- **A crop or focal point shows the image it was given.** Switching images
+  quickly could let the previous image finish loading last and set the
+  editor's size from it.
 - **The logo shows before the GitHub App is set up.** A logo kept in the
   repository is now bundled into the build instead of fetched from GitHub,
   so the sign-in page no longer shows a broken image while the

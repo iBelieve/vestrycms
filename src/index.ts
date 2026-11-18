@@ -128,7 +128,7 @@ export default function vestry(
                 req.url !== api.apiPrefix
               )
                 return next();
-              return handler(req, res, next);
+              void handler(req, res, next);
             });
             logger.info(
               `Control panel at ${basePath} (${modeDescription(mode, config)})`,

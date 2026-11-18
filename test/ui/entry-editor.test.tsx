@@ -116,8 +116,8 @@ const read = (root: string, file: string) =>
   readFile(path.join(root, file), "utf8");
 const saveButton = () => screen.getByRole("button", { name: /^(Save|Create)/ });
 const titleInput = () =>
-  screen.getByPlaceholderText("Title…") as HTMLInputElement;
-const slugInput = () => screen.getByPlaceholderText("auto") as HTMLInputElement;
+  screen.getByPlaceholderText<HTMLInputElement>("Title…");
+const slugInput = () => screen.getByPlaceholderText<HTMLInputElement>("auto");
 
 describe("a new entry", () => {
   it("is created at a slug from its title", async () => {
@@ -481,7 +481,9 @@ describe("an existing entry", () => {
       within(await screen.findByRole("dialog")).getByText("Delete"),
     );
     await screen.findByText("Entry deleted");
-    await expect(read(root, "src/content/posts/hello.md")).rejects.toThrow();
+    await expect(read(root, "src/content/posts/hello.md")).rejects.toThrow(
+      /ENOENT/,
+    );
     await waitFor(() =>
       expect(window.location.pathname).toBe("/admin/collections/posts"),
     );
@@ -551,8 +553,8 @@ describe("a list kept in one file", () => {
       files,
     });
     await screen.findByDisplayValue("Home");
-    const [, slug] = screen.getAllByDisplayValue("home") as HTMLInputElement[];
-    expect(slug!.readOnly).toBe(true);
+    const [, slug] = screen.getAllByDisplayValue<HTMLInputElement>("home");
+    expect(slug.readOnly).toBe(true);
     await user.type(titleInput(), " page");
     await user.click(saveButton());
     await screen.findByText("Saved to disk");

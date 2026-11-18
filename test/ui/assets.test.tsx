@@ -3,7 +3,7 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fileList, openPanel, pickFiles } from "./harness.js";
 import { defineConfig } from "../../src/config/index.js";
 
@@ -50,6 +50,30 @@ describe("the assets page", () => {
     await user.click(within(dialog).getByRole("button", { name: /Copy path/ }));
     expect(await navigator.clipboard.readText()).toBe("public/images/a.png");
     expect(await screen.findByText("Path copied")).toBeTruthy();
+  });
+
+  it("says when the path could not be copied", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/assets/images", files });
+    await user.click(await screen.findByText("a.png"));
+    const copy = within(screen.getByRole("dialog")).getByRole("button", {
+      name: /Copy path/,
+    });
+    // Refused by the browser, and no clipboard at all (not a secure context).
+    const write = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockRejectedValueOnce(new DOMException("Denied", "NotAllowedError"))
+      .mockImplementationOnce(() => {
+        throw new TypeError("navigator.clipboard is undefined");
+      });
+    await user.click(copy);
+    expect(await screen.findByText("Couldn't copy the path")).toBeTruthy();
+    await user.click(copy);
+    await waitFor(() =>
+      expect(screen.getAllByText("Couldn't copy the path")).toHaveLength(2),
+    );
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Path copied")).toBeNull();
   });
 
   it("uploads and deletes files", async () => {

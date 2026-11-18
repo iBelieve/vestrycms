@@ -111,7 +111,7 @@ export function CollectionListPage() {
           {q.isLoading && <Loading />}
           {q.error && (
             <div style={{ padding: 18 }}>
-              <Alert kind="error">{(q.error as Error).message}</Alert>
+              <Alert kind="error">{q.error.message}</Alert>
             </div>
           )}
           {q.data && entries.length === 0 && (

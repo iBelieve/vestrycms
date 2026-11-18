@@ -146,7 +146,7 @@ describe("the rich text editor", () => {
     // An empty address takes a link away.
     act(() => void ed.editor().commands.selectAll());
     await user.click(tool("Link"));
-    expect((screen.getByLabelText("URL") as HTMLInputElement).value).toBe("");
+    expect(screen.getByLabelText<HTMLInputElement>("URL").value).toBe("");
     await user.click(screen.getByRole("button", { name: "Apply" }));
     expect(screen.queryByLabelText("URL")).toBeNull();
 

@@ -154,7 +154,7 @@ function AccountMenu({ user }: { user: PublicUser }) {
                 close();
                 await authClient.signOut();
                 await refresh();
-                navigate("/login");
+                await navigate("/login");
               }}
             >
               <LogOut />

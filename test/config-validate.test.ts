@@ -117,6 +117,61 @@ describe("validateConfig", () => {
     ).toThrow(/one file per entry/);
   });
 
+  it("allows only now as a date or datetime default", () => {
+    // A `.js` config can set what the types rule out.
+    const fixed = "2020-01-05" as "now";
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            date: fields.date({ default: "now" }),
+            at: fields.datetime({ default: "now" }),
+          },
+        }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateConfig(
+        posts({ schema: { date: fields.date({ default: fixed }) } }),
+      ),
+    ).toThrow(/"date" has default "2020-01-05", but a date field's default/);
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            events: fields.array(
+              fields.object({ at: fields.datetime({ default: fixed }) }),
+            ),
+          },
+        }),
+      ),
+    ).toThrow(/"events\.\[\]\.at" has default .* a datetime field's default/);
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          singletons: {
+            site: singleton({
+              label: "Site",
+              path: "site.yaml",
+              schema: { date: fields.date({ default: fixed }) },
+            }),
+          },
+        }),
+      ),
+    ).toThrow(/singleton "site": "date" has default/);
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          components: {
+            Event: { props: { date: fields.date({ default: fixed }) } },
+          },
+        }),
+      ),
+    ).toThrow(/component "Event": "date" has default/);
+  });
+
   it("still requires the repository", () => {
     expect(() => validateConfig({ repo: { owner: "", name: "" } })).toThrow(
       /repo\.owner/,

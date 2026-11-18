@@ -1,0 +1,53 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "vitest"],
+  "categories": { "correctness": "error" },
+  "options": { "typeAware": true },
+  "ignorePatterns": ["dist", "coverage", "test/fixtures"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    // The React Compiler's rules. Vestry doesn't use the compiler, and keeps
+    // the latest value of a prop in a ref during render on purpose.
+    "react/refs": "off",
+    "react/immutability": "off",
+    "typescript/await-thenable": "error",
+    "typescript/no-floating-promises": "error",
+    // Async event handlers are fine: React ignores what they return.
+    "typescript/no-misused-promises": [
+      "error",
+      { "checksVoidReturn": { "attributes": false } }
+    ],
+    "typescript/only-throw-error": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    // Content and settings arrive as `unknown`; `String(value)` is the
+    // intended coercion, not an accident.
+    "typescript/no-base-to-string": "off",
+    // The `env.d.ts` references declare the `virtual:vestry/*` modules.
+    "typescript/triple-slash-reference": "off",
+    "no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["test/**"],
+      "rules": {
+        // Testing Library's `findBy*` queries fail when nothing matches.
+        "vitest/expect-expect": [
+          "error",
+          { "assertFunctionNames": ["expect", "*.findBy*"] }
+        ],
+        "vitest/require-mock-type-parameters": "off",
+        // Stubbing DOM methods (`Range.prototype.x ??= …`) and calling
+        // Tiptap commands trip it without being method extraction.
+        "typescript/unbound-method": "off",
+        // The property tests spread ASCII strings into characters.
+        "typescript/no-misused-spread": "off",
+        // Test data is `unknown` to the types but known to the test.
+        "typescript/restrict-template-expressions": "off"
+      }
+    }
+  ]
+}

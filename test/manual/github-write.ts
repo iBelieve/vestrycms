@@ -9,7 +9,13 @@ const token = process.env.GH_TOKEN!;
 const owner = "iBelieve";
 const repo = "mluther.org";
 const branch = `vestry-scratch-${Date.now()}`;
-const api = async (path: string, init: RequestInit = {}) => {
+const api = async (
+  path: string,
+  // Plain headers only: spreading a `Headers` object would drop them.
+  init: Omit<RequestInit, "headers"> & {
+    headers?: Record<string, string>;
+  } = {},
+) => {
   const res = await fetch(`https://api.github.com${path}`, {
     ...init,
     headers: {
@@ -17,7 +23,7 @@ const api = async (path: string, init: RequestInit = {}) => {
       Accept: "application/vnd.github+json",
       "User-Agent": "vestry-test",
       "Content-Type": "application/json",
-      ...(init.headers ?? {}),
+      ...init.headers,
     },
   });
   if (!res.ok && res.status !== 204)

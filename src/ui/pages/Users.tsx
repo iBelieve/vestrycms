@@ -35,7 +35,7 @@ export function UsersPage() {
     enabled: me.role === "admin" && client.auth,
   });
   const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["users"] });
+    void queryClient.invalidateQueries({ queryKey: ["users"] });
 
   const resend = useMutation({
     mutationFn: (u: PublicUser) => api.resendInvite(u.id),

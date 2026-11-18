@@ -15,8 +15,8 @@ import {
 const { privateKey, publicKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
 });
-const pkcs1 = privateKey.export({ type: "pkcs1", format: "pem" }) as string;
-const pkcs8 = privateKey.export({ type: "pkcs8", format: "pem" }) as string;
+const pkcs1 = privateKey.export({ type: "pkcs1", format: "pem" });
+const pkcs8 = privateKey.export({ type: "pkcs8", format: "pem" });
 
 describe("signAppJwt", () => {
   it.each([
@@ -32,10 +32,10 @@ describe("signAppJwt", () => {
         "sha256",
         Buffer.from(`${h}.${p}`),
         publicKey,
-        Buffer.from(s!, "base64url"),
+        Buffer.from(s, "base64url"),
       ),
     ).toBe(true);
-    const payload = JSON.parse(Buffer.from(p!, "base64url").toString());
+    const payload = JSON.parse(Buffer.from(p, "base64url").toString());
     expect(payload.iss).toBe("12345");
     expect(payload.exp - payload.iat).toBe(600);
   });
@@ -68,8 +68,8 @@ describe("installationTokenProvider", () => {
 
   it("mints a token at the installation endpoint with the app JWT", async () => {
     expect(await provider()).toBe("ghs_1");
-    expect(requests[0]!.url).toBe("/app/installations/777/access_tokens");
-    expect(requests[0]!.headers.authorization).toMatch(/^Bearer ey/);
+    expect(requests[0].url).toBe("/app/installations/777/access_tokens");
+    expect(requests[0].headers.authorization).toMatch(/^Bearer ey/);
   });
 
   it("serves the second call from cache", async () => {

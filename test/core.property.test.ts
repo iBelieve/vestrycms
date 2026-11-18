@@ -71,7 +71,7 @@ describe("slugs", () => {
       fc.property(fc.string({ unit: "grapheme", maxLength: 30 }), (input) => {
         const slug = slugify(input);
         expect(slugify(slug)).toBe(slug);
-        if (slug) expect(isSafeSlug(slug)).toBe(true);
+        expect(slug === "" || isSafeSlug(slug)).toBe(true);
       }),
     );
   });

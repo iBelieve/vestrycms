@@ -122,7 +122,7 @@ export async function signAppJwt(
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     key,
-    new TextEncoder().encode(`${header}.${payload}`) as BufferSource,
+    new TextEncoder().encode(`${header}.${payload}`),
   );
   return `${header}.${payload}.${base64Url(new Uint8Array(signature))}`;
 }
@@ -180,8 +180,8 @@ function pemToPkcs8(pem: string): Uint8Array {
       "github_app_key",
     );
   }
-  const label = match[1]!;
-  const body = base64Decode(match[2]!);
+  const label = match[1];
+  const body = base64Decode(match[2]);
   if (label === "PRIVATE KEY") return body;
   if (label === "RSA PRIVATE KEY") return wrapPkcs1(body);
   throw new SourceError(

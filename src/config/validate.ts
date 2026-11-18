@@ -53,9 +53,7 @@ function checkFilenameDates(
       `${what}: "${nested[0]}" uses storeIn: "filename", which is only for a top-level field`,
     );
   }
-  const keys = Object.keys(schema).filter((key) =>
-    isFilenameDate(schema[key]!),
-  );
+  const keys = Object.keys(schema).filter((key) => isFilenameDate(schema[key]));
   if (!keys.length) return;
   if (!filePerEntry) {
     fail(
@@ -67,11 +65,30 @@ function checkFilenameDates(
       `${what}: only one field can use storeIn: "filename" (found ${keys.join(", ")})`,
     );
   }
-  const field = schema[keys[0]!]!;
+  const field = schema[keys[0]];
   if (field.type === "date" && field.time) {
     fail(
       `${what}: "${keys[0]}" uses storeIn: "filename", which cannot be combined with time`,
     );
+  }
+}
+
+/**
+ * A date's only default is "now". The control panel ignores any other value,
+ * which a config the type check never sees (a `.js` one) can still set.
+ */
+function checkDateDefaults(what: string, schema: Schema) {
+  for (const [key, field] of [
+    ...Object.entries(schema),
+    ...nestedFields(schema),
+  ]) {
+    if (field.type !== "date" && field.type !== "datetime") continue;
+    const value: unknown = field.default;
+    if (value !== undefined && value !== "now") {
+      fail(
+        `${what}: "${key}" has default ${JSON.stringify(value)}, but a ${field.type} field's default can only be "now"`,
+      );
+    }
   }
 }
 
@@ -93,6 +110,7 @@ export function validateConfig(config: VestryConfig) {
   for (const [key, singleton] of Object.entries(config.singletons ?? {})) {
     const what = `singleton "${key}"`;
     checkFilenameDates(what, singleton.schema, false);
+    checkDateDefaults(what, singleton.schema);
     checkTemplate(`${what} previewUrl`, singleton.previewUrl);
     checkTemplate(`${what} commitMessage`, singleton.commitMessage);
   }
@@ -119,6 +137,7 @@ function checkCollection(
     }
   }
   checkFilenameDates(what, col.schema, !parsePathPattern(col.path).single);
+  checkDateDefaults(what, col.schema);
   checkTemplate(`${what} previewUrl`, col.previewUrl);
   checkTemplate(`${what} slug.template`, col.slug?.template);
   // A `*` path lists only the files directly in its directory, so entries
@@ -146,4 +165,5 @@ function checkComponent(name: string, component: ComponentConfig) {
       `component "${name}": "${dated[0]}" uses storeIn: "filename", which is only for collection fields`,
     );
   }
+  checkDateDefaults(`component "${name}"`, props);
 }

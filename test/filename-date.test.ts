@@ -133,14 +133,14 @@ describe("slug dates", () => {
   });
 
   it("is not written to the file", () => {
-    const schema = config.collections!.posts!.schema;
+    const schema = config.collections!.posts.schema;
     expect(
       toStoredValues(schema, { title: "T", date: "2020-01-05" }, "x.md"),
     ).toEqual({ title: "T" });
   });
 
   it("stays in the file when it is not a date the name can hold", () => {
-    const schema = config.collections!.posts!.schema;
+    const schema = config.collections!.posts.schema;
     const data = { title: "T", date: "2020-01-05T09:00:00Z" };
     expect(slugWithDate("first", data.date)).toBe("first");
     expect(toStoredValues(schema, data, "x.md")).toEqual(data);

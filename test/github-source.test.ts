@@ -43,6 +43,7 @@ commits.set(baseCommit, { tree: baseTree, parents: [], message: "init" });
 let head = baseCommit;
 const log: string[] = [];
 
+// oxlint-disable-next-line typescript/no-misused-promises -- a failure here fails the test.
 const server = createServer(async (req, res) => {
   const url = new URL(req.url!, "http://x");
   const chunks: Buffer[] = [];

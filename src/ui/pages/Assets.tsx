@@ -75,7 +75,7 @@ export function AssetsPage() {
           <span className="v-mono">{joinPath(container.directory, dir)}</span>
         </Dropzone>
         {q.isLoading && <Loading />}
-        {q.error && <Alert kind="error">{(q.error as Error).message}</Alert>}
+        {q.error && <Alert kind="error">{q.error.message}</Alert>}
         {q.data && (
           <AssetsListing
             listing={q.data}
@@ -108,9 +108,9 @@ function useUpload(key: string, dir: string) {
       api.uploadAssets(key, dir, await uploadPayload(files)),
     onSuccess: (res) => {
       toast("success", uploadedMessage(res.paths.length));
-      qc.invalidateQueries({ queryKey: ["assets", key] });
+      void qc.invalidateQueries({ queryKey: ["assets", key] });
     },
-    onError: (e) => toast("error", (e as Error).message),
+    onError: (e) => toast("error", e.message),
   });
 }
 
@@ -167,9 +167,9 @@ function AssetDetails({
     onSuccess: () => {
       toast("success", "File deleted");
       onClose();
-      qc.invalidateQueries({ queryKey: ["assets", containerKey] });
+      void qc.invalidateQueries({ queryKey: ["assets", containerKey] });
     },
-    onError: (e) => toast("error", (e as Error).message),
+    onError: (e) => toast("error", e.message),
   });
   return (
     <>
