@@ -47,13 +47,16 @@ export function CollectionListPage() {
     dir: "asc" | "desc";
   } | null>(null);
 
-  const [view, setView] = useStoredState<"tree" | "list">(
+  const [view, setView] = useStoredState(
     `vestry:list-view:${key}`,
     "tree",
+    (v): v is "tree" | "list" => v === "tree" || v === "list",
   );
-  const [open, setOpen] = useStoredState<string[]>(
+  const [open, setOpen] = useStoredState(
     `vestry:tree-open:${key}`,
-    [],
+    NONE_OPEN,
+    (v): v is string[] =>
+      Array.isArray(v) && v.every((p) => typeof p === "string"),
   );
   const expanded = useMemo(() => new Set(open), [open]);
   const toggleOpen = (path: string) =>
@@ -306,7 +309,7 @@ function EntryRow({
                 type="button"
                 className="v-table__toggle"
                 aria-expanded={open}
-                aria-label={`${open ? "Collapse" : "Expand"} ${row.label}`}
+                aria-label={`${open ? "Collapse" : "Expand"} ${e?.title ?? row.label}`}
                 onClick={onToggle}
               >
                 <ChevronRight />
@@ -352,19 +355,23 @@ function EntryRow({
   );
 }
 
+const NONE_OPEN: string[] = [];
+
 /**
  * State kept in localStorage under `key`, so a view or an expanded folder
- * survives a reload. Storage that fails or holds garbage falls back to
- * `initial`.
+ * survives a reload. Storage that fails, or holds anything `valid` rejects,
+ * falls back to `initial`.
  */
 function useStoredState<T>(
   key: string,
   initial: T,
+  valid: (value: unknown) => value is T,
 ): [T, (update: ((value: T) => T) | T) => void] {
   const read = (): T => {
     try {
       const raw = localStorage.getItem(key);
-      return raw === null ? initial : (JSON.parse(raw) as T);
+      const stored: unknown = raw === null ? initial : JSON.parse(raw);
+      return valid(stored) ? stored : initial;
     } catch {
       return initial;
     }
@@ -373,7 +380,12 @@ function useStoredState<T>(
     key,
     value: read(),
   }));
-  const value = state.key === key ? state.value : read();
+  // Another collection's list (the page stays mounted): read its key once.
+  let value = state.value;
+  if (state.key !== key) {
+    value = read();
+    setState({ key, value });
+  }
   const set = (update: ((value: T) => T) | T) =>
     setState((s) => {
       const current = s.key === key ? s.value : read();

@@ -71,4 +71,34 @@ describe("treeRows", () => {
       "cw21/1year/advent",
     ]);
   });
+
+  it("keeps a parent in its own place, not its first child's", () => {
+    // Sorted by title: "Apple" (under zoo) comes first, but zoo's own place
+    // is after banana.
+    const rows = treeRows(
+      [
+        entry("zoo/apple", "Apple"),
+        entry("banana", "Banana"),
+        entry("zoo", "Zoo"),
+      ],
+      new Set(["zoo"]),
+    );
+    expect(rows.map((r) => r.path)).toEqual(["banana", "zoo", "zoo/apple"]);
+  });
+
+  it("shortens titles under a folder by the nearest title above", () => {
+    const rows = treeRows(
+      [entry("cw21", "CW21"), entry("cw21/1year/advent", "CW21 - Advent")],
+      new Set(["cw21", "cw21/1year"]),
+    );
+    expect(rows.map((r) => r.label)).toEqual(["CW21", "1year", "Advent"]);
+  });
+
+  it("names an untitled entry by the last part of its slug", () => {
+    const rows = treeRows(
+      [entry("cw21", "cw21"), entry("cw21/1year", "cw21/1year")],
+      new Set(["cw21"]),
+    );
+    expect(rows.map((r) => r.label)).toEqual(["cw21", "1year"]);
+  });
 });

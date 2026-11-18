@@ -1363,9 +1363,12 @@ a.v-chrome__chip:hover {
   border-radius: var(--v-radius-sm);
   background: none;
   color: var(--v-text-muted);
+}
+/* Only a row with children has a button; a leaf's toggle is a spacer. */
+button.v-table__toggle {
   cursor: pointer;
 }
-.v-table__toggle:hover {
+button.v-table__toggle:hover {
   background: #eef0f4;
   color: var(--v-text);
 }

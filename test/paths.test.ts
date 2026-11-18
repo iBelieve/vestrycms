@@ -143,6 +143,14 @@ describe("config validation", () => {
       ),
     ).toThrow('slug.template contains "/", which needs a "**" wildcard');
   });
+
+  it("rejects a tree for a path with no folders", () => {
+    expect(() => vestry(config({ tree: true }))).not.toThrow();
+    for (const path of ["src/content/articles/*.mdx", "src/data/articles.json"])
+      expect(() => vestry(config({ path, tree: "only" }))).toThrow(
+        'sets tree, which needs a "**" wildcard',
+      );
+  });
 });
 
 describe("nested slugs", () => {

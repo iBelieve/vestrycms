@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { openPanel } from "./harness.js";
 import { collection, defineConfig, fields } from "../../src/config/index.js";
 import { formatDate } from "../../src/ui/lib/utils.js";
@@ -181,6 +181,9 @@ const titles = () =>
     .map((a) => a.textContent);
 
 describe("a collection's list", () => {
+  // The list's view and expanded rows are kept in localStorage.
+  afterEach(() => localStorage.clear());
+
   it("shows, searches, filters and sorts its entries", async () => {
     const user = userEvent.setup();
     await openPanel(config, { url: "/collections/posts", files });
@@ -338,7 +341,6 @@ describe("a collection's list", () => {
   });
 
   it("nests entries by folder, and lists them flat on request", async () => {
-    localStorage.clear();
     const user = userEvent.setup();
     await openPanel(config, { url: "/collections/pages", files });
     await screen.findByText("Resources");
@@ -380,7 +382,6 @@ describe("a collection's list", () => {
   });
 
   it("shows a tree with no toggle when the tree is the only view", async () => {
-    localStorage.clear();
     const user = userEvent.setup();
     await openPanel(config, { url: "/collections/readings", files });
     await screen.findByText("CW");
@@ -389,13 +390,21 @@ describe("a collection's list", () => {
     expect(titles()).toEqual(["CW", "Advent"]);
   });
 
-  it("falls back to the defaults when storage holds garbage", async () => {
-    localStorage.setItem("vestry:tree-open:readings", "{nope");
-    await openPanel(config, { url: "/collections/readings", files });
-    await screen.findByText("CW");
-    expect(titles()).toEqual(["CW"]);
-    localStorage.clear();
-  });
+  it.each(["{nope", "{}", "null", '"cw"', "[1]"])(
+    "falls back to the defaults when storage holds %s",
+    async (garbage) => {
+      const user = userEvent.setup();
+      localStorage.setItem("vestry:tree-open:pages", garbage);
+      localStorage.setItem("vestry:list-view:pages", garbage);
+      await openPanel(config, { url: "/collections/pages", files });
+      await screen.findByText("Resources");
+      expect(titles()).toEqual(["About", "Resources"]);
+      await user.click(
+        screen.getByRole("button", { name: "Expand Resources" }),
+      );
+      expect(titles()).toEqual(["About", "Resources", "Music"]);
+    },
+  );
 
   it("invites the first entry of an empty collection", async () => {
     await openPanel(config, { url: "/collections/notes" });
