@@ -152,6 +152,8 @@ const files = {
   ].join("\n"),
   "src/content/people/ann.md": "---\ntitle: Ann\n---\n",
   "src/content/faqs/why.md": "---\nnumber: 29\ntitle: Why?\n---\n\nBecause.\n",
+  "src/content/faqs/how.md": "---\nnumber: 9\ntitle: How?\n---\n",
+  "src/content/faqs/what.md": "---\ntitle: What?\n---\n",
   "src/content/staff/ann.md": [
     "---",
     "name: Ann",
@@ -270,8 +272,9 @@ describe("a collection's list", () => {
     expect(titles()).toEqual(["Alpha", "Beta"]);
     await user.click(screen.getByRole("button", { name: "Date" }));
     expect(titles()).toEqual(["Beta", "Alpha"]);
+    // Alpha has no extra, so it comes last either way.
     await user.click(screen.getByRole("button", { name: "Extra" }));
-    expect(titles()).toEqual(["Alpha", "Beta"]);
+    expect(titles()).toEqual(["Beta", "Alpha"]);
     // The status column sorts by the status it shows (drafts first).
     await user.click(screen.getByRole("button", { name: "Status" }));
     expect(titles()).toEqual(["Beta", "Alpha"]);
@@ -288,6 +291,26 @@ describe("a collection's list", () => {
       screen.getAllByRole("columnheader").map((h) => h.textContent),
     ).toEqual(["Title", "Status", ""]);
     expect(screen.getByText("Published")).toBeTruthy();
+  });
+
+  it("sorts a column as the server does: numbers as numbers, missing last", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/faqs", files });
+    await screen.findByText("Why?");
+    const questions = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map(
+          (r) =>
+            /^\w+\?/.exec(
+              (r as HTMLTableRowElement).cells[1].textContent ?? "",
+            )?.[0],
+        );
+    await user.click(screen.getByRole("button", { name: "Number" }));
+    expect(questions()).toEqual(["How?", "Why?", "What?"]);
+    await user.click(screen.getByRole("button", { name: "Number" }));
+    expect(questions()).toEqual(["Why?", "How?", "What?"]);
   });
 
   it("places the title where its columns list it, once", async () => {

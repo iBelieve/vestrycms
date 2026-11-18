@@ -394,3 +394,26 @@ export function rewriteReferences(
   });
   return changed ? next : null;
 }
+
+/**
+ * Compares two values of a sort field in direction `dir` (1 or -1): numbers
+ * and dates as such, the rest as text, and missing values (none, or "")
+ * last whatever the direction.
+ */
+export function compareSortValues(a: unknown, b: unknown, dir: number): number {
+  const am = isMissing(a);
+  const bm = isMissing(b);
+  if (am || bm) return am === bm ? 0 : am ? 1 : -1;
+  const av = sortable(a);
+  const bv = sortable(b);
+  return av < bv ? -dir : av > bv ? dir : 0;
+}
+
+const isMissing = (v: unknown) => v === undefined || v === null || v === "";
+
+function sortable(v: unknown): string | number {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number") return v;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  return String(v ?? "");
+}

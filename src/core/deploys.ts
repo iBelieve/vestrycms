@@ -231,11 +231,16 @@ function pendingState(
   return "unknown";
 }
 
-/** The editor Vestry credited as co-author, or the commit's author. */
+/**
+ * The editor Vestry credited as co-author of its GitHub App's commit, or
+ * the commit's author. Only the app's (bot) commits are credited this way:
+ * a person's commit can carry a co-author too, such as a coding assistant.
+ */
 function creditedAuthor(commit: SourceCommit): {
   name: string;
   email: string | null;
 } {
+  if (!commit.author.name.includes("[bot]")) return commit.author;
   const trailers = [
     ...commit.message.matchAll(/^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim),
   ];

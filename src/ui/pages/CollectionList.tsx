@@ -15,6 +15,7 @@ import type {
   ListColumn,
 } from "../../config/types.js";
 import { basename, fillTemplate, isEditable } from "../../core/paths.js";
+import { compareSortValues } from "../../core/values.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
 import {
@@ -208,11 +209,14 @@ function sortEntries(
 ): EntrySummary[] {
   if (!sort) return entries;
   const dir = sort.dir === "asc" ? 1 : -1;
-  return [...entries].sort((a, b) => {
-    const av = sortValue(a, sort.field, titleField);
-    const bv = sortValue(b, sort.field, titleField);
-    return av < bv ? -dir : av > bv ? dir : 0;
-  });
+  // The same order as the server's: numbers as numbers, missing last.
+  return [...entries].sort((a, b) =>
+    compareSortValues(
+      sortValue(a, sort.field, titleField),
+      sortValue(b, sort.field, titleField),
+      dir,
+    ),
+  );
 }
 
 /** A row of buttons choosing one of `options`, each labelled in title case. */
@@ -646,13 +650,13 @@ function sortValue(
   entry: EntrySummary,
   field: string,
   titleField: string,
-): string {
+): unknown {
   if (field === titleField) return entry.title;
   if (field === "slug") return entry.slug;
   // The column shows the entry's status, which `data` holds under the
   // status field's own key, if at all.
-  if (field === "status") return entry.status ?? "";
-  return String(entry.data[field] ?? "");
+  if (field === "status") return entry.status;
+  return entry.data[field];
 }
 
 function CellValue({ field, value }: { field?: Field; value: unknown }) {

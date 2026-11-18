@@ -36,7 +36,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
   the warning replaces it.
 - **Entries without a sort value come last,** and entries with the same
   value go by title. A collection sorted by `order` used to list the entries
-  without one first, ties in slug order.
+  without one first, ties in slug order. Clicking a column header sorts the
+  same way, and now compares numbers as numbers (`9` before `10`).
 
 ### Fixed
 
