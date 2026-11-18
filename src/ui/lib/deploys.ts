@@ -1,12 +1,20 @@
-import type { DeployState, DeployStatus } from "../../core/deploys.js";
+import type {
+  DeployCommit,
+  DeployState,
+  DeployStatus,
+} from "../../core/deploys.js";
 
-/** What each commit's state is called in the list. */
+/**
+ * What each commit's state is called in the list. Waiting for a build,
+ * queued and riding along with a newer build all mean the same to an
+ * editor: the change goes out with the next build.
+ */
 export const STATE_LABELS: Record<DeployState, string> = {
   live: "Live",
-  waiting: "Waiting to build",
-  queued: "Queued",
-  building: "Building",
-  superseded: "In the next build",
+  waiting: "Waiting",
+  queued: "Waiting",
+  building: "Publishing",
+  superseded: "Waiting",
   failed: "Build failed",
   overwritten: "Replaced by an older build",
   unknown: "Not built",
@@ -70,4 +78,47 @@ export function timeAgo(iso: string, now: number): string {
 export function aboutDuration(seconds: number): string {
   if (seconds < 60) return "under a minute";
   return `about ${Math.round(seconds / 60)} min`;
+}
+
+/** A titled group of commits in the open list. */
+export interface CommitGroup {
+  key: string;
+  title: string;
+  commits: DeployCommit[];
+}
+
+/** The list's sections, in order, and the states each one holds. */
+const SECTIONS: { key: string; title: string; states: DeployState[] }[] = [
+  {
+    key: "waiting",
+    title: "Waiting to publish",
+    states: ["waiting", "queued", "superseded"],
+  },
+  { key: "building", title: "Publishing now", states: ["building"] },
+  {
+    key: "stuck",
+    title: "Not published",
+    states: ["failed", "unknown", "overwritten"],
+  },
+  { key: "live", title: "On the site", states: ["live"] },
+];
+
+/** The commits by section, leaving out empty sections. */
+export function groupCommits(commits: DeployCommit[]): CommitGroup[] {
+  return SECTIONS.map(({ key, title, states }) => ({
+    key,
+    title,
+    commits: commits.filter((c) => states.includes(c.state)),
+  })).filter((g) => g.commits.length > 0);
+}
+
+/** How far along a running build probably is, from 0 to 0.95. */
+export function buildProgress(
+  startedAt: string | null,
+  typicalSeconds: number | null,
+  now: number,
+): number | null {
+  if (!startedAt || !typicalSeconds) return null;
+  const elapsed = (now - Date.parse(startedAt)) / 1000;
+  return Math.min(0.95, Math.max(0.03, elapsed / typicalSeconds));
 }

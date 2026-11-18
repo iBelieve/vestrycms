@@ -6,7 +6,6 @@ import {
   CircleSlash,
   Clock,
   ExternalLink,
-  Layers,
   LoaderCircle,
   Undo2,
 } from "lucide-react";
@@ -16,7 +15,9 @@ import type { DeployStatus as Status } from "../api.js";
 import { useVestry } from "../context.js";
 import {
   aboutDuration,
+  buildProgress,
   deploySummary,
+  groupCommits,
   newestIsLive,
   pollInterval,
   STATE_LABELS,
@@ -32,7 +33,7 @@ const STATE_ICONS: Record<DeployState, ReactNode> = {
   waiting: <Clock />,
   queued: <Clock />,
   building: <LoaderCircle className="v-deploys__spin" />,
-  superseded: <Layers />,
+  superseded: <Clock />,
   failed: <CircleExclamationPoint />,
   overwritten: <Undo2 />,
   unknown: <CircleSlash />,
@@ -103,11 +104,21 @@ function DeployList({ status }: { status: Available }) {
     <div className="v-deploys">
       <div className="v-menu__heading">Site builds</div>
       <p className="v-deploys__lead">{leadText(status)}</p>
-      <ul className="v-deploys__list">
-        {status.commits.map((c) => (
-          <CommitRow key={c.sha} commit={c} now={now} />
-        ))}
-      </ul>
+      {groupCommits(status.commits).map((group) => (
+        <section key={group.key} className="v-deploys__group">
+          <h4 className="v-deploys__group-title">{group.title}</h4>
+          <ul className="v-deploys__list">
+            {group.commits.map((c) => (
+              <CommitRow
+                key={c.sha}
+                commit={c}
+                now={now}
+                typical={status.typicalSeconds}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }
@@ -128,12 +139,31 @@ function leadText(status: Available): string {
   return "Every change below is live on the site.";
 }
 
-function CommitRow({ commit, now }: { commit: DeployCommit; now: number }) {
+function CommitRow({
+  commit,
+  now,
+  typical,
+}: {
+  commit: DeployCommit;
+  now: number;
+  typical: number | null;
+}) {
   const link = commit.buildUrl ?? commit.url;
+  const building = commit.state === "building";
   const when =
-    commit.state === "building" && commit.buildStartedAt
+    building && commit.buildStartedAt
       ? `started ${timeAgo(commit.buildStartedAt, now)}`
       : timeAgo(commit.date, now);
+  const progress = building
+    ? buildProgress(commit.buildStartedAt, typical, now)
+    : null;
+  // The section says the state; a failure, and the commit the site was
+  // deployed from, are called out on the row.
+  const note = commit.current
+    ? "On the site now"
+    : commit.state === "failed" || commit.state === "overwritten"
+      ? STATE_LABELS[commit.state]
+      : null;
   return (
     <li className={cx("v-deploys__row", `is-${commit.state}`)}>
       <span className="v-deploys__icon" title={STATE_LABELS[commit.state]}>
@@ -151,11 +181,19 @@ function CommitRow({ commit, now }: { commit: DeployCommit; now: number }) {
           )}
         </span>
         <small>
-          {commit.mine ? "You" : commit.author} · {when} ·{" "}
-          <span className="v-deploys__state">
-            {commit.current ? "On the site now" : STATE_LABELS[commit.state]}
-          </span>
+          {commit.mine ? "You" : commit.author} · {when}
+          {note && (
+            <>
+              {" · "}
+              <span className="v-deploys__state">{note}</span>
+            </>
+          )}
         </small>
+        {progress !== null && (
+          <span className="v-deploys__progress">
+            <span style={{ width: `${progress * 100}%` }} />
+          </span>
+        )}
       </span>
     </li>
   );

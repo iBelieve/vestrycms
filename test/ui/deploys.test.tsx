@@ -101,6 +101,12 @@ describe("build status", () => {
     expect(
       within(list as HTMLElement).getByText(/2 changes are on the way/),
     ).toBeTruthy();
+    expect(
+      [...list.querySelectorAll(".v-deploys__group-title")].map(
+        (h) => h.textContent,
+      ),
+    ).toEqual(["Waiting to publish", "Publishing now", "On the site"]);
+    expect(list.querySelector(".v-deploys__progress span")).toBeTruthy();
     const rows = [...list.querySelectorAll(".v-deploys__row")];
     expect(rows.map((r) => r.className.split("is-")[1])).toEqual([
       "queued",

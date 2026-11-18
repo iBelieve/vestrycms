@@ -480,10 +480,13 @@ Cloudflare Workers Builds) is live only once that commit's build deploys.
 The top bar shows where the latest saves are: **Publishing** while a build
 is coming or running, **Live** once it has deployed, **Build failed** if the
 newest build failed, and **Not live** if its build was cancelled or never
-reported, or an older build deployed after it. It opens a list of the last ten commits on the branch,
-each marked live, queued, building, in the next build or failed, with a link
-to its build log; the commit the site was deployed from last is marked "On
-the site now". Toasts say when changes you watched publishing go live.
+reported, or an older build deployed after it. It opens the last ten
+commits on the branch in sections: **Waiting to publish** (queued, or going
+out with a newer build), **Publishing now** (with a progress bar timed from
+recent builds), **Not published** (a failed or cancelled build) and **On
+the site**, where the commit the site was deployed from is marked "On the
+site now". Each links to its build log. Toasts say when changes you watched
+publishing go live.
 
 The status is read from the check runs the host posts on each commit
 (Workers Builds names them `Workers Builds: <worker>`, Pages

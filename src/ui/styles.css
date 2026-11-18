@@ -303,7 +303,6 @@ button.v-chrome__chip:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--v-border);
 }
 .v-deploys__row {
   display: flex;
@@ -351,6 +350,33 @@ button.v-chrome__chip:hover {
   display: block;
   color: var(--v-text-muted);
   font-size: 12px;
+}
+.v-deploys__group-title {
+  margin: 0;
+  padding: 10px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v-text-faint);
+}
+.v-deploys__group {
+  border-top: 1px solid var(--v-border);
+}
+.v-deploys__progress {
+  display: block;
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--v-border);
+  overflow: hidden;
+}
+.v-deploys__progress span {
+  display: block;
+  height: 100%;
+  background: var(--v-primary);
+  border-radius: 2px;
+  transition: width 1s linear;
 }
 .v-deploys__row.is-failed .v-deploys__state {
   color: var(--v-danger);
