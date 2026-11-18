@@ -8,6 +8,7 @@ import type {
   CollectionConfig,
   EditorSection,
   Field,
+  Schema,
   SingletonConfig,
   VestryConfig,
 } from "../../config/types.js";
@@ -18,6 +19,7 @@ import {
   entryPath,
   fillTemplate,
   isEditable,
+  isReadOnly,
   isReservedSlug,
   reservedSlugProblem,
   isSafeSlug,
@@ -116,13 +118,14 @@ export function slugBox(
 
 /**
  * Why an existing entry's slug can't change, if it can't: its collection
- * isn't `editable`, or its slug is reserved.
+ * is read-only or has fixed entries, or its slug is reserved.
  */
 export function slugFixed(
   collection: CollectionConfig | null,
   slug: string | null,
 ): string | null {
   if (!collection || slug === null) return null;
+  if (isReadOnly(collection)) return "This collection is read-only.";
   if (!isEditable(collection))
     return "This collection doesn't allow renaming entries.";
   if (isReservedSlug(collection, slug))
@@ -476,4 +479,26 @@ export function slugHint(
 ): string | null {
   if (pattern.single || !(isNew || renaming)) return null;
   return `${renaming ? "Renames the file to " : ""}${entryPath(pattern, slug || "…")}`;
+}
+
+/**
+ * `schema` with every field read-only, nested ones included, for a
+ * read-only collection.
+ */
+export function readOnlySchema(schema: Schema): Schema {
+  return Object.fromEntries(
+    Object.entries(schema).map(([key, field]) => [key, readOnlyField(field)]),
+  );
+}
+
+function readOnlyField(field: Field): Field {
+  switch (field.type) {
+    case "object":
+    case "tree":
+      return { ...field, readOnly: true, fields: readOnlySchema(field.fields) };
+    case "array":
+      return { ...field, readOnly: true, of: readOnlyField(field.of) };
+    default:
+      return { ...field, readOnly: true };
+  }
 }

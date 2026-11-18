@@ -168,21 +168,24 @@ function checkCollection(
   checkEditing(what, col);
 }
 
-/** What to do instead of each Vestry 0.4 setting that `editable` replaced. */
+const KEEP_ENTRIES =
+  "set fixedEntries: true to keep entries from being created, deleted or renamed";
+
+/** What to do instead of each earlier setting that `fixedEntries` replaced. */
 const REPLACED: Record<string, string> = {
-  create:
-    "set editable: false to keep entries from being created, deleted or renamed",
-  delete:
-    "remove it, since deleting an entry that others refer to now asks first, or set editable: false to keep entries from being created, deleted or renamed",
+  create: KEEP_ENTRIES,
+  delete: `remove it, since deleting an entry that others refer to now asks first, or ${KEEP_ENTRIES}`,
+  editable: `${KEEP_ENTRIES} (editable: false), or remove it (editable: true)`,
 };
 
-/** `editable` (and the settings it replaced) and `reservedSlugs`. */
+/** `fixedEntries`, `readOnly` (and the settings they replaced) and `reservedSlugs`. */
 function checkEditing(what: string, col: CollectionConfig) {
   for (const [old, instead] of Object.entries(REPLACED))
     if (old in col)
       fail(`${what} sets ${old}, which Vestry replaced: ${instead}`);
-  if (col.editable !== undefined && typeof col.editable !== "boolean")
-    fail(`${what} editable must be true or false`);
+  for (const flag of ["fixedEntries", "readOnly"] as const)
+    if (col[flag] !== undefined && typeof col[flag] !== "boolean")
+      fail(`${what} ${flag} must be true or false`);
   checkReservedSlugs(what, col.reservedSlugs);
 }
 

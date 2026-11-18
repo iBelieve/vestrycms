@@ -1551,6 +1551,13 @@ button.v-table__toggle:hover {
 }
 
 /* ------------------------------------------------------------ editor */
+/* Wraps the editor so a read-only collection disables every control. */
+.v-editor-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
 .v-editor-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;

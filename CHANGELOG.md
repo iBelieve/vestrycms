@@ -3,6 +3,24 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Added
+
+- **`readOnly: true`** on a collection makes it read-only in the control
+  panel, for entries a script or another tool writes. Entries open with
+  every field and the body read-only and a notice saying so, with no Save,
+  New or Delete button, and the API refuses any save, creation, rename or
+  deletion.
+
+### Changed
+
+- **`fixedEntries: true` replaces `editable: false`.** It does the same
+  thing (entries can't be created, deleted or renamed, but their content
+  can be edited), under a name that doesn't read as "read-only". A config
+  that still sets `editable` fails at startup with a message saying what to
+  use instead.
+
 ## 0.5.0
 
 ### Added
