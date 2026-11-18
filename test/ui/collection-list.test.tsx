@@ -67,6 +67,16 @@ const config = defineConfig({
       columns: ["number", { field: "title", label: "Question" }, "title"],
       schema: { number: fields.number(), title: fields.text() },
     }),
+    authors: collection({
+      label: "Authors",
+      path: "src/content/authors.yaml",
+      titleField: "name",
+      sort: { field: "name", direction: "asc" },
+      schema: {
+        id: fields.slug({ from: "name" }),
+        name: fields.text(),
+      },
+    }),
     staff: collection({
       label: "Staff",
       path: "src/content/staff/*.md",
@@ -139,6 +149,7 @@ const files = {
     "---",
     "",
   ].join("\n"),
+  "src/content/authors.yaml": "- id: ann\n  name: Ann Smith\n",
   "src/content/staff/bob.md": "---\nname: Bob\ntitle: Accountant\n---\n",
 };
 
@@ -294,6 +305,15 @@ describe("a collection's list", () => {
     expect(titles()).toEqual(["Ann", "Bob"]);
     await user.click(screen.getByRole("button", { name: "Full name" }));
     expect(titles()).toEqual(["Bob", "Ann"]);
+  });
+
+  it("shows a title field that is also the sort field once", async () => {
+    await openPanel(config, { url: "/collections/authors", files });
+    await screen.findByText("Ann Smith");
+    expect(
+      screen.getAllByRole("columnheader").map((h) => h.textContent),
+    ).toEqual(["Name", ""]);
+    expect(screen.getAllByText("Ann Smith")).toHaveLength(1);
   });
 
   it("invites the first entry of an empty collection", async () => {

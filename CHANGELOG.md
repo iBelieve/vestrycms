@@ -15,6 +15,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
   collection's `columns` now places the title column (labelled as that
   column or field is) instead of adding a second copy of the title, which
   took most of the width and squeezed the real title to a word per line.
+  The same goes for a collection without `columns` sorted by its title
+  field (its list showed the title, then the same name again).
   The title column also keeps at least 260px, scrolling the table sideways
   when needed, and other columns cut a long value short instead of
   crowding it. In a collection whose `titleField` is not `title`, a column
