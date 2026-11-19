@@ -3,6 +3,7 @@
  * error at startup rather than something the control panel quietly ignores.
  */
 import { isSafeSlug, parsePathPattern, templateError } from "../core/paths.js";
+import { ICON_NAMES, isIconName } from "./icons.js";
 import type {
   CollectionConfig,
   ComponentConfig,
@@ -178,7 +179,7 @@ const REPLACED: Record<string, string> = {
   editable: `${KEEP_ENTRIES} (editable: false), or remove it (editable: true)`,
 };
 
-/** `fixedEntries`, `readOnly` (and the settings they replaced) and `reservedSlugs`. */
+/** `fixedEntries`, `readOnly` (and the settings they replaced), `reservedSlugs` and `pinned`. */
 function checkEditing(what: string, col: CollectionConfig) {
   for (const [old, instead] of Object.entries(REPLACED))
     if (old in col)
@@ -186,19 +187,48 @@ function checkEditing(what: string, col: CollectionConfig) {
   for (const flag of ["fixedEntries", "readOnly"] as const)
     if (col[flag] !== undefined && typeof col[flag] !== "boolean")
       fail(`${what} ${flag} must be true or false`);
-  checkReservedSlugs(what, col.reservedSlugs);
+  checkSlugList(what, "reservedSlugs", col.reservedSlugs);
+  checkPinned(what, col.pinned);
 }
 
-/** Every reserved slug must be a slug (a hole or `undefined` included). */
-function checkReservedSlugs(what: string, slugs: unknown) {
+/** Every slug in the list must be a slug (a hole or `undefined` included). */
+function checkSlugList(what: string, key: string, slugs: unknown) {
   if (slugs === undefined) return;
-  if (!Array.isArray(slugs))
-    fail(`${what} reservedSlugs must be a list of slugs`);
-  for (const slug of slugs as unknown[])
-    if (typeof slug !== "string" || !isSafeSlug(slug))
-      fail(
-        `${what} reservedSlugs has ${JSON.stringify(slug) ?? "undefined"}, which is not a slug`,
-      );
+  if (!Array.isArray(slugs)) fail(`${what} ${key} must be a list of slugs`);
+  for (const slug of slugs as unknown[]) checkSlug(what, key, slug);
+}
+
+function checkSlug(what: string, key: string, slug: unknown) {
+  if (typeof slug !== "string" || !isSafeSlug(slug))
+    fail(
+      `${what} ${key} has ${JSON.stringify(slug) ?? "undefined"}, which is not a slug`,
+    );
+}
+
+/** Each pinned entry is a slug, or `{ slug, icon? }`. */
+function checkPinned(what: string, pinned: unknown) {
+  if (pinned === undefined) return;
+  if (!Array.isArray(pinned))
+    fail(`${what} pinned must be a list of slugs or { slug, icon }`);
+  for (const item of pinned as unknown[]) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      checkSlug(what, "pinned", item);
+      continue;
+    }
+    const { slug, icon } = item as { slug?: unknown; icon?: unknown };
+    checkSlug(what, "pinned", slug);
+    checkIcon(`${what} pinned icon for "${String(slug)}"`, icon);
+  }
+}
+
+/** An icon, if given, must be one the panel draws, not a stand-in file. */
+function checkIcon(what: string, icon: unknown) {
+  if (icon === undefined) return;
+  if (typeof icon !== "string") return fail(`${what} must be an icon name`);
+  if (!isIconName(icon))
+    fail(
+      `${what} is ${JSON.stringify(icon)}, which is not one of the panel's icons (${ICON_NAMES.join(", ")})`,
+    );
 }
 
 function checkComponent(name: string, component: ComponentConfig) {

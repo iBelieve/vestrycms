@@ -197,6 +197,36 @@ describe("validateConfig", () => {
     ).toThrow("reservedSlugs has undefined, which is not a slug");
   });
 
+  it("accepts pinned slugs, with or without icons, but only slugs", () => {
+    expect(() =>
+      validateConfig(
+        posts({ pinned: [{ slug: "index", icon: "house" }, "docs/start"] }),
+      ),
+    ).not.toThrow();
+    expect(() => validateConfig(posts({ pinned: "index" as never }))).toThrow(
+      "pinned must be a list of slugs or { slug, icon }",
+    );
+    expect(() => validateConfig(posts({ pinned: ["/x"] }))).toThrow(
+      'pinned has "/x", which is not a slug',
+    );
+    expect(() =>
+      validateConfig(posts({ pinned: [{ icon: "house" } as never] })),
+    ).toThrow("pinned has undefined, which is not a slug");
+    expect(() =>
+      validateConfig(posts({ pinned: [{ slug: "404", icon: 4 as never }] })),
+    ).toThrow('pinned icon for "404" must be an icon name');
+    // A name the panel doesn't draw would show as a plain file icon.
+    expect(() =>
+      validateConfig(posts({ pinned: [{ slug: "index", icon: "home" }] })),
+    ).toThrow(
+      'pinned icon for "index" is "home", which is not one of the panel\'s icons',
+    );
+    // A pair instead of { slug, icon } is named as written.
+    expect(() =>
+      validateConfig(posts({ pinned: [["index", "house"] as never] })),
+    ).toThrow('pinned has ["index","house"], which is not a slug');
+  });
+
   it("accepts fixedEntries and readOnly only as true or false", () => {
     for (const flag of ["fixedEntries", "readOnly"])
       expect(() => validateConfig(posts({ [flag]: "true" as never }))).toThrow(

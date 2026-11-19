@@ -7,6 +7,16 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **Special pages first.** A collection's special entries are listed
+  first, above a divider, whatever the sort or view. In a collection of a
+  file per entry, that is the home page, `index`, with a house icon, so a
+  site's home page is at the top of Pages whatever its title, and in
+  `src/pages/` also Astro's error pages, `404` and `500`.
+  **`pinned`** on a collection names them instead, each a slug or
+  `{ slug, icon }` (`pinned: [{ slug: "home", icon: "house" }]`), and
+  `pinned: []` turns them off. In a tree they leave their folder and show
+  their slug.
+- The `house`, `file-question-mark` and `triangle-alert` icons.
 - **`readOnly: true`** on a collection makes it read-only in the control
   panel, for entries a script or another tool writes. Entries open with
   every field and the body read-only and a notice saying so, with no Save,

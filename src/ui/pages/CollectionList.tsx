@@ -14,7 +14,12 @@ import type {
   Field,
   ListColumn,
 } from "../../config/types.js";
-import { basename, fillTemplate, isEditable } from "../../core/paths.js";
+import {
+  basename,
+  fillTemplate,
+  isEditable,
+  pinnedEntries,
+} from "../../core/paths.js";
 import { compareSortValues } from "../../core/values.js";
 import { Icon } from "../components/Icon.js";
 import { TopBar } from "../components/Layout.js";
@@ -318,6 +323,7 @@ function EntryTable({
 }) {
   const { col } = props;
   const columns = listColumns(col);
+  const { pinned, rest } = splitPinned(col, entries);
   const header = (c: ListColumn) => (
     <SortHeader
       key={c.field}
@@ -344,28 +350,112 @@ function EntryTable({
             <th />
           </tr>
         </thead>
+        {pinned.length > 0 && (
+          <tbody>
+            {pinned.map(({ entry, icon }) => (
+              <EntryRow
+                key={entry.slug}
+                {...props}
+                columns={columns}
+                row={flatRow(entry)}
+                pinned={{ icon, inTree: tree }}
+              />
+            ))}
+          </tbody>
+        )}
+        {pinned.length > 0 && rest.length > 0 && (
+          <tbody className="v-table__divider" aria-hidden="true">
+            <tr>
+              <td colSpan={columnCount(columns)} />
+            </tr>
+          </tbody>
+        )}
         <tbody>
           {tree ? (
-            <TreeRows entries={entries} {...props} columns={columns} />
+            <TreeRows
+              entries={withPinnedParents(entries, rest)}
+              {...props}
+              columns={columns}
+            />
           ) : (
-            entries.map((e) => (
+            rest.map((e) => (
               <EntryRow
                 key={e.slug}
                 {...props}
                 columns={columns}
-                row={{
-                  path: e.slug,
-                  depth: 0,
-                  entry: e,
-                  label: e.title,
-                  children: 0,
-                }}
+                row={flatRow(e)}
               />
             ))
           )}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** A pinned entry and the icon shown before its title. */
+type Pinned = { entry: EntrySummary; icon?: string };
+
+/**
+ * The collection's pinned entries (`pinnedEntries`), in their order,
+ * whatever the sort or view; and the rest, in the list's order. Slugs match
+ * ignoring case, as reserved slugs do.
+ */
+function splitPinned(
+  col: CollectionConfig,
+  entries: EntrySummary[],
+): { pinned: Pinned[]; rest: EntrySummary[] } {
+  const list = pinnedEntries(col);
+  if (list.length === 0) return { pinned: [], rest: entries };
+  // Each slug's first place in the list, and its icon.
+  const order = new Map<string, { rank: number; icon?: string }>();
+  for (const [rank, { slug, icon }] of list.entries())
+    if (!order.has(slug.toLowerCase()))
+      order.set(slug.toLowerCase(), { rank, icon });
+  const pinned: (Pinned & { rank: number })[] = [];
+  const rest: EntrySummary[] = [];
+  for (const entry of entries) {
+    const at = order.get(entry.slug.toLowerCase());
+    if (at) pinned.push({ entry, ...at });
+    else rest.push(entry);
+  }
+  pinned.sort((a, b) => a.rank - b.rank);
+  return { pinned, rest };
+}
+
+/**
+ * The entries for the tree under the pinned ones: the rest, and any pinned
+ * entry with others under it, which stays in the tree too, to head its
+ * folder (`entries` keeps the list's order).
+ */
+function withPinnedParents(
+  entries: EntrySummary[],
+  rest: EntrySummary[],
+): EntrySummary[] {
+  if (rest.length === entries.length) return rest;
+  const kept = new Set(rest);
+  const parents = new Set<string>();
+  for (const e of rest) {
+    const parts = e.slug.split("/");
+    for (let i = 1; i < parts.length; i++)
+      parents.add(parts.slice(0, i).join("/"));
+  }
+  return entries.filter((e) => kept.has(e) || parents.has(e.slug));
+}
+
+/** An entry's row in a flat list. */
+function flatRow(entry: EntrySummary): TreeRow {
+  return { path: entry.slug, depth: 0, entry, label: entry.title, children: 0 };
+}
+
+/** How many cells a row of the table has. */
+function columnCount(columns: Columns): number {
+  // The title and the actions, around the configured columns.
+  return (
+    columns.before.length +
+    columns.after.length +
+    (columns.extraStatus ? 1 : 0) +
+    2
   );
 }
 
@@ -411,10 +501,12 @@ function EntryRow({
   row,
   open,
   onToggle,
+  pinned,
 }: RowProps & {
   row: TreeRow;
   open?: boolean;
   onToggle?: () => void;
+  pinned?: PinnedRow;
 }) {
   const e = row.entry;
   const cells = (list: ListColumn[]) =>
@@ -430,15 +522,17 @@ function EntryRow({
       {cells(columns.before)}
       <td className="v-table__main">
         <div
-          className={cx(onToggle && "v-table__node")}
+          className={cx((onToggle || pinned?.inTree) && "v-table__node")}
           style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
         >
+          {pinned?.inTree && <span className="v-table__toggle" />}
           {onToggle && <NodeToggle row={row} open={open} onToggle={onToggle} />}
           <RowLabel
             col={col}
             colKey={colKey}
             row={row}
             folded={!!onToggle && !open}
+            pinned={pinned}
           />
         </div>
       </td>
@@ -494,24 +588,25 @@ function RowLabel({
   colKey,
   row,
   folded,
+  pinned,
 }: {
   col: CollectionConfig;
   colKey: string;
   row: TreeRow;
   /** A closed tree row, which shows how many rows it hides. */
   folded: boolean;
+  pinned?: PinnedRow;
 }) {
   const e = row.entry;
   return (
     <div className="v-table__label">
       {e ? (
-        <Link
-          className="v-table__title"
-          to={entryHref(colKey, e.slug)}
-          title={row.label === e.title ? undefined : e.title}
-        >
-          {row.label}
-        </Link>
+        <EntryLink
+          colKey={colKey}
+          entry={e}
+          label={row.label}
+          pinned={pinned}
+        />
       ) : (
         <span className="v-table__folder">{row.label}</span>
       )}
@@ -520,6 +615,52 @@ function RowLabel({
       )}
       {e && <EntrySubtitle col={col} entry={e} />}
     </div>
+  );
+}
+
+/**
+ * How a pinned entry's row differs: an icon before its title, and above a
+ * tree, out of its folder, lined up with the tree's rows (past their
+ * toggles) and showing its slug.
+ */
+type PinnedRow = { icon?: string; inTree: boolean };
+
+/**
+ * The link to an entry, with a pinned entry's icon before it and, above a
+ * tree, its slug after it (unless the label already is the slug, as an
+ * untitled entry's is).
+ */
+function EntryLink({
+  colKey,
+  entry,
+  label,
+  pinned,
+}: {
+  colKey: string;
+  entry: EntrySummary;
+  label: string;
+  pinned?: PinnedRow;
+}) {
+  const link = (
+    <Link
+      className="v-table__title"
+      to={entryHref(colKey, entry.slug)}
+      title={label === entry.title ? undefined : entry.title}
+    >
+      {label}
+    </Link>
+  );
+  const path =
+    pinned?.inTree && entry.slug.includes("/") && label !== entry.slug;
+  if (!pinned?.icon && !path) return link;
+  return (
+    <span className="v-table__marked">
+      {pinned?.icon && (
+        <Icon className="v-table__pin-icon" name={pinned.icon} aria-hidden />
+      )}
+      {link}
+      {path && <span className="v-table__path v-mono">{entry.slug}</span>}
+    </span>
   );
 }
 

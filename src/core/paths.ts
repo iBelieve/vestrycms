@@ -1,6 +1,7 @@
 import type {
   CollectionConfig,
   EntryFormat,
+  PinnedEntry,
   SingletonConfig,
 } from "../config/types.js";
 
@@ -146,6 +147,37 @@ export function isEditable(c: CollectionConfig): boolean {
 /** Whether nothing in the collection can be saved (`readOnly`). */
 export function isReadOnly(c: CollectionConfig): boolean {
   return c.readOnly === true;
+}
+
+/** The home page, by the name Astro gives it in `src/pages/`. */
+const HOME_PAGE: PinnedEntry = { slug: "index", icon: "house" };
+
+/** The error pages Astro builds from `src/pages/`. */
+const ERROR_PAGES: PinnedEntry[] = [
+  { slug: "404", icon: "file-question-mark" },
+  { slug: "500", icon: "triangle-alert" },
+];
+
+/**
+ * The entries a collection lists first: its `pinned`, or else, in a
+ * collection of a file per entry named by its slug (`*.mdx`, `**.mdx`), the
+ * home page, `index`, and, directly in `src/pages/`, where Astro reads them,
+ * the error pages `404` and `500` (elsewhere `404` may as well be a hymn
+ * number). A collection kept in one file, or of files named alike in
+ * folders (`**` + `/index.md`), pins none.
+ */
+export function pinnedEntries(c: CollectionConfig): PinnedEntry[] {
+  // Copies, so a caller that changes the list changes neither the config
+  // nor every other collection's defaults.
+  if (c.pinned)
+    return c.pinned.map((p) =>
+      typeof p === "string" ? { slug: p } : { ...p },
+    );
+  const pattern = parsePathPattern(c.path);
+  if (pattern.single || !pattern.suffix.startsWith(".")) return [];
+  const defaults =
+    pattern.prefix === "src/pages/" ? [HOME_PAGE, ...ERROR_PAGES] : [HOME_PAGE];
+  return defaults.map((p) => ({ ...p }));
 }
 
 /**

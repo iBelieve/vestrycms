@@ -110,6 +110,32 @@ const config = defineConfig({
         flags: fields.array(fields.boolean()),
       },
     }),
+    site: collection({
+      label: "Site pages",
+      path: "src/content/site/**.md",
+      tree: true,
+      sort: { field: "title", direction: "asc" },
+      pinned: [
+        { slug: "index", icon: "house" },
+        { slug: "404", icon: "file-question-mark" },
+        "docs/start",
+        "nope",
+      ],
+      schema: { title: fields.text() },
+    }),
+    home: collection({
+      label: "Home pages",
+      path: "src/pages/*.md",
+      schema: { title: fields.text() },
+    }),
+    manual: collection({
+      label: "Manual",
+      path: "src/content/manual/**.md",
+      tree: "only",
+      sort: { field: "title", direction: "asc" },
+      pinned: ["guide"],
+      schema: { title: fields.text() },
+    }),
     notes: collection({
       label: "Notes",
       path: "src/content/notes/*.md",
@@ -170,6 +196,18 @@ const files = {
   "src/content/pages/resources/music.md":
     "---\ntitle: Resources - Music\ndraft: true\n---\n",
   "src/content/pages/guides/one.md": "---\ntitle: Guide one\n---\n",
+  "src/content/site/404.md": "---\ntitle: Not found\n---\n",
+  "src/content/site/about.md": "---\ntitle: About\n---\n",
+  "src/content/site/docs.md": "---\ntitle: Docs\n---\n",
+  "src/content/site/docs/faq.md": "---\ntitle: FAQ\n---\n",
+  "src/content/site/docs/start.md": "---\ntitle: Start here\n---\n",
+  "src/content/site/index.md": "---\ntitle: Welcome\n---\n",
+  "src/pages/500.md": "---\ntitle: Server error\n---\n",
+  "src/pages/Index.md": "---\ntitle: Welcome\n---\n",
+  "src/pages/about.md": "---\ntitle: About\n---\n",
+  "src/content/manual/about.md": "---\ntitle: About\n---\n",
+  "src/content/manual/guide.md": "---\ntitle: Guide\n---\n",
+  "src/content/manual/guide/one.md": '---\ntitle: "Guide: One"\n---\n',
   "src/content/readings/cw.md": "---\ntitle: CW\n---\n",
   "src/content/readings/cw/advent.md": '---\ntitle: "CW: Advent"\n---\n',
   "src/content/authors.yaml": "- id: ann\n  name: Ann Smith\n",
@@ -439,6 +477,93 @@ describe("a collection's list", () => {
       expect(titles()).toEqual(["About", "Resources", "Music"]);
     },
   );
+
+  it("lists pinned entries first, in their own order, above a band", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/site", files });
+    await screen.findByText("Welcome");
+    const divider = () => document.querySelector(".v-table__divider");
+    const icons = () =>
+      [...document.querySelectorAll(".v-table__pin-icon")].map((icon) => [
+        icon.parentElement?.textContent,
+        icon.classList.contains("lucide-house") ? "house" : "other",
+      ]);
+    // In `pinned` order, not by title, with their icons, then a band, then
+    // the tree, which no longer holds the pinned entry under Docs.
+    expect(titles()).toEqual([
+      "Welcome",
+      "Not found",
+      "Start here",
+      "About",
+      "Docs",
+    ]);
+    expect(divider()).toBeTruthy();
+    expect(screen.getByText("docs/start")).toBeTruthy();
+    expect(icons()).toEqual([
+      ["Welcome", "house"],
+      ["Not found", "other"],
+    ]);
+    expect(screen.getByText("· 1")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Expand Docs" }));
+    expect(titles()).toEqual([
+      "Welcome",
+      "Not found",
+      "Start here",
+      "About",
+      "Docs",
+      "FAQ",
+    ]);
+
+    // A sort reorders only the rest, and the list view pins them too,
+    // without the slug, since no entry there sits in a folder.
+    await user.click(screen.getByRole("button", { name: "List" }));
+    expect(screen.queryByText("docs/start")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Title" }));
+    await user.click(screen.getByRole("button", { name: /Title/ }));
+    expect(titles()).toEqual([
+      "Welcome",
+      "Not found",
+      "Start here",
+      "FAQ",
+      "Docs",
+      "About",
+    ]);
+
+    // A search keeps the split, and drops the band when one side is empty.
+    const search = screen.getByPlaceholderText("Search site pages…");
+    await user.type(search, "ou");
+    expect(titles()).toEqual(["Not found", "About"]);
+    expect(divider()).toBeTruthy();
+    await user.clear(search);
+    await user.type(search, "wel");
+    expect(titles()).toEqual(["Welcome"]);
+    expect(divider()).toBeNull();
+    await user.clear(search);
+    await user.type(search, "faq");
+    expect(titles()).toEqual(["FAQ"]);
+    expect(divider()).toBeNull();
+  });
+
+  it("pins the home and error pages by default, ignoring case", async () => {
+    await openPanel(config, { url: "/collections/home", files });
+    await screen.findByText("Welcome");
+    expect(titles()).toEqual(["Welcome", "Server error", "About"]);
+    expect(
+      [...document.querySelectorAll(".v-table__pin-icon")].map((icon) =>
+        [...icon.classList].find((c) => c.startsWith("lucide-")),
+      ),
+    ).toEqual(["lucide-house", "lucide-triangle-exclamation-point"]);
+    expect(document.querySelector(".v-table__divider")).toBeTruthy();
+  });
+
+  it("keeps a pinned entry with children in the tree, to head its folder", async () => {
+    const user = userEvent.setup();
+    await openPanel(config, { url: "/collections/manual", files });
+    await screen.findByText("About");
+    expect(titles()).toEqual(["Guide", "About", "Guide"]);
+    await user.click(screen.getByRole("button", { name: "Expand Guide" }));
+    expect(titles()).toEqual(["Guide", "About", "Guide", "One"]);
+  });
 
   it("invites the first entry of an empty collection", async () => {
     await openPanel(config, { url: "/collections/notes" });

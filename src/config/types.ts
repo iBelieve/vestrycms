@@ -425,6 +425,23 @@ export interface CollectionConfig {
    * slug under one (`sermons/index`).
    */
   reservedSlugs?: string[];
+  /**
+   * The collection's special entries, such as its home and 404 pages,
+   * listed first, above a divider, in this order, whatever the sort, view
+   * or folder. Each is a slug, or a slug with the name of an icon shown
+   * before its title: `[{ slug: "index", icon: "house" }, "404"]`.
+   * Defaults, in a collection of a file per entry, to the home page,
+   * `index`, and in `src/pages/` also to the error pages, `404` and `500`,
+   * each with an icon. `[]` pins none.
+   */
+  pinned?: (string | PinnedEntry)[];
+}
+
+/** A pinned entry's slug, and the icon shown before its title. */
+export interface PinnedEntry {
+  slug: string;
+  /** An icon name, as for a collection's `icon`. */
+  icon?: string;
 }
 
 export interface SingletonConfig {

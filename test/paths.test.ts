@@ -1,11 +1,13 @@
 /** Template placeholders for slugs, preview URLs and commit messages. */
 import { describe, expect, it } from "vitest";
 import vestry from "../src/index.js";
+import type { CollectionConfig } from "../src/config/types.js";
 import {
   entryPath,
   fillTemplate,
   isSafeSlug,
   parsePathPattern,
+  pinnedEntries,
   relativePath,
   resolveRelative,
   safeFileName,
@@ -217,5 +219,53 @@ describe("relative paths", () => {
       expect(relativePath(dir, file)).toBe(rel);
       expect(resolveRelative(dir, rel)).toBe(file);
     }
+  });
+});
+
+describe("pinnedEntries", () => {
+  const pages = (path: string, pinned?: CollectionConfig["pinned"]) =>
+    ({ label: "Pages", path, schema: {}, pinned }) as CollectionConfig;
+  const astro = [
+    { slug: "index", icon: "house" },
+    { slug: "404", icon: "file-question-mark" },
+    { slug: "500", icon: "triangle-alert" },
+  ];
+
+  it("pins the home page by default in a file per entry", () => {
+    expect(pinnedEntries(pages("src/pages/*.mdx"))).toEqual(astro);
+    expect(pinnedEntries(pages("./src/pages/**.md"))).toEqual(astro);
+    // Error pages only where Astro reads them: elsewhere a 404 is a hymn.
+    expect(pinnedEntries(pages("src/content/pages/**.md"))).toEqual([astro[0]]);
+    expect(pinnedEntries(pages("src/content/hymns/*.md"))).toEqual([astro[0]]);
+  });
+
+  it("pins nothing by default where slugs aren't file names", () => {
+    expect(pinnedEntries(pages("src/content/docs/**/index.md"))).toEqual([]);
+    expect(pinnedEntries(pages("src/data/menu.yaml"))).toEqual([]);
+  });
+
+  it("hands out copies, so changing one changes no other list", () => {
+    const first = pinnedEntries(pages("src/pages/*.mdx"));
+    first[0].icon = "file";
+    first.pop();
+    expect(pinnedEntries(pages("src/pages/*.mdx"))).toEqual(astro);
+    const configured = pages("src/pages/*.mdx", [{ slug: "home" }]);
+    pinnedEntries(configured)[0].icon = "house";
+    expect(configured.pinned).toEqual([{ slug: "home" }]);
+  });
+
+  it("takes the configured list instead, slugs or with icons", () => {
+    expect(pinnedEntries(pages("src/pages/*.mdx", []))).toEqual([]);
+    expect(pinnedEntries(pages("src/pages/*.mdx", ["404"]))).toEqual([
+      { slug: "404" },
+    ]);
+    expect(
+      pinnedEntries(
+        pages("src/content/pages/**.mdx", [
+          { slug: "home", icon: "house" },
+          "search",
+        ]),
+      ),
+    ).toEqual([{ slug: "home", icon: "house" }, { slug: "search" }]);
   });
 });
