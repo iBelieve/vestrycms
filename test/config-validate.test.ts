@@ -215,6 +215,16 @@ describe("validateConfig", () => {
     expect(() =>
       validateConfig(posts({ pinned: [{ slug: "404", icon: 4 as never }] })),
     ).toThrow('pinned icon for "404" must be an icon name');
+    // A name the panel doesn't draw would show as a plain file icon.
+    expect(() =>
+      validateConfig(posts({ pinned: [{ slug: "index", icon: "home" }] })),
+    ).toThrow(
+      'pinned icon for "index" is "home", which is not one of the panel\'s icons',
+    );
+    // A pair instead of { slug, icon } is named as written.
+    expect(() =>
+      validateConfig(posts({ pinned: [["index", "house"] as never] })),
+    ).toThrow('pinned has ["index","house"], which is not a slug');
   });
 
   it("accepts fixedEntries and readOnly only as true or false", () => {

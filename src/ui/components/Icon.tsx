@@ -38,14 +38,16 @@ import {
   Video,
   type LucideProps,
 } from "lucide-react";
+import type { IconName } from "../../config/icons.js";
 
 type IconComponent = React.ComponentType<LucideProps>;
 
 /**
  * Icons available by name in config (`icon: "book-open"`). A curated set
  * keeps the control panel bundle small; unknown names fall back to a file.
+ * Its names are `ICON_NAMES`, which the config check reads.
  */
-const ICONS: Record<string, IconComponent> = {
+const ICONS: Record<IconName, IconComponent> = {
   "app-window": AppWindow,
   "book-open": BookOpen,
   box: Box,
@@ -87,6 +89,6 @@ const ICONS: Record<string, IconComponent> = {
 };
 
 export function Icon({ name, ...props }: { name?: string } & LucideProps) {
-  const Cmp = (name && ICONS[name]) || File;
+  const Cmp = (name && ICONS[name as IconName]) || File;
   return <Cmp strokeWidth={1.9} {...props} />;
 }

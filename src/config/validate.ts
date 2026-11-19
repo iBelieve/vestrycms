@@ -3,6 +3,7 @@
  * error at startup rather than something the control panel quietly ignores.
  */
 import { isSafeSlug, parsePathPattern, templateError } from "../core/paths.js";
+import { ICON_NAMES, isIconName } from "./icons.js";
 import type {
   CollectionConfig,
   ComponentConfig,
@@ -210,15 +211,24 @@ function checkPinned(what: string, pinned: unknown) {
   if (!Array.isArray(pinned))
     fail(`${what} pinned must be a list of slugs or { slug, icon }`);
   for (const item of pinned as unknown[]) {
-    if (typeof item !== "object" || item === null) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
       checkSlug(what, "pinned", item);
       continue;
     }
     const { slug, icon } = item as { slug?: unknown; icon?: unknown };
     checkSlug(what, "pinned", slug);
-    if (icon !== undefined && typeof icon !== "string")
-      fail(`${what} pinned icon for "${String(slug)}" must be an icon name`);
+    checkIcon(`${what} pinned icon for "${String(slug)}"`, icon);
   }
+}
+
+/** An icon, if given, must be one the panel draws, not a stand-in file. */
+function checkIcon(what: string, icon: unknown) {
+  if (icon === undefined) return;
+  if (typeof icon !== "string") return fail(`${what} must be an icon name`);
+  if (!isIconName(icon))
+    fail(
+      `${what} is ${JSON.stringify(icon)}, which is not one of the panel's icons (${ICON_NAMES.join(", ")})`,
+    );
 }
 
 function checkComponent(name: string, component: ComponentConfig) {

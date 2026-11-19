@@ -518,9 +518,10 @@ the sort or view, so the home page is easy to find whatever its title. In a
 collection of a file per entry (`*.mdx`, or `**.mdx` with folders), that
 is the home page, `index` (with a house icon), when there is one, and in
 `src/pages/` itself, where Astro reads them, the error pages `404` and `500`
-too. `pinned` names
-them instead, in order, each a slug or a slug with an icon shown before its
-title (a name from the panel's icon set, as for a collection's `icon`):
+too. `pinned` names them instead, in order, each a slug or a slug with an
+icon shown before its title (a name from the panel's icon set, as for a
+collection's `icon`; any other name is an error at startup that lists
+them):
 
 ```ts
 pages: collection({
@@ -530,9 +531,9 @@ pages: collection({
 }),
 ```
 
-`pinned` replaces the defaults, and `pinned: []` pins nothing.
-In the tree, a pinned entry leaves its folder, and shows its slug after its
-title when it has one (`resources/lectionaries`); one with entries under it
+`pinned` replaces the defaults, and `pinned: []` pins nothing. In the
+tree, a pinned entry leaves its folder, and shows its slug after its title
+when it sits in one (`resources/lectionaries`); one with entries under it
 also stays in the tree, at the head of its folder. A search or filter keeps
 matching pinned entries at the top.
 
