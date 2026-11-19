@@ -9,13 +9,14 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 - **Special pages first.** A collection's special entries are listed
   first, above a divider, whatever the sort or view. In a collection of a
-  file per entry, that is the home page, `index`, with a house icon, so a
-  site's home page is at the top of Pages whatever its title, and in
-  `src/pages/` also Astro's error pages, `404` and `500`.
-  **`pinned`** on a collection names them instead, each a slug or
-  `{ slug, icon }` (`pinned: [{ slug: "home", icon: "house" }]`), and
-  `pinned: []` turns them off. An icon must be one the panel draws; any
-  other name fails at startup. In a tree they leave their folder and show
+  file per entry named by its slug (`*.mdx`, or `**.mdx` with folders),
+  that is the home page, `index`, with a house icon, so a site's home page
+  is at the top of Pages whatever its title, and in `src/pages/` also
+  Astro's error pages, `404` and `500`. **`pinned`** on a collection names
+  them instead, each a slug or `{ slug, icon }`
+  (`pinned: [{ slug: "home", icon: "house" }]`), and `pinned: []` turns
+  them off. A pinned entry's icon must be one the panel draws; any other
+  name fails at startup. In a tree they leave their folder and show
   their slug, and one with entries under it also stays at the head of its
   folder.
 - The `house`, `file-question-mark` and `triangle-alert` icons.
@@ -35,9 +36,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Fixed
 
-- `readOnly: true` on a `markdown` field now keeps it from being edited
-  (it shows no toolbar), and on an `array` or `tree` field keeps its rows
-  from being dragged.
+- `readOnly: true` on a `markdown` field now takes no typing and shows no
+  toolbar, and on an `array` or `tree` field keeps its rows from being
+  dragged.
 
 ## 0.5.0
 
