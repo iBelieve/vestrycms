@@ -3,7 +3,7 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
-## Unreleased
+## 0.6.0
 
 ### Added
 
@@ -14,8 +14,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
   `src/pages/` also Astro's error pages, `404` and `500`.
   **`pinned`** on a collection names them instead, each a slug or
   `{ slug, icon }` (`pinned: [{ slug: "home", icon: "house" }]`), and
-  `pinned: []` turns them off. In a tree they leave their folder and show
-  their slug.
+  `pinned: []` turns them off. An icon must be one the panel draws; any
+  other name fails at startup. In a tree they leave their folder and show
+  their slug, and one with entries under it also stays at the head of its
+  folder.
 - The `house`, `file-question-mark` and `triangle-alert` icons.
 - **`readOnly: true`** on a collection makes it read-only in the control
   panel, for entries a script or another tool writes. Entries open with
