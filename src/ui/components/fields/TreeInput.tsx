@@ -150,6 +150,7 @@ export function TreeInput({
                 collapsed: collapsed.has(item.id),
                 editing: editing === item.id,
                 canAddChild: item.depth + 1 < keys.maxDepth,
+                readOnly: Boolean(field.readOnly),
               }}
               actions={{
                 onToggle: () => toggle(item.id),
@@ -350,6 +351,8 @@ type RowView = {
   collapsed: boolean;
   editing: boolean;
   canAddChild: boolean;
+  /** The tree is read-only, so its rows can't be dragged. */
+  readOnly: boolean;
 };
 
 type RowActions = {
@@ -380,7 +383,7 @@ function TreeRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id });
+  } = useSortable({ id: item.id, disabled: view.readOnly });
   return (
     <div
       ref={setNodeRef}

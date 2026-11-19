@@ -137,11 +137,16 @@ export function collectionFormat(
 }
 
 /**
- * Whether entries can be created, deleted and renamed (`editable`, true
- * unless set to `false`).
+ * Whether entries can be created, deleted and renamed: the collection sets
+ * neither `fixedEntries` nor `readOnly`.
  */
 export function isEditable(c: CollectionConfig): boolean {
-  return c.editable !== false;
+  return !c.fixedEntries && !c.readOnly;
+}
+
+/** Whether nothing in the collection can be saved (`readOnly`). */
+export function isReadOnly(c: CollectionConfig): boolean {
+  return c.readOnly === true;
 }
 
 /** The home page, by the name Astro gives it in `src/pages/`. */

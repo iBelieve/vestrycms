@@ -57,7 +57,7 @@ const config = defineConfig({
     people: collection({
       label: "People",
       path: "src/content/people/*.md",
-      editable: false,
+      fixedEntries: true,
       status: { field: "draft" },
       schema: { title: fields.text(), draft: fields.boolean() },
     }),

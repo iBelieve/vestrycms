@@ -306,11 +306,25 @@ in other files, are updated in the same commit.
 Deleting an entry that others refer to asks first, naming them, since
 their references would then point at nothing.
 
-`editable: false` keeps a collection's set of entries as the site has it:
-their fields and bodies can still be edited, but entries can't be created,
-deleted or renamed. For individual entries, `reservedSlugs` names slugs the
-site depends on, such as pages kept at fixed routes or names its other
-routes already use:
+`fixedEntries: true` keeps a collection's set of entries as the site has
+it: their fields and bodies can still be edited, but entries can't be
+created, deleted or renamed. `readOnly: true` goes further, for entries a
+script or another tool writes: they can be opened and viewed, with every
+field and the body shown read-only, but there is no Save, New or Delete
+button, and the API refuses any save, creation, rename or deletion. (A
+rename elsewhere still updates references to the renamed entry inside a
+read-only collection's files, in the same commit.)
+
+```ts
+lectionaries: collection({
+  path: "src/content/lectionaries/**.yaml",
+  readOnly: true, // written by `pnpm lectionary`
+  …
+}),
+```
+
+For individual entries, `reservedSlugs` names slugs the site depends on,
+such as pages kept at fixed routes or names its other routes already use:
 
 ```ts
 pages: collection({

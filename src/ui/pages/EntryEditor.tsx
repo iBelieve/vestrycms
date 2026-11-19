@@ -24,6 +24,7 @@ import type {
 import {
   collectionFormat,
   isEditable,
+  isReadOnly,
   parsePathPattern,
   type PathPattern,
 } from "../../core/paths.js";
@@ -32,6 +33,7 @@ import { ApiError, type EntryDetail, type EntryReference } from "../api.js";
 import type { PendingUpload } from "../components/AssetPicker.js";
 import type { EditorEnv } from "../components/editor/EditorContext.js";
 import { RichTextEditor } from "../components/editor/RichTextEditor.js";
+import { CodeInput } from "../components/fields/CodeInput.js";
 import { FieldSet } from "../components/fields/FieldRenderer.js";
 import { TopBar } from "../components/Layout.js";
 import {
@@ -61,6 +63,7 @@ import {
   effectiveSlug,
   entryDisplay,
   entryFile,
+  readOnlySchema,
   fieldPlacement,
   publishToggle,
   type Kind,
@@ -272,10 +275,19 @@ function EntryForm(props: EntryFormProps) {
       <EntryTopBar form={form} />
       <div className="v-page">
         {form.errors.length > 0 && <ErrorList errors={form.errors} />}
-        <div className="v-editor-layout">
-          <EntryMain form={form} />
-          <EntrySidebar form={form} />
-        </div>
+        {form.readOnly && (
+          <div style={{ marginBottom: 18 }}>
+            <Alert kind="info">
+              {`${form.col.label} are read-only here: they can be viewed, but not changed.`}
+            </Alert>
+          </div>
+        )}
+        <fieldset className="v-editor-fieldset" disabled={form.readOnly}>
+          <div className="v-editor-layout">
+            <EntryMain form={form} />
+            <EntrySidebar form={form} />
+          </div>
+        </fieldset>
       </div>
       {saving.renameReferences && (
         <RenameDialog
@@ -314,10 +326,19 @@ interface EntryFormProps {
 
 /** Everything the editor's parts share: the document, its slug, saving and how it displays. */
 function useEntryForm(props: EntryFormProps) {
-  const { kind, collectionKey, slug, isNew, col, entry, draft } = props;
+  const { kind, collectionKey, slug, isNew, entry, draft } = props;
   const { config } = useVestry();
+  const readOnly = kind === "collection" && isReadOnly(props.col);
+  // Every field of a read-only collection shows as read-only.
+  const col = useMemo(
+    () =>
+      readOnly
+        ? { ...props.col, schema: readOnlySchema(props.col.schema) }
+        : props.col,
+    [readOnly, props.col],
+  );
   const collection = kind === "collection" ? (col as CollectionConfig) : null;
-  const doc = useDocument(col, entry, draft);
+  const doc = useDocument(col, entry, draft, readOnly);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const pattern = useMemo(() => parsePathPattern(col.path), [col]);
@@ -347,6 +368,7 @@ function useEntryForm(props: EntryFormProps) {
     doc,
     slugs,
     setErrors,
+    readOnly,
   });
   const remove = useRemove(collectionKey, slug);
   const display = entryDisplay({
@@ -359,6 +381,8 @@ function useEntryForm(props: EntryFormProps) {
   });
   return {
     ...props,
+    col,
+    readOnly,
     collection,
     doc,
     errors,
@@ -405,6 +429,7 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
           unsaved={unsaved}
           previewHref={display.previewHref}
           canDelete={form.slugs.deletable}
+          readOnly={form.readOnly}
           onDelete={() => form.setConfirmDelete(true)}
           onSave={() => void saving.requestSave()}
           saving={saving.save.isPending}
@@ -556,6 +581,8 @@ function EntryFields({
 
 function EntryBody({ form }: { form: EntryFormModel }) {
   const { config, api } = useVestry();
+  if (form.readOnly)
+    return <ReadOnlyBody col={form.col} body={form.doc.state.body} />;
   return (
     <BodyCard
       col={form.col}
@@ -564,6 +591,29 @@ function EntryBody({ form }: { form: EntryFormModel }) {
       fileUrl={api.fileUrl}
       doc={form.doc}
     />
+  );
+}
+
+/** The format of entries' Markdown or MDX body, or null if they have none. */
+function bodyFormat(col: Entry): "md" | "mdx" | null {
+  const format = collectionFormat(col);
+  return col.body !== false && (format === "md" || format === "mdx")
+    ? format
+    : null;
+}
+
+/** A read-only collection's body, as its Markdown source. */
+function ReadOnlyBody({ col, body }: { col: Entry; body: string }) {
+  if (!bodyFormat(col)) return null;
+  return (
+    <Card title={(col.body || undefined)?.label ?? "Content"}>
+      <CodeInput
+        value={body}
+        onChange={() => {}}
+        language="markdown"
+        readOnly
+      />
+    </Card>
   );
 }
 
@@ -576,12 +626,15 @@ interface FieldSetProps {
 /**
  * The entry being edited, as last saved and as it stands, with its uploads.
  * A draft left by the save that created or renamed it is laid over the
- * saved version.
+ * saved version. A read-only entry takes no changes, so nothing (a field
+ * that seeds a value, a drag, typing in a rich text field) can leave it
+ * unsaved.
  */
 function useDocument(
   col: Entry,
   entry: EntryDetail | undefined,
   draft: Draft | undefined,
+  readOnly: boolean,
 ) {
   const [initial, setInitial] = useState<EditorState>(() =>
     entry
@@ -598,10 +651,14 @@ function useDocument(
   // The form as it stands, kept here too so that a save finishing reads
   // every change, including one made since the last render.
   const latest = useRef(form);
-  const change = useCallback((update: (form: Form) => Form) => {
-    latest.current = update(latest.current);
-    setForm(latest.current);
-  }, []);
+  const change = useCallback(
+    (update: (form: Form) => Form) => {
+      if (readOnly) return;
+      latest.current = update(latest.current);
+      setForm(latest.current);
+    },
+    [readOnly],
+  );
   const [sha, setSha] = useState<string | null>(entry?.sha ?? null);
   /** Sets the data, or updates it as it stands. */
   const setData = useCallback(
@@ -785,6 +842,7 @@ function useSave({
   doc,
   slugs,
   setErrors,
+  readOnly,
 }: {
   kind: Kind;
   collectionKey: string;
@@ -796,6 +854,7 @@ function useSave({
   doc: Document;
   slugs: Slugs;
   setErrors: (errors: ValidationError[]) => void;
+  readOnly: boolean;
 }) {
   const { api, client } = useVestry();
   const navigate = useNavigate();
@@ -882,8 +941,10 @@ function useSave({
   const checkingReferences = useRef(false);
   const requestSave = async () => {
     // The lookup below takes a moment, during which a second request (the
-    // shortcut pressed twice) must not start a second save.
-    if (save.isPending || slugs.error || checkingReferences.current) return;
+    // shortcut pressed twice) must not start a second save. Nothing in a
+    // read-only collection is saved, the shortcut included.
+    if (readOnly || save.isPending || slugs.error || checkingReferences.current)
+      return;
     if (renaming) {
       checkingReferences.current = true;
       try {
@@ -933,7 +994,7 @@ function BodyCard({
   fileUrl: (path: string) => string;
   doc: Document;
 }) {
-  const format = collectionFormat(col);
+  const format = bodyFormat(col);
   // Kept from render to render, so the editor's environment is too.
   const body = useMemo(
     () => (col.body === false ? null : (col.body ?? {})),
@@ -944,7 +1005,7 @@ function BodyCard({
     () => bodyEnv({ body, filePath, config, uploads, fileUrl }),
     [body, filePath, config, uploads, fileUrl],
   );
-  if (!body || (format !== "md" && format !== "mdx")) return null;
+  if (!body || !format) return null;
   return (
     <div className="v-card v-card--editor">
       <div className="v-card__header">
@@ -1021,6 +1082,7 @@ function EditorActions({
   unsaved,
   previewHref,
   canDelete,
+  readOnly,
   onDelete,
   onSave,
   saving,
@@ -1030,6 +1092,7 @@ function EditorActions({
   unsaved: boolean;
   previewHref: string | null;
   canDelete: boolean;
+  readOnly: boolean;
   onDelete: () => void;
   onSave: () => void;
   saving: boolean;
@@ -1058,10 +1121,14 @@ function EditorActions({
           <Trash />
         </Button>
       )}
-      <Button variant="primary" onClick={onSave} disabled={saveDisabled}>
-        {saving ? <Spinner /> : <Save />} {isNew ? "Create" : "Save"}
-        <span className="v-kbd">⌘S</span>
-      </Button>
+      {readOnly ? (
+        <Badge>Read-only</Badge>
+      ) : (
+        <Button variant="primary" onClick={onSave} disabled={saveDisabled}>
+          {saving ? <Spinner /> : <Save />} {isNew ? "Create" : "Save"}
+          <span className="v-kbd">⌘S</span>
+        </Button>
+      )}
     </>
   );
 }

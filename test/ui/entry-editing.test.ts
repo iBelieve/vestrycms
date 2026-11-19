@@ -11,6 +11,7 @@ import {
   entryDisplay,
   entryFile,
   publishToggle,
+  readOnlySchema,
   slugBox,
   slugHint,
 } from "../../src/ui/pages/entry-editing.js";
@@ -229,5 +230,34 @@ describe("publishToggle", () => {
     expect(
       publishToggle({ statusField: null, publishedWhen: true }, {}, () => {}),
     ).toBeNull();
+  });
+});
+
+describe("readOnlySchema", () => {
+  it("makes every field read-only, nested ones included", () => {
+    const schema = readOnlySchema({
+      title: fields.text(),
+      days: fields.array(
+        fields.object({
+          name: fields.text(),
+          readings: fields.array(fields.reference({ collection: "x" })),
+        }),
+      ),
+      menu: fields.tree({ fields: { label: fields.text() } }),
+    });
+    expect(schema).toMatchObject({
+      title: { readOnly: true },
+      days: {
+        readOnly: true,
+        of: {
+          readOnly: true,
+          fields: {
+            name: { readOnly: true },
+            readings: { readOnly: true, of: { readOnly: true } },
+          },
+        },
+      },
+      menu: { readOnly: true, fields: { label: { readOnly: true } } },
+    });
   });
 });

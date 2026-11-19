@@ -73,7 +73,7 @@ const config = defineConfig({
       label: "Rules",
       path: "src/content/rules/*.md",
       body: false,
-      editable: false,
+      fixedEntries: true,
       schema: { title: fields.text() },
     }),
     links: collection({
@@ -93,6 +93,19 @@ const config = defineConfig({
       schema: {
         title: fields.text(),
         first: fields.reference({ collection: "links" }),
+      },
+    }),
+    notes: collection({
+      label: "Notes",
+      path: "src/content/notes/*.md",
+      readOnly: true,
+      status: { field: "draft", publishedWhen: false },
+      schema: {
+        title: fields.text(),
+        draft: fields.boolean({ sidebar: true }),
+        tags: fields.array(fields.text()),
+        see: fields.reference({ collection: "notes" }),
+        intro: fields.markdown(),
       },
     }),
   },
@@ -115,6 +128,8 @@ const files = {
   "src/content/menus/main.md": "---\ntitle: Main\nfirst: home\n---\n",
   "src/pages/index.md": "---\ntitle: Home\n---\n",
   "src/content/rules/first.md": "---\ntitle: First\n---\n",
+  "src/content/notes/one.md":
+    "---\ntitle: One\ndraft: false\ntags:\n  - a\nsee: one\nintro: An intro.\n---\nThe *body*.\n",
 };
 
 /** Holds every request with `method` until the returned function is called. */
@@ -628,13 +643,13 @@ describe("a fixed slug", () => {
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("has no form for a new entry where the collection isn't editable", async () => {
+  it("has no form for a new entry where the collection's entries are fixed", async () => {
     await openPanel(config, { url: "/collections/rules/new", files });
     await screen.findByText("New entries can't be added to Rules");
     expect(screen.queryByRole("button", { name: /^Create/ })).toBeNull();
   });
 
-  it("can't be renamed or deleted where the collection isn't editable", async () => {
+  it("can't be renamed or deleted where the collection's entries are fixed", async () => {
     await openPanel(config, { url: "/collections/rules/first", files });
     await screen.findByDisplayValue("First");
     expect(screen.queryByPlaceholderText("auto")).toBeNull();
@@ -642,6 +657,55 @@ describe("a fixed slug", () => {
       screen.getByText("This collection doesn't allow renaming entries."),
     ).toBeTruthy();
     expect(screen.queryByTitle("Delete")).toBeNull();
+  });
+});
+
+describe("a read-only collection", () => {
+  it("shows an entry with nothing to change and no way to save", async () => {
+    const { root } = await openPanel(config, {
+      url: "/collections/notes/one",
+      files,
+    });
+    const title = await screen.findByDisplayValue<HTMLInputElement>("One");
+    expect(
+      screen.getByText(
+        "Notes are read-only here: they can be viewed, but not changed.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Read-only")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Save/ })).toBeNull();
+    expect(screen.queryByTitle("Delete")).toBeNull();
+    expect(screen.getByText("This collection is read-only.")).toBeTruthy();
+    // Every control sits in a disabled fieldset: the title, the list's
+    // items and buttons, and publishing.
+    expect(title.matches(":disabled")).toBe(true);
+    expect(screen.getByDisplayValue("a").matches(":disabled")).toBe(true);
+    for (const button of screen
+      .getByRole("group")
+      .querySelectorAll("button, input, textarea, select"))
+      expect(button.matches(":disabled")).toBe(true);
+    // A rich text field takes no edits, and has no toolbar to make them.
+    await screen.findByText("An intro.");
+    expect(
+      document.querySelector(".ProseMirror")?.getAttribute("contenteditable"),
+    ).toBe("false");
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    // The body is shown as its source, read-only.
+    const body =
+      await screen.findByDisplayValue<HTMLTextAreaElement>(/The \*body\*\./);
+    expect(body.readOnly).toBe(true);
+    // The save shortcut does nothing: no request, so no refusal either.
+    fireEvent.keyDown(window, { key: "s", metaKey: true });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.queryByText(/read-only in the control panel/)).toBeNull();
+    expect(await read(root, "src/content/notes/one.md")).toBe(
+      files["src/content/notes/one.md"],
+    );
+  });
+
+  it("has no form for a new entry", async () => {
+    await openPanel(config, { url: "/collections/notes/new", files });
+    await screen.findByText("New entries can't be added to Notes");
   });
 });
 

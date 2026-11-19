@@ -204,7 +204,7 @@ describe("fixed and reserved slugs", () => {
       fixed: collection({
         label: "Fixed",
         path: "src/fixed/*.md",
-        editable: false,
+        fixedEntries: true,
         schema: { title: fields.text() },
       }),
       docs: collection({
@@ -217,6 +217,18 @@ describe("fixed and reserved slugs", () => {
         label: "Menus",
         path: "src/data/menus.yaml",
         reservedSlugs: ["main", "footer"],
+        schema: { id: fields.text(), title: fields.text() },
+      }),
+      generated: collection({
+        label: "Generated",
+        path: "src/generated/*.md",
+        readOnly: true,
+        schema: { title: fields.text() },
+      }),
+      lists: collection({
+        label: "Lists",
+        path: "src/data/lists.yaml",
+        readOnly: true,
         schema: { id: fields.text(), title: fields.text() },
       }),
     },
@@ -233,6 +245,8 @@ describe("fixed and reserved slugs", () => {
       "src/docs/guide.md": "---\ntitle: Guide\n---\n",
       "src/docs/sermons/old.md": "---\ntitle: Old\n---\n",
       "src/data/menus.yaml": "- id: main\n  title: Main\n",
+      "src/generated/one.md": "---\ntitle: One\n---\n",
+      "src/data/lists.yaml": "- id: one\n  title: One\n",
     })) {
       await mkdir(path.dirname(path.join(fixedRoot, file)), {
         recursive: true,
@@ -325,7 +339,7 @@ describe("fixed and reserved slugs", () => {
     expect(await pages.getEntry("menus", "footer")).toBe(null);
   });
 
-  it("refuses to create, rename or delete entries of a collection that isn't editable", async () => {
+  it("refuses to create, rename or delete entries of a collection with fixed entries", async () => {
     await expect(
       pages.saveEntry("fixed", null, { data: { title: "Two" } }),
     ).rejects.toMatchObject({ status: 403, code: "forbidden" });
@@ -340,6 +354,31 @@ describe("fixed and reserved slugs", () => {
       data: { title: "Uno" },
     });
     expect(saved.slug).toBe("one");
+  });
+
+  it("saves nothing to a read-only collection", async () => {
+    for (const key of ["generated", "lists"]) {
+      for (const [slug, input] of [
+        ["one", { data: { id: "one", title: "Uno" } }],
+        [null, { data: { id: "two", title: "Two" } }],
+        ["one", { data: { id: "uno", title: "One" }, slug: "uno" }],
+      ] as const)
+        await expect(pages.saveEntry(key, slug, input)).rejects.toMatchObject({
+          status: 403,
+          code: "forbidden",
+          message: `${key[0].toUpperCase()}${key.slice(1)} are read-only in the control panel`,
+        });
+      await expect(pages.deleteEntry(key, "one")).rejects.toMatchObject({
+        status: 403,
+        message: expect.stringContaining("read-only in the control panel"),
+      });
+      expect(await pages.getEntry(key, "one")).toMatchObject({
+        data: { title: "One" },
+      });
+    }
+    expect(
+      await readFile(path.join(fixedRoot, "src/generated/one.md"), "utf8"),
+    ).toBe("---\ntitle: One\n---\n");
   });
 
   it("refuses new or renamed entries under a reserved slug", async () => {
