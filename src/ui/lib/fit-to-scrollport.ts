@@ -3,10 +3,14 @@ import { type RefObject, useLayoutEffect } from "react";
 /** The custom property the hook sets; the element's CSS caps its height with it. */
 export const FIT_HEIGHT_PROPERTY = "--v-fit-height";
 
-/** The nearest ancestor that scrolls vertically: the box `position: sticky` sticks in. */
+/**
+ * The nearest ancestor that is a scroll container: the box `position: sticky`
+ * sticks in. `hidden` counts (it scrolls, just not for the user); `clip` and
+ * `visible` don't.
+ */
 function scrollParent(el: HTMLElement): HTMLElement | null {
   for (let p = el.parentElement; p; p = p.parentElement) {
-    if (/auto|scroll/.test(getComputedStyle(p).overflowY)) return p;
+    if (/auto|scroll|hidden/.test(getComputedStyle(p).overflowY)) return p;
   }
   return null;
 }
@@ -23,6 +27,14 @@ function fitHeight(scroller: HTMLElement, top: number, gap: number) {
   return Math.max(0, Math.floor(visibleBottom - top - gap));
 }
 
+/** The value for `--v-fit-height`, or "" while the element isn't sticky. */
+function fittedValue(el: HTMLElement, scroller: HTMLElement) {
+  const style = getComputedStyle(el);
+  if (style.position !== "sticky") return "";
+  const gap = parseFloat(style.top) || 0;
+  return `${fitHeight(scroller, el.getBoundingClientRect().top, gap)}px`;
+}
+
 /**
  * Keeps a sticky element that scrolls on its own (an editor sidebar) within
  * the visible part of its scroll container. A fixed `max-height` only fits
@@ -37,22 +49,25 @@ function fitHeight(scroller: HTMLElement, top: number, gap: number) {
 export function useFitToScrollport(ref: RefObject<HTMLElement | null>) {
   useLayoutEffect(() => {
     const el = ref.current;
-    const scroller = el && scrollParent(el);
-    if (!el || !scroller) return;
-    const update = () => {
-      const style = getComputedStyle(el);
-      if (style.position !== "sticky") {
-        el.style.removeProperty(FIT_HEIGHT_PROPERTY);
-        return;
-      }
-      const gap = parseFloat(style.top) || 0;
-      const top = el.getBoundingClientRect().top;
-      el.style.setProperty(
-        FIT_HEIGHT_PROPERTY,
-        `${fitHeight(scroller, top, gap)}px`,
-      );
-    };
+    const first = el && scrollParent(el);
+    if (!el || !first) return;
+    let scroller: HTMLElement | null = null;
+    let fitted = "";
     let frame = 0;
+    let moved = false;
+    const update = () => {
+      if (moved) {
+        moved = false;
+        watch(scrollParent(el) ?? scroller);
+      }
+      // Only on a change: the property is inherited, so setting it restyles
+      // the whole sidebar, and once stuck every scroll gives the same value.
+      const value = scroller ? fittedValue(el, scroller) : "";
+      if (value === fitted) return;
+      fitted = value;
+      if (value) el.style.setProperty(FIT_HEIGHT_PROPERTY, value);
+      else el.style.removeProperty(FIT_HEIGHT_PROPERTY);
+    };
     const schedule = () => {
       if (!frame)
         frame = requestAnimationFrame(() => {
@@ -60,17 +75,30 @@ export function useFitToScrollport(ref: RefObject<HTMLElement | null>) {
           update();
         });
     };
-    update();
-    scroller.addEventListener("scroll", schedule, { passive: true });
     // The scroll container resizes with the window; its children change size
     // when content above the element (an error list, a wrapped heading) does.
-    const ro = new ResizeObserver(schedule);
-    ro.observe(scroller);
-    for (const child of scroller.children) ro.observe(child);
+    // A resize can also cross a breakpoint that moves the scrolling to
+    // another box (below 860px the shell scrolls, not the panel), so the
+    // container is looked up again after one.
+    const ro = new ResizeObserver(() => {
+      moved = true;
+      schedule();
+    });
+    const watch = (next: HTMLElement | null) => {
+      if (next === scroller) return;
+      scroller?.removeEventListener("scroll", schedule);
+      ro.disconnect();
+      scroller = next;
+      if (!next) return;
+      next.addEventListener("scroll", schedule, { passive: true });
+      ro.observe(next);
+      for (const child of next.children) ro.observe(child);
+    };
+    watch(first);
+    update();
     return () => {
       cancelAnimationFrame(frame);
-      scroller.removeEventListener("scroll", schedule);
-      ro.disconnect();
+      watch(null);
       el.style.removeProperty(FIT_HEIGHT_PROPERTY);
     };
   }, [ref]);
