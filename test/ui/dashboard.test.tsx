@@ -109,4 +109,26 @@ describe("the dashboard", () => {
     expect(rows[1].textContent).toContain("First question");
     expect(rows[0].textContent).toMatch(/2026/);
   });
+
+  it("loads every collection's counts in one request", async () => {
+    const { requests } = await openPanel(recentConfig, { files: recentFiles });
+    expect(await screen.findAllByText("1 entry")).toHaveLength(2);
+    expect(screen.getByText("2 entries")).toBeTruthy();
+    const gets = requests.map((r) => `${r.method} ${r.url}`);
+    expect(gets.filter((r) => r.includes("/dashboard"))).toEqual([
+      "GET /admin/api/dashboard",
+    ]);
+    expect(gets.filter((r) => r.includes("/collections/"))).toEqual([]);
+  });
+
+  it("marks a collection that could not be listed", async () => {
+    await openPanel(recentConfig, {
+      files: {
+        ...recentFiles,
+        "src/content/days/broken.md": "---\ntitle: [unclosed\n---\n",
+      },
+    });
+    expect(await screen.findByText("Couldn't load")).toBeTruthy();
+    expect(await screen.findByText("1 entry")).toBeTruthy();
+  });
 });

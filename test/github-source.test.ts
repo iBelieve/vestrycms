@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { collection, defineConfig, fields } from "../src/config/index.js";
 import { ContentService } from "../src/core/service.js";
 import { GitHubSource } from "../src/core/sources/github.js";
+import { MemoryCache } from "../src/core/cache.js";
 import { base64Decode, toText } from "../src/core/source.js";
 
 const blobs = new Map<string, Uint8Array>();
@@ -130,6 +131,27 @@ describe("GitHubSource reads", () => {
 
   it("reads a blob", async () => {
     expect(await text("src/content/sermons/old.mdx")).toContain("Old");
+  });
+
+  it("shares one head and tree fetch between concurrent reads", async () => {
+    const cold = new GitHubSource({
+      owner: "o",
+      repo: "r",
+      branch: "main",
+      token: "tok",
+      apiBase: `http://127.0.0.1:${port}`,
+      cache: new MemoryCache(),
+    });
+    log.length = 0;
+    const lists = await Promise.all([
+      cold.list("src/content/sermons"),
+      cold.list(""),
+      cold.read("src/content/sermons/old.mdx"),
+    ]);
+    expect(lists[0]).toHaveLength(1);
+    expect(log.filter((l) => l.includes("/git/ref/"))).toHaveLength(1);
+    expect(log.filter((l) => l.includes("/git/commits/"))).toHaveLength(1);
+    expect(log.filter((l) => l.includes("/git/trees/"))).toHaveLength(1);
   });
 });
 

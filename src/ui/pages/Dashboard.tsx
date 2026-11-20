@@ -1,7 +1,11 @@
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock, Plus } from "lucide-react";
 import { Link } from "react-router";
 import type { CollectionConfig } from "../../config/types.js";
+import {
+  recentDateField,
+  type DashboardCollection,
+} from "../../core/dashboard.js";
 import type { EntrySummary } from "../../core/service.js";
 import { isEditable } from "../../core/paths.js";
 import { TopBar } from "../components/Layout.js";
@@ -10,47 +14,15 @@ import { Badge } from "../components/ui.js";
 import { useVestry } from "../context.js";
 import { entryHref, formatDate, inSentence } from "../lib/utils.js";
 
-const DEFAULT_RECENT = 5;
-
-function isDateField(col: CollectionConfig, field: string | undefined) {
-  const type = field ? col.schema[field]?.type : undefined;
-  return type === "date" || type === "datetime";
-}
-
-/** The date field the default `recent` rule keys on: a date `sort`. */
-function sortDateField(col: CollectionConfig): string | null {
-  const field = col.sort?.field;
-  return field && isDateField(col, field) ? field : null;
-}
-
-/**
- * Which date field (if any) a collection's recent list should show: the
- * sort field when it is a date, else the first date column of its list.
- */
-function recentDateField(col: CollectionConfig): string | null {
-  const column = (col.columns ?? [])
-    .map((c) => (typeof c === "string" ? c : c.field))
-    .find((field) => isDateField(col, field));
-  return sortDateField(col) ?? column ?? null;
-}
-
-function recentCount(col: CollectionConfig): number {
-  if (col.recent === false) return 0;
-  if (typeof col.recent === "number") return col.recent;
-  if (col.recent === true) return DEFAULT_RECENT;
-  return sortDateField(col) ? DEFAULT_RECENT : 0;
-}
-
 export function DashboardPage() {
   const { config, api, client } = useVestry();
   const collections = Object.entries(config.collections ?? {});
-  const queries = useQueries({
-    queries: collections.map(([key]) => ({
-      queryKey: ["entries", key],
-      queryFn: () => api.listEntries(key),
-      staleTime: 30_000,
-    })),
+  const query = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => api.dashboard(),
+    staleTime: 30_000,
   });
+  const summaries = query.data?.collections ?? {};
 
   return (
     <>
@@ -60,42 +32,29 @@ export function DashboardPage() {
           <section className="v-section">
             <h2 className="v-section-title">Collections</h2>
             <div className="v-stats">
-              {collections.map(([key, col], i) => {
-                const q = queries[i];
-                const count = q.data?.entries.length;
-                const drafts =
-                  q.data?.entries.filter((e) => e.status === "draft").length ??
-                  0;
-                return (
-                  <Link
-                    key={key}
-                    to={`/collections/${key}`}
-                    className="v-card v-stat"
-                  >
-                    <span className="v-stat__icon">
-                      <Icon name={col.icon ?? "files"} />
+              {collections.map(([key, col]) => (
+                <Link
+                  key={key}
+                  to={`/collections/${key}`}
+                  className="v-card v-stat"
+                >
+                  <span className="v-stat__icon">
+                    <Icon name={col.icon ?? "files"} />
+                  </span>
+                  <span className="v-stat__body">
+                    <span className="v-stat__label">{col.label}</span>
+                    <span className="v-stat__meta">
+                      {statMeta(summaries[key], query.isError)}
                     </span>
-                    <span className="v-stat__body">
-                      <span className="v-stat__label">{col.label}</span>
-                      <span className="v-stat__meta">
-                        {count === undefined
-                          ? "…"
-                          : `${count} ${count === 1 ? "entry" : "entries"}`}
-                        {drafts > 0 &&
-                          ` · ${drafts} draft${drafts === 1 ? "" : "s"}`}
-                      </span>
-                    </span>
-                  </Link>
-                );
-              })}
+                  </span>
+                </Link>
+              ))}
             </div>
           </section>
         )}
-        {collections.map(([key, col], i) => {
-          const limit = recentCount(col);
-          const recent = limit
-            ? (queries[i].data?.entries.slice(0, limit) ?? [])
-            : [];
+        {collections.map(([key, col]) => {
+          const summary = summaries[key];
+          const recent = summary && "recent" in summary ? summary.recent : [];
           if (!recent.length) return null;
           return (
             <RecentSection
@@ -115,6 +74,20 @@ export function DashboardPage() {
       </div>
     </>
   );
+}
+
+/** A collection tile's second line: its entry and draft counts. */
+function statMeta(
+  summary: DashboardCollection | undefined,
+  failed: boolean,
+): string {
+  if (!summary) return failed ? "Couldn't load" : "…";
+  if ("error" in summary) return "Couldn't load";
+  const { count, drafts } = summary;
+  const entries = `${count} ${count === 1 ? "entry" : "entries"}`;
+  return drafts > 0
+    ? `${entries} · ${drafts} draft${drafts === 1 ? "" : "s"}`
+    : entries;
 }
 
 /** A collection's latest entries, with a button to start a new one. */

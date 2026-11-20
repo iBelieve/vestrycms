@@ -13,8 +13,27 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - A "Recent …" list for a collection not sorted by a date
   (`recent: true`) shows the first date field in its `columns`.
 
+### Changed
+
+- **The dashboard loads with one request.** `GET /api/dashboard` returns
+  every collection's entry and draft counts and its recent entries, in
+  place of a full listing per collection (six requests on a site with six
+  collections, each paying the sign-in check and, on a cold Worker, 50 ms
+  or more of CPU). A collection that fails to list shows "Couldn't load"
+  while the others load.
+- Asset grid images (`file?path=…&v=<blob SHA>`) are cached by the browser
+  as `private, immutable`, so reopening the assets page or picker no longer
+  revalidates every image through the Worker.
+- `MemoryCache` is bounded by approximate size as well as entry count (32
+  MB by default, `new MemoryCache({ maxEntries, maxBytes })`; a bare number
+  still sets `maxEntries`). Before, up to 2,000 cached files of up to 2 MB
+  each could outgrow a Worker isolate's 128 MB.
+- Concurrent requests share one GitHub fetch of the branch head and file
+  tree instead of each making their own.
+
 ### Fixed
 
+- Replacing a key in a full `MemoryCache` no longer evicts another entry.
 - Labels set mid-sentence ("All FAQs", "Search FAQs…", "New FAQ") keep
   their acronyms instead of becoming "faqs".
 

@@ -187,7 +187,7 @@ Routes injected into the site:
 
 - `/admin/[...path]` – the control panel shell (on-demand, no auth needed to
   load the shell; data comes from the API).
-- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `collections/:key`,
+- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `dashboard`, `collections/:key`,
   `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
   `singletons/:key`, `assets/:container`,
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
@@ -547,6 +547,29 @@ change how many entries appear. The list follows the collection's sort, so
 shows the highest numbers. It shows the sort field's date, or else the first
 date field in `columns`. Each list has a **New …** button for the
 collection, unless it is `fixedEntries` or `readOnly`.
+
+The dashboard loads with one request (`GET /admin/api/dashboard`) that
+returns each collection's counts and recent entries, rather than one full
+listing per collection: on a Worker every request pays the sign-in check
+and the framework's start-up again. A collection that fails to list shows
+"Couldn't load" on its tile, and the rest still load.
+
+## Caching
+
+The GitHub source keeps what it reads in an in-memory cache that lives as
+long as the Worker isolate: the branch head (trusted for 20 seconds, then
+revalidated with its ETag, which costs no rate limit), the file tree by tree
+SHA and file contents up to 2 MB by blob SHA (both immutable), and the
+recent commits behind the build status (5 seconds). Concurrent requests
+share one fetch of the head and tree. The cache holds at most 2,000 entries
+and about 32 MB, evicting the least recently used, because a Worker isolate
+has 128 MB in all. A host that calls `createApi` itself can pass `cache`
+(a `MemoryCache` with other limits, or `kvCache` over a KV namespace).
+
+Files the panel shows from an asset listing are requested as
+`file?path=…&v=<blob SHA>`; those responses are `private, immutable`, so
+the browser does not ask again. Other file URLs (a field's image preview,
+the logo) revalidate with an ETag.
 
 ## Build status
 

@@ -33,10 +33,12 @@ export function App({ basePath, name }: { basePath: string; name: string }) {
     const client: QueryClient = new QueryClient({
       defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
       // Every save is a commit, which starts a build: show it at once. Not
-      // returned, because the mutation would wait for the refetch.
+      // returned, because the mutation would wait for the refetch. The
+      // dashboard's counts and recent lists may have changed too.
       mutationCache: new MutationCache({
         onSuccess: () => {
           void client.invalidateQueries({ queryKey: ["deploys"] });
+          void client.invalidateQueries({ queryKey: ["dashboard"] });
         },
       }),
     });

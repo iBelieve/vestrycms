@@ -1,4 +1,5 @@
 import type { ClientConfig } from "../core/api.js";
+import type { Dashboard } from "../core/dashboard.js";
 import type { DeployStatus } from "../core/deploys.js";
 import type { PublicUser, Role } from "../core/roles.js";
 import type {
@@ -124,6 +125,8 @@ export function createClient(basePath: string) {
     status: () => request<{ head: string }>("/status"),
     /** Build and deploy status of the branch's recent commits. */
     deploys: () => request<DeployStatus>("/deploys"),
+    /** Every collection's counts and recent entries, in one request. */
+    dashboard: () => request<Dashboard>("/dashboard"),
     listUsers: () => request<{ users: PublicUser[] }>("/users"),
     inviteUser: (input: { email: string; name?: string; role: Role }) =>
       request<{ user: PublicUser; mailError?: string }>("/users", {

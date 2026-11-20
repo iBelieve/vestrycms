@@ -64,6 +64,7 @@ export class GitHubSource implements ContentSource {
   #cache: Cache;
   #headTtl: number;
   #apiBase: string;
+  #inflight = new Map<string, Promise<unknown>>();
 
   constructor(private opts: GitHubSourceOptions) {
     this.#branch = opts.branch;
@@ -135,7 +136,24 @@ export class GitHubSource implements ContentSource {
     return `gh:${this.repoPath}:head:${branch}`;
   }
 
-  async #resolveHead(): Promise<CachedHead> {
+  /**
+   * Concurrent callers of `load` under one key share its promise, so the
+   * dashboard's parallel listings (or several editors at once) cost one
+   * GitHub round trip and one parse rather than one each.
+   */
+  #shared<T>(key: string, load: () => Promise<T>): Promise<T> {
+    const pending = this.#inflight.get(key);
+    if (pending) return pending as Promise<T>;
+    const promise = load().finally(() => this.#inflight.delete(key));
+    this.#inflight.set(key, promise);
+    return promise;
+  }
+
+  #resolveHead(): Promise<CachedHead> {
+    return this.#shared("head", () => this.#loadHead());
+  }
+
+  async #loadHead(): Promise<CachedHead> {
     const branch = await this.branch();
     const key = this.#headKey(branch);
     const fresh = await this.#cache.get<CachedHead & { checked: number }>(key);
@@ -174,7 +192,11 @@ export class GitHubSource implements ContentSource {
     return (await this.#resolveHead()).sha;
   }
 
-  async #tree(treeSha: string): Promise<TreeEntry[]> {
+  #tree(treeSha: string): Promise<TreeEntry[]> {
+    return this.#shared(`tree:${treeSha}`, () => this.#loadTree(treeSha));
+  }
+
+  async #loadTree(treeSha: string): Promise<TreeEntry[]> {
     const key = `gh:${this.repoPath}:tree:${treeSha}`;
     const cached = await this.#cache.get<TreeEntry[]>(key);
     if (cached) return cached;
