@@ -399,6 +399,18 @@ describe("files", () => {
     expect(stale.response.headers.get("cache-control")).toBe(
       "private, max-age=0, must-revalidate",
     );
+    // A copy the browser stored before (must-revalidate) takes the new
+    // policy from the 304 that confirms it.
+    const revalidated = await call(
+      "GET",
+      `/file?path=${photo.path}&v=${photo.sha}`,
+      undefined,
+      { "if-none-match": pinned.response.headers.get("etag")! },
+    );
+    expect(revalidated.status).toBe(304);
+    expect(revalidated.response.headers.get("cache-control")).toBe(
+      "private, max-age=31536000, immutable",
+    );
   });
 
   it("serves the logo", async () => {

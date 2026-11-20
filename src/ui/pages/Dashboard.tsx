@@ -43,7 +43,10 @@ export function DashboardPage() {
                   </span>
                   <span className="v-stat__body">
                     <span className="v-stat__label">{col.label}</span>
-                    <span className="v-stat__meta">
+                    <span
+                      className="v-stat__meta"
+                      title={statError(summaries[key], query.error)}
+                    >
                       {statMeta(summaries[key], query.isError)}
                     </span>
                   </span>
@@ -88,6 +91,15 @@ function statMeta(
   return drafts > 0
     ? `${entries} · ${drafts} draft${drafts === 1 ? "" : "s"}`
     : entries;
+}
+
+/** Why a collection tile says "Couldn't load", shown when hovering it. */
+function statError(
+  summary: DashboardCollection | undefined,
+  error: Error | null,
+): string | undefined {
+  if (summary && "error" in summary) return summary.error;
+  return summary ? undefined : error?.message;
 }
 
 /** A collection's latest entries, with a button to start a new one. */

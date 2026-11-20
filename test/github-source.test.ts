@@ -5,7 +5,7 @@
  * whole rather than filtering to one of them.
  */
 import { createServer } from "node:http";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { collection, defineConfig, fields } from "../src/config/index.js";
 import { ContentService } from "../src/core/service.js";
 import { GitHubSource } from "../src/core/sources/github.js";
@@ -152,6 +152,116 @@ describe("GitHubSource reads", () => {
     expect(log.filter((l) => l.includes("/git/ref/"))).toHaveLength(1);
     expect(log.filter((l) => l.includes("/git/commits/"))).toHaveLength(1);
     expect(log.filter((l) => l.includes("/git/trees/"))).toHaveLength(1);
+  });
+});
+
+describe("GitHubSource shared loads", () => {
+  function deferred() {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+
+  /** A fake GitHub on `fetch`, whose `n`th ref read waits for `refGate`. */
+  function fakeGitHub(options: {
+    refGate?: { n: number; promise: Promise<void> };
+    blobGate?: Promise<void>;
+  }) {
+    const seen: string[] = [];
+    let branchHead = "c0";
+    let refs = 0;
+    const tree: Record<string, string> = { c0: "t0", c1: "t1" };
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const method = init?.method ?? "GET";
+        const p = new URL(String(input)).pathname.replace("/repos/o/r", "");
+        seen.push(`${method} ${p}`);
+        if (p === "/git/ref/heads/main") {
+          // GitHub answers with the head as it is when asked.
+          const sha = branchHead;
+          if (++refs === options.refGate?.n) await options.refGate.promise;
+          return Response.json({ object: { sha } });
+        }
+        if (method === "GET" && p.startsWith("/git/commits/"))
+          return Response.json({ tree: { sha: tree[p.slice(13)] } });
+        if (p === "/git/blobs") {
+          await options.blobGate;
+          return Response.json({ sha: "b1" }, { status: 201 });
+        }
+        if (p === "/git/trees")
+          return Response.json({ sha: "t1" }, { status: 201 });
+        if (p === "/git/commits")
+          return Response.json(
+            { sha: "c1", html_url: "http://x/c1" },
+            { status: 201 },
+          );
+        if (p === "/git/refs/heads/main") {
+          branchHead = "c1";
+          return Response.json({ object: { sha: "c1" } });
+        }
+        return Response.json({ message: "unhandled" }, { status: 404 });
+      });
+    return { seen, restore: () => spy.mockRestore() };
+  }
+
+  const source = (headTtl?: number) =>
+    new GitHubSource({
+      owner: "o",
+      repo: "r",
+      branch: "main",
+      token: "tok",
+      apiBase: "http://gh.test",
+      cache: new MemoryCache(),
+      headTtl,
+    });
+
+  it("stops joining a load that never settles", async () => {
+    // A load whose request was cancelled on a Worker never settles.
+    const gh = fakeGitHub({
+      refGate: { n: 1, promise: new Promise(() => {}) },
+    });
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      const src = source();
+      void src.head();
+      now += 60_000;
+      expect(await src.head()).toBe("c0");
+    } finally {
+      clock.mockRestore();
+      gh.restore();
+    }
+  });
+
+  it("keeps a head read before our commit from hiding it", async () => {
+    const refGate = deferred();
+    const blobGate = deferred();
+    const gh = fakeGitHub({
+      refGate: { n: 2, promise: refGate.promise },
+      blobGate: blobGate.promise,
+    });
+    try {
+      // headTtl 0: every read asks GitHub, as one 20 s after the last does.
+      const src = source(0);
+      const committing = src.commit([{ path: "a.md", content: "a" }], {
+        message: "m",
+      });
+      await vi.waitFor(() => expect(gh.seen).toContain("POST /git/blobs"));
+      // Another request reads the head before the commit moves the branch.
+      const reading = src.head();
+      await vi.waitFor(() =>
+        expect(gh.seen.filter((s) => s.includes("/git/ref/"))).toHaveLength(2),
+      );
+      blobGate.resolve();
+      expect((await committing).sha).toBe("c1");
+      const after = src.head();
+      refGate.resolve();
+      expect(await reading).toBe("c1");
+      expect(await after).toBe("c1");
+    } finally {
+      gh.restore();
+    }
   });
 });
 

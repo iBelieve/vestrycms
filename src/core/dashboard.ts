@@ -69,6 +69,8 @@ export async function buildDashboard(
     const result = results[i];
     if (result.status === "rejected") {
       const reason: unknown = result.reason;
+      // Answered in a 200, so the API's error handler never logs it.
+      console.error(`[vestry] dashboard: could not list "${key}"`, reason);
       collections[key] = {
         error: reason instanceof Error ? reason.message : String(reason),
       };

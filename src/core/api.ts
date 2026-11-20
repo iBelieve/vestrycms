@@ -874,14 +874,21 @@ async function serveFile(
   const file = await service.readFile(path);
   if (!file) return error("File not found", 404, "not_found");
   const etag = `"${file.sha}"`;
+  // A 304 carries the Cache-Control too: the browser keeps the policy it
+  // stored unless the revalidation replaces it, so an image cached before
+  // the `&v=` URLs became immutable would otherwise revalidate forever.
+  const cacheControl = fileCacheControl(file.sha, request);
   if (request.headers.get("if-none-match") === etag) {
-    return new Response(null, { status: 304, headers: { ETag: etag } });
+    return new Response(null, {
+      status: 304,
+      headers: { ETag: etag, "Cache-Control": cacheControl },
+    });
   }
   const ext = extname(normalizePath(path));
   return new Response(file.bytes as BodyInit, {
     headers: {
       "Content-Type": MIME[ext] ?? "application/octet-stream",
-      "Cache-Control": fileCacheControl(file.sha, request),
+      "Cache-Control": cacheControl,
       ETag: etag,
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "sandbox",
