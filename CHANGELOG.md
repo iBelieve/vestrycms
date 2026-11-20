@@ -3,6 +3,18 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Fixed
+
+- **Editor sidebar reaches its bottom.** The editor's sidebar is sized to
+  the visible part of the panel as the page scrolls, so its last fields
+  can be scrolled into view while the page heading is still showing.
+  Scrolling past either end of the sidebar now carries on to the page
+  (before, scrolling over the sidebar never moved the page), and in the
+  one-column layout below 1100px the sidebar follows the main fields
+  instead of scrolling inside its own box.
+
 ## 0.6.0
 
 ### Added
