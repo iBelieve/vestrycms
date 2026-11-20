@@ -542,7 +542,11 @@ matching pinned entries at the top.
 Each collection gets a tile with its entry count. Collections whose `sort`
 field is a date or datetime also get a "Recent …" list; set `recent: false`
 to hide it, `recent: true` to show it for other collections, or a number to
-change how many entries appear.
+change how many entries appear. The list follows the collection's sort, so
+`recent: true` on a collection sorted by a number (`number`, descending)
+shows the highest numbers. It shows the sort field's date, or else the first
+date field in `columns`. Each list has a **New …** button for the
+collection, unless it is `fixedEntries` or `readOnly`.
 
 ## Build status
 

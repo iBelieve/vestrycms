@@ -3,6 +3,21 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Added
+
+- **New entry from the dashboard.** Each "Recent …" list on the dashboard
+  has a **New …** button for its collection (not for `fixedEntries` or
+  `readOnly` collections).
+- A "Recent …" list for a collection not sorted by a date
+  (`recent: true`) shows the first date field in its `columns`.
+
+### Fixed
+
+- Labels set mid-sentence ("All FAQs", "Search FAQs…", "New FAQ") keep
+  their acronyms instead of becoming "faqs".
+
 ## 0.6.0
 
 ### Added

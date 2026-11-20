@@ -38,6 +38,7 @@ import {
   entryHref,
   fieldLabel,
   formatDate,
+  inSentence,
   summarize,
   titleCase,
 } from "../lib/utils.js";
@@ -92,7 +93,7 @@ export function CollectionListPage() {
             <Search />
             <input
               className="v-input"
-              placeholder={`Search ${col.label.toLowerCase()}…`}
+              placeholder={`Search ${inSentence(col.label)}…`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -140,7 +141,7 @@ export function CollectionListPage() {
               />
               <div className="v-table__footer">
                 {entries.length} of {q.data.entries.length}{" "}
-                {col.label.toLowerCase()}
+                {inSentence(col.label)}
               </div>
             </>
           )}
@@ -266,12 +267,12 @@ function NoEntries({
   return (
     <EmptyState
       icon={<Icon name={col.icon ?? "files"} />}
-      title={searching ? "No matches" : `No ${col.label.toLowerCase()} yet`}
+      title={searching ? "No matches" : `No ${inSentence(col.label)} yet`}
     >
       {!searching && isEditable(col) && (
         <p>
           <Link to={`/collections/${collectionKey}/new`} className="v-btn">
-            <Plus /> Create the first {col.singular?.toLowerCase() ?? "entry"}
+            <Plus /> Create the first {inSentence(col.singular ?? "entry")}
           </Link>
         </p>
       )}

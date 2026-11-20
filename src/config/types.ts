@@ -400,8 +400,11 @@ export interface CollectionConfig {
   /** Commit message template. Supports `{action}`, `{collection}`, `{slug}`, `{title}`. */
   commitMessage?: string;
   /**
-   * Show a "Recent …" list on the dashboard. Defaults to true when `sort`
-   * points at a date/datetime field. A number sets how many entries to show.
+   * Show a "Recent …" list on the dashboard, in the collection's sort
+   * order, with a button to start a new entry (unless the collection is
+   * `fixedEntries` or `readOnly`). Defaults to true when `sort` points at a
+   * date/datetime field. A number sets how many entries to show. The list
+   * shows the sort field's date, or else the first date column's.
    */
   recent?: boolean | number;
   /**

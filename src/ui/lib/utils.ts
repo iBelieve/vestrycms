@@ -57,6 +57,16 @@ export function splitLinks(text: string): { text: string; url?: string }[] {
   return parts;
 }
 
+/**
+ * A label lowercased to sit mid-sentence ("Recent articles"), keeping
+ * acronyms and names with capitals past their first letter ("FAQs", "iPad").
+ */
+export function inSentence(label: string): string {
+  return label.replace(/\S+/g, (word) =>
+    /[A-Z]/.test(word.slice(1)) ? word : word.toLowerCase(),
+  );
+}
+
 export function titleCase(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")

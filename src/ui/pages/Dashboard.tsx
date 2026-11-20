@@ -1,28 +1,44 @@
 import { useQueries } from "@tanstack/react-query";
-import { ArrowRight, Clock } from "lucide-react";
+import { ArrowRight, Clock, Plus } from "lucide-react";
 import { Link } from "react-router";
 import type { CollectionConfig } from "../../config/types.js";
+import type { EntrySummary } from "../../core/service.js";
+import { isEditable } from "../../core/paths.js";
 import { TopBar } from "../components/Layout.js";
 import { Icon } from "../components/Icon.js";
 import { Badge } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { entryHref, formatDate } from "../lib/utils.js";
+import { entryHref, formatDate, inSentence } from "../lib/utils.js";
 
 const DEFAULT_RECENT = 5;
 
-/** Which date field (if any) a collection's recent list should show. */
-function recentDateField(col: CollectionConfig): string | null {
+function isDateField(col: CollectionConfig, field: string | undefined) {
+  const type = field ? col.schema[field]?.type : undefined;
+  return type === "date" || type === "datetime";
+}
+
+/** The date field the default `recent` rule keys on: a date `sort`. */
+function sortDateField(col: CollectionConfig): string | null {
   const field = col.sort?.field;
-  if (!field) return null;
-  const type = col.schema[field]?.type;
-  return type === "date" || type === "datetime" ? field : null;
+  return field && isDateField(col, field) ? field : null;
+}
+
+/**
+ * Which date field (if any) a collection's recent list should show: the
+ * sort field when it is a date, else the first date column of its list.
+ */
+function recentDateField(col: CollectionConfig): string | null {
+  const column = (col.columns ?? [])
+    .map((c) => (typeof c === "string" ? c : c.field))
+    .find((field) => isDateField(col, field));
+  return sortDateField(col) ?? column ?? null;
 }
 
 function recentCount(col: CollectionConfig): number {
   if (col.recent === false) return 0;
   if (typeof col.recent === "number") return col.recent;
   if (col.recent === true) return DEFAULT_RECENT;
-  return recentDateField(col) ? DEFAULT_RECENT : 0;
+  return sortDateField(col) ? DEFAULT_RECENT : 0;
 }
 
 export function DashboardPage() {
@@ -81,59 +97,13 @@ export function DashboardPage() {
             ? (queries[i].data?.entries.slice(0, limit) ?? [])
             : [];
           if (!recent.length) return null;
-          const dateField = recentDateField(col);
           return (
-            <section key={key} className="v-section">
-              <h2 className="v-section-title">
-                Recent {col.label.toLowerCase()}
-              </h2>
-              <div className="v-card">
-                <table className="v-table">
-                  <tbody>
-                    {recent.map((e) => (
-                      <tr key={e.slug}>
-                        <td className="v-table__main">
-                          <Link
-                            className="v-table__title"
-                            to={entryHref(key, e.slug)}
-                          >
-                            {e.title}
-                          </Link>
-                          {e.excerpt && (
-                            <span className="v-table__sub">{e.excerpt}</span>
-                          )}
-                        </td>
-                        {dateField && (
-                          <td
-                            className="v-muted"
-                            style={{ whiteSpace: "nowrap" }}
-                          >
-                            <Clock
-                              size={13}
-                              style={{ verticalAlign: -2, marginRight: 6 }}
-                            />
-                            {formatDate(e.data[dateField])}
-                          </td>
-                        )}
-                        <td style={{ width: 1 }}>
-                          {e.status && <Badge status={e.status} />}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={3} className="v-table__more">
-                        <Link to={`/collections/${key}`}>
-                          All {col.label.toLowerCase()}{" "}
-                          <ArrowRight size={12} style={{ verticalAlign: -1 }} />
-                        </Link>
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </section>
+            <RecentSection
+              key={key}
+              collectionKey={key}
+              col={col}
+              entries={recent}
+            />
           );
         })}
         {client.mode === "local" && (
@@ -144,5 +114,73 @@ export function DashboardPage() {
         )}
       </div>
     </>
+  );
+}
+
+/** A collection's latest entries, with a button to start a new one. */
+function RecentSection({
+  collectionKey: key,
+  col,
+  entries,
+}: {
+  collectionKey: string;
+  col: CollectionConfig;
+  entries: EntrySummary[];
+}) {
+  const dateField = recentDateField(col);
+  return (
+    <section className="v-section">
+      <div className="v-section-head">
+        <h2 className="v-section-title">Recent {inSentence(col.label)}</h2>
+        {isEditable(col) && (
+          <Link
+            to={`/collections/${key}/new`}
+            className="v-btn v-btn--sm v-btn--ghost"
+          >
+            <Plus /> New {inSentence(col.singular ?? "entry")}
+          </Link>
+        )}
+      </div>
+      <div className="v-card">
+        <table className="v-table">
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.slug}>
+                <td className="v-table__main">
+                  <Link className="v-table__title" to={entryHref(key, e.slug)}>
+                    {e.title}
+                  </Link>
+                  {e.excerpt && (
+                    <span className="v-table__sub">{e.excerpt}</span>
+                  )}
+                </td>
+                {dateField && (
+                  <td className="v-muted" style={{ whiteSpace: "nowrap" }}>
+                    <Clock
+                      size={13}
+                      style={{ verticalAlign: -2, marginRight: 6 }}
+                    />
+                    {formatDate(e.data[dateField])}
+                  </td>
+                )}
+                <td style={{ width: 1 }}>
+                  {e.status && <Badge status={e.status} />}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3} className="v-table__more">
+                <Link to={`/collections/${key}`}>
+                  All {inSentence(col.label)}{" "}
+                  <ArrowRight size={12} style={{ verticalAlign: -1 }} />
+                </Link>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
   );
 }
