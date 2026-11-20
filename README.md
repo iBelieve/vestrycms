@@ -136,6 +136,7 @@ shows both and the editor's account never needs push access.
 | `VESTRY_GITHUB_PRIVATE_KEY`     | The app's PEM private key (PKCS#1 as issued, PKCS#8, `\n`-escaped or base64 also accepted) |
 | `VESTRY_RESEND_API_KEY`         | Resend API key (when `mail.provider` is `resend`)                                          |
 | `VESTRY_SECRET`                 | Signs session cookies (`openssl rand -hex 32`); dev modes fall back to a fixed value       |
+| `VESTRY_PLAUSIBLE_API_KEY`      | Plausible Stats API key (when [analytics](#analytics) uses Plausible)                      |
 | `VESTRY_MODE`                   | `auth` or `github` to turn sign-in on in `astro dev`                                       |
 
 ```jsonc
@@ -187,7 +188,7 @@ Routes injected into the site:
 
 - `/admin/[...path]` – the control panel shell (on-demand, no auth needed to
   load the shell; data comes from the API).
-- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `collections/:key`,
+- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `analytics?period=`, `collections/:key`,
   `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
   `singletons/:key`, `assets/:container`,
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
@@ -543,6 +544,36 @@ Each collection gets a tile with its entry count. Collections whose `sort`
 field is a date or datetime also get a "Recent …" list; set `recent: false`
 to hide it, `recent: true` to show it for other collections, or a number to
 change how many entries appear.
+
+## Analytics
+
+Set `analytics` and the panel shows the site's visitor numbers: a
+**Visitors, last 7 days** card at the top of the dashboard (visitors and
+pageviews against the week before, people on the site right now, a chart
+and the top five pages) and an **Analytics** page in the sidebar with
+visitors, visits, pageviews, bounce rate and visit duration for today, 7
+or 30 days, 6 or 12 months, each compared with the period before, a chart
+of visitors or pageviews, and the top pages, sources, countries and
+devices. Every signed-in user sees them.
+
+```ts
+analytics: {
+  provider: "plausible",
+  siteId: "example.org", // the site's domain in Plausible
+  host: "https://analytics.example.org", // self-hosted; default https://plausible.io
+},
+```
+
+Plausible is the first provider, read through its
+[Stats API](https://plausible.io/docs/stats-api) with a Stats API key in
+the `VESTRY_PLAUSIBLE_API_KEY` secret (`pnpm wrangler secret put
+VESTRY_PLAUSIBLE_API_KEY`; on plausible.io the Stats API needs a Business
+plan, Community Edition has it). Without the key admins see a note naming
+it. The key stays on the server: the panel asks Vestry, and Vestry asks
+Plausible, caching each period's report for five minutes (a report takes
+eight requests, and Plausible allows 600 an hour per key). Other providers
+can be added as variants of `analytics`, each implementing the report in
+`src/core/analytics/`.
 
 ## Build status
 

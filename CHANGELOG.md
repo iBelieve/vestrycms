@@ -3,6 +3,17 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Added
+
+- **Analytics.** `analytics: { provider: "plausible", siteId, host? }`
+  adds a visitors card to the dashboard and an Analytics page (totals
+  compared with the period before, a chart, top pages, sources, countries
+  and devices), read from Plausible's Stats API, including self-hosted
+  Plausible, with the key in the `VESTRY_PLAUSIBLE_API_KEY` secret. Built
+  so other providers can be added.
+
 ## 0.6.0
 
 ### Added

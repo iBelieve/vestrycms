@@ -1,4 +1,5 @@
 import {
+  ChartLine,
   ExternalLink,
   GitBranch,
   LayoutDashboard,
@@ -186,6 +187,11 @@ function Sidebar({
           <NavLink to="/" end className={navLinkClass}>
             <LayoutDashboard /> Dashboard
           </NavLink>
+          {config.analytics && (
+            <NavLink to="/analytics" className={navLinkClass}>
+              <ChartLine /> Analytics
+            </NavLink>
+          )}
         </div>
         {navGroups(config).map((g) => (
           <div key={g.label} className="v-nav__group">

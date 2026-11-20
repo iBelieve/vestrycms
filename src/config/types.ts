@@ -550,6 +550,25 @@ export interface DeploysConfig {
   check?: string;
 }
 
+/**
+ * Site analytics, shown on the Analytics page and the dashboard. One
+ * provider for now; each is a variant of this union, told apart by
+ * `provider`.
+ */
+export type AnalyticsConfig = PlausibleAnalyticsConfig;
+
+export interface PlausibleAnalyticsConfig {
+  provider: "plausible";
+  /** The site's domain as Plausible knows it, e.g. `example.org`. */
+  siteId: string;
+  /**
+   * The Plausible server, for a self-hosted one, e.g.
+   * `https://analytics.example.org`. Defaults to `https://plausible.io`.
+   * Vestry reads it with the Stats API key in `VESTRY_PLAUSIBLE_API_KEY`.
+   */
+  host?: string;
+}
+
 export interface MailConfig {
   /**
    * `resend` sends through Resend (API key in `VESTRY_RESEND_API_KEY`);
@@ -606,4 +625,9 @@ export interface VestryConfig {
    * On by default; `false` turns it off.
    */
   deploys?: false | DeploysConfig;
+  /**
+   * Show visitor numbers from the site's analytics on an Analytics page and
+   * the dashboard. Off unless set.
+   */
+  analytics?: AnalyticsConfig;
 }
