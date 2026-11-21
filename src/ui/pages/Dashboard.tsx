@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import type { CollectionConfig } from "../../config/types.js";
 import type { EntrySummary } from "../../core/service.js";
 import { isEditable } from "../../core/paths.js";
+import { compareSortValues } from "../../core/values.js";
 import { AnalyticsWidget } from "../components/AnalyticsWidget.js";
 import { TopBar } from "../components/Layout.js";
 import { Icon } from "../components/Icon.js";
@@ -40,6 +41,23 @@ function recentCount(col: CollectionConfig): number {
   if (typeof col.recent === "number") return Math.max(0, col.recent);
   if (col.recent === true) return DEFAULT_RECENT;
   return sortDateField(col) ? DEFAULT_RECENT : 0;
+}
+
+/**
+ * A collection's `limit` most recent entries: newest first by its date
+ * field, or in its sort order when it has no date to go by. A collection
+ * sorted by something else (an FAQ number) lists by its date column.
+ */
+function recentEntries(
+  col: CollectionConfig,
+  entries: EntrySummary[],
+  limit: number,
+): EntrySummary[] {
+  const dateField = recentDateField(col);
+  if (!dateField || sortDateField(col)) return entries.slice(0, limit);
+  return [...entries]
+    .sort((a, b) => compareSortValues(a.data[dateField], b.data[dateField], -1))
+    .slice(0, limit);
 }
 
 export function DashboardPage() {
@@ -104,7 +122,7 @@ export function DashboardPage() {
         {collections.map(([key, col], i) => {
           const limit = recentCount(col);
           const recent = limit
-            ? (queries[i].data?.entries.slice(0, limit) ?? [])
+            ? recentEntries(col, queries[i].data?.entries ?? [], limit)
             : [];
           if (!recent.length) return null;
           return (
