@@ -9,6 +9,7 @@ import {
   formatDate,
   inSentence,
   initials,
+  siteHref,
   summarize,
   summarizeProps,
   titleCase,
@@ -302,5 +303,33 @@ describe("inSentence", () => {
     expect(inSentence("COVID-19 Updates")).toBe("COVID-19 updates");
     expect(inSentence("ÉTÉ Notes")).toBe("ÉTÉ notes");
     expect(inSentence("Événements")).toBe("événements");
+  });
+});
+
+describe("siteHref", () => {
+  it("puts one slash between the site and the page's path", () => {
+    expect(siteHref("https://example.org", "/a")).toBe("https://example.org/a");
+    expect(siteHref("https://example.org/", "/a")).toBe(
+      "https://example.org/a",
+    );
+    expect(siteHref("https://example.org/", "a")).toBe("https://example.org/a");
+    expect(siteHref(undefined, "/a")).toBe("/a");
+    expect(siteHref(undefined, "a")).toBe("/a");
+  });
+
+  it("leaves a path that names its own site as it is", () => {
+    expect(siteHref(undefined, "https://other.org/a")).toBe(
+      "https://other.org/a",
+    );
+    expect(siteHref("https://example.org", "https://other.org/a")).toBe(
+      "https://other.org/a",
+    );
+  });
+
+  it("keeps any other path on the site, a colon in it or not", () => {
+    expect(siteHref("https://example.org", "note:a")).toBe(
+      "https://example.org/note:a",
+    );
+    expect(siteHref(undefined, "mailto:a@b.org")).toBe("/mailto:a@b.org");
   });
 });

@@ -373,15 +373,18 @@ The entry is saved as `2026-03-01-title.mdx` and its file holds no `date`
 key. The editor still shows a date picker, and lists sort and display by it.
 Changing the date renames the file, so a URL built from the slug changes
 with it; add a redirect if the old address matters. The Slug box then holds
-only the part after the date, with the date shown in front of it. A slug
+only the part after the date. With a `previewUrl`, the page's address
+shows under the entry's title, and the Slug box notes where an edit to
+the slug or date would move it. A slug
 template that leaves the date out still gets it as a prefix. On the site, read the
 date from the entry id (`entry.id.slice(0, 10)`). One such field per
 collection, at the top level of the schema, without `time`.
 
 ## Editor sections
 
-By default the editor shows a "Details" card with every field, the content
-editor, and a rail for fields marked `sidebar: true`. `sections` groups
+By default the editor shows a card with every field, the title first
+(with the page's address under it), the content editor, and a rail for
+fields marked `sidebar: true`. `sections` groups
 fields into titled cards instead:
 
 ```ts
@@ -402,8 +405,11 @@ sections: [
 ```
 
 Sections render in order; `sidebar: true` puts a card in the rail. Fields
-not named by any section still fall into "Details" or the rail, and the
-content editor renders after the sections unless `"body"` places it.
+not named by any section still fall into the fields card or the rail,
+and the content editor renders after the sections unless `"body"` places
+it. When a section of the main column (or the placed body) comes first,
+the title gets a card of its own above it, and the fields card after the
+sections is headed "Details"; otherwise the title heads the fields card.
 
 ## Text styles
 

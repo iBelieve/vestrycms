@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ExternalLink,
+  Link as LinkIcon,
   Save,
   Trash,
   TriangleExclamationPoint,
@@ -9,6 +10,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -20,6 +22,7 @@ import type {
   EditorSection,
   Field,
   SingletonConfig,
+  TextField,
   VestryConfig,
 } from "../../config/types.js";
 import {
@@ -61,6 +64,7 @@ import {
   type ValidationError,
 } from "../lib/utils.js";
 import {
+  addressSlug,
   bodyEnv,
   rebaseDraft,
   effectiveSlug,
@@ -78,6 +82,8 @@ import {
   slugError,
   slugFixed,
   slugHint,
+  type Saved,
+  type SlugHint,
 } from "./entry-editing.js";
 
 export function CollectionEntryPage() {
@@ -378,12 +384,20 @@ function useEntryForm(props: EntryFormProps) {
     readOnly,
   });
   const remove = useRemove(collectionKey, slug);
+  const saved = savedEntry(isNew, slug, doc.savedData);
   const display = entryDisplay({
     kind,
     col,
     data: doc.state.data,
     isNew,
-    slug: slugs.finalSlug,
+    slug: addressSlug({
+      collection,
+      pattern,
+      finalSlug: slugs.finalSlug,
+      isNew,
+      data: doc.state.data,
+    }),
+    saved,
     siteUrl: config.siteUrl,
   });
   return {
@@ -402,6 +416,7 @@ function useEntryForm(props: EntryFormProps) {
     openedFile,
     saving,
     remove,
+    saved,
     display,
     placement: fieldPlacement(col, display.editable),
     uploadCount: Object.keys(doc.uploads).length,
@@ -409,6 +424,13 @@ function useEntryForm(props: EntryFormProps) {
 }
 
 type EntryFormModel = ReturnType<typeof useEntryForm>;
+
+/** The entry as saved, which its live page shows; null for a new one. */
+const savedEntry = (
+  isNew: boolean,
+  slug: string | null,
+  data: Record<string, unknown>,
+): Saved | null => (isNew ? null : { slug: slug ?? "", data });
 
 function EntryTopBar({ form }: { form: EntryFormModel }) {
   const { collection, display, isNew, saving, slugs, unsaved } = form;
@@ -456,21 +478,13 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
 
 /** The title, the body and the fields that aren't in the sidebar. */
 function EntryMain({ form }: { form: EntryFormModel }) {
-  const { col, display, placement, doc } = form;
-  const titleKey = display.titleInput;
+  const { placement } = form;
+  // The title is the fields card's first field when that card comes first;
+  // after a section of the main column, it keeps a card of its own above.
+  const titleFirst = !placement.sections.some((s) => showsInMain(form, s));
   return (
     <div className="v-stack" style={{ gap: 20 }}>
-      {titleKey && (
-        <TitleCard
-          value={display.titleValue}
-          placeholder={`${fieldLabel(titleKey, col.schema[titleKey])}…`}
-          onChange={(title) =>
-            doc.setData((data) => ({ ...data, [titleKey]: title }))
-          }
-          autoFocus={form.isNew}
-          error={form.errors.find((e) => e.path === titleKey)?.message}
-        />
-      )}
+      {!titleFirst && <MainFieldsCard form={form} withFields={false} />}
       {placement.sections.map((section, i) =>
         section === "body" ? (
           <EntryBody key="body" form={form} />
@@ -478,17 +492,88 @@ function EntryMain({ form }: { form: EntryFormModel }) {
           <SectionCard key={`section-${i}`} form={form} section={section} />
         ),
       )}
-      {placement.hasVisible(placement.isMain) && (
-        <Card title="Details">
-          <EntryFields
-            form={form}
-            schema={col.schema}
-            filter={placement.isMain}
-          />
-        </Card>
-      )}
+      <MainFieldsCard form={form} withFields withTitle={titleFirst} />
       {!placement.bodyPlaced && <EntryBody form={form} />}
     </div>
+  );
+}
+
+/**
+ * Whether a section shows in the main column: the body where entries have
+ * one, or a card with at least one of its fields to show.
+ */
+function showsInMain(form: EntryFormModel, section: EditorSection): boolean {
+  if (section === "body") return bodyFormat(form.col) !== null;
+  return (
+    !section.sidebar && form.placement.hasVisible(inSection(form, section))
+  );
+}
+
+/** Whether a field is one of `section`'s that its card shows. */
+const inSection =
+  (form: EntryFormModel, section: Exclude<EditorSection, "body">) =>
+  (key: string) =>
+    section.fields.includes(key) && form.display.editable(key);
+
+/**
+ * The card of the main column's fields, headed "Details", or headed by the
+ * title field instead (`withTitle`); null when it would be empty.
+ */
+function MainFieldsCard({
+  form,
+  withFields,
+  withTitle = true,
+}: {
+  form: EntryFormModel;
+  withFields: boolean;
+  withTitle?: boolean;
+}) {
+  const { col, display, placement } = form;
+  const title = withTitle && display.titleInput;
+  const fields = withFields && placement.hasVisible(placement.isMain);
+  if (!title && !fields) return null;
+  return (
+    <Card title={title ? undefined : "Details"}>
+      {title && <EntryTitle form={form} titleKey={title} />}
+      {fields && (
+        <EntryFields
+          form={form}
+          schema={col.schema}
+          filter={placement.isMain}
+        />
+      )}
+    </Card>
+  );
+}
+
+/** The entry's title field, with its page's address under it. */
+function EntryTitle({
+  form,
+  titleKey,
+}: {
+  form: EntryFormModel;
+  titleKey: string;
+}) {
+  const { col, display, doc } = form;
+  // `titleInput` names a text field only.
+  const field = col.schema[titleKey] as TextField;
+  const label = fieldLabel(titleKey, field);
+  return (
+    <TitleField
+      value={display.titleValue}
+      label={label}
+      required={!!field.required}
+      onChange={(title) =>
+        doc.setData((data) => ({ ...data, [titleKey]: title }))
+      }
+      autoFocus={form.isNew}
+      error={form.errors.find((e) => e.path === titleKey)?.message}
+      address={display.address}
+      readOnly={form.readOnly || !!field.readOnly}
+      description={field.description}
+      placeholder={field.placeholder ?? `${label}…`}
+      maxLength={field.maxLength}
+    />
   );
 }
 
@@ -512,12 +597,15 @@ function EntrySidebar({ form }: { form: EntryFormModel }) {
               fixed={slugs.fixed}
               onChange={slugs.setTyped}
               error={slugs.error}
-              hint={slugHint(
-                form.pattern,
-                slugs.finalSlug,
-                form.isNew,
-                slugs.renaming,
-              )}
+              hint={slugHint({
+                collection,
+                pattern: form.pattern,
+                slug: slugs.finalSlug,
+                data: doc.state.data,
+                saved: form.saved,
+                renaming: slugs.renaming,
+                addressShown: display.titleInput !== null,
+              })}
             />
           )}
           {form.entry && (
@@ -552,16 +640,15 @@ function SectionCard({
   form: EntryFormModel;
   section: Exclude<EditorSection, "body">;
 }) {
-  const inSection = (key: string) =>
-    section.fields.includes(key) && form.display.editable(key);
-  if (!form.placement.hasVisible(inSection)) return null;
+  const filter = inSection(form, section);
+  if (!form.placement.hasVisible(filter)) return null;
   const { schema, hideLabels } = sectionFields(form.col, section, fieldLabel);
   return (
     <Card title={section.label} note={section.description}>
       <EntryFields
         form={form}
         schema={schema}
-        filter={inSection}
+        filter={filter}
         hideLabels={hideLabels}
       />
     </Card>
@@ -730,6 +817,8 @@ function useDocument(
   };
   return {
     state: form.state,
+    /** The data as last saved. */
+    savedData: initial.data,
     dirty: !deepEqual(form.state, initial),
     uploads: form.uploads,
     sha,
@@ -1175,30 +1264,69 @@ function ErrorList({ errors }: { errors: ValidationError[] }) {
   );
 }
 
-function TitleCard({
+function TitleField({
   value,
-  placeholder,
+  label,
+  required,
   onChange,
   autoFocus,
   error,
+  address,
+  readOnly,
+  description,
+  placeholder,
+  maxLength,
 }: {
   value: string;
-  placeholder: string;
+  /** The title field's label, shown above it like any field's. */
+  label: string;
+  required: boolean;
   onChange: (value: string) => void;
   autoFocus: boolean;
   error?: string;
+  readOnly: boolean;
+  /** The page's address on the site, linked once it is there. */
+  address: { text: string; href: string | null } | null;
+  /** The field's help text, shown under it like any field's. */
+  description?: string;
+  placeholder: string;
+  maxLength?: number;
 }) {
+  const id = useId();
   return (
-    <div className="v-card">
-      <div className="v-card__body" style={{ padding: "14px 18px" }}>
-        <TitleInput
-          value={value}
-          placeholder={placeholder}
-          onChange={onChange}
-          autoFocus={autoFocus}
-        />
-        {error && <div className="v-field__error">{error}</div>}
-      </div>
+    <div className="v-title-field">
+      <label className="v-field__label" htmlFor={id}>
+        {label}
+        {required && <span className="v-field__required">*</span>}
+      </label>
+      <TitleInput
+        id={id}
+        value={value}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        onChange={onChange}
+        autoFocus={autoFocus}
+        readOnly={readOnly}
+      />
+      {description && <div className="v-field__hint">{description}</div>}
+      {error && <div className="v-field__error">{error}</div>}
+      {address && <PageAddress {...address} />}
+    </div>
+  );
+}
+
+/** The page's address, like a permalink under the title. */
+function PageAddress({ text, href }: { text: string; href: string | null }) {
+  return (
+    <div className="v-page-address">
+      <LinkIcon size={13} aria-hidden />
+      {href ? (
+        <a href={href} target="_blank" rel="noreferrer" title="Open the page">
+          {text}
+        </a>
+      ) : (
+        <span title="The page's address once it is created">{text}</span>
+      )}
     </div>
   );
 }
@@ -1209,15 +1337,22 @@ function TitleCard({
  * nothing and spaces.
  */
 function TitleInput({
+  id,
   value,
   placeholder,
+  maxLength,
   onChange,
   autoFocus,
+  readOnly,
 }: {
+  id: string;
   value: string;
   placeholder: string;
+  maxLength?: number;
   onChange: (value: string) => void;
   autoFocus: boolean;
+  /** Shown as plain text, not a box, in a read-only collection. */
+  readOnly: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   // Grows with its text (CSS `field-sizing: content` where supported).
@@ -1243,25 +1378,28 @@ function TitleInput({
   return (
     <textarea
       ref={ref}
-      className="v-title-input"
+      id={id}
+      className="v-input v-title-input"
       rows={1}
       value={value}
       placeholder={placeholder}
+      maxLength={maxLength}
       onChange={(e) => onChange(oneLine(e.target))}
       onKeyDown={(e) => {
         // An Enter that ends an input method's composition is left to it.
         if (e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
       }}
       autoFocus={autoFocus}
+      readOnly={readOnly}
     />
   );
 }
 
-/** Sets a textarea's height to its text's. */
+/** Sets a textarea's height to its text's, and its border's. */
 function fitHeight(el: HTMLTextAreaElement | null) {
   if (!el) return;
   el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
 }
 
 const LINE_BREAKS = /\s*[\r\n]+\s*/g;
@@ -1328,59 +1466,81 @@ function SlugField({
 }: {
   pattern: PathPattern;
   slug: string;
-  box: { value: string; prefix: string };
+  /** What the box holds: the slug, less a date set by the date field. */
+  box: string;
   /** Why the slug can't change, if it can't. */
   fixed: string | null;
   onChange: (value: string) => void;
   error: string | null;
-  hint: string | null;
+  hint: SlugHint | null;
 }) {
+  const id = useId();
+  // Where a save would move the entry, while the slug keeps it from saving
+  // (a fixed slug its date tries to change, say), would contradict the error.
+  const shownHint = error && hint?.lead ? null : hint;
+  // The error and the reason the slug is fixed never show together.
+  const note = error || fixed ? "v-slug-note" : null;
+  const describedBy =
+    [note, shownHint && "v-slug-hint"].filter(Boolean).join(" ") || undefined;
   return (
     <div>
-      <label className="v-field__label">Slug</label>
+      <label className="v-field__label" htmlFor={id}>
+        Slug
+      </label>
       {pattern.single || fixed ? (
         <input
+          id={id}
           className="v-input v-input--mono"
           readOnly
           value={slug}
-          // The error and the reason it is fixed never show together.
-          aria-describedby={error || fixed ? "v-slug-note" : undefined}
+          aria-describedby={describedBy}
         />
       ) : (
-        <div className="v-slug">
-          {box.prefix && (
-            <span
-              className="v-slug__prefix v-mono"
-              title="Set by the date field"
-            >
-              {box.prefix}
-            </span>
-          )}
-          <input
-            className="v-input v-input--mono"
-            value={box.value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="auto"
-            aria-invalid={error ? true : undefined}
-          />
-        </div>
+        <input
+          id={id}
+          className="v-input v-input--mono"
+          value={box}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="auto"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+        />
       )}
-      {error && (
+      <SlugNotes error={error} fixed={fixed} hint={shownHint} />
+    </div>
+  );
+}
+
+/** What's under the slug box: a problem or why it is fixed, then its address. */
+function SlugNotes({
+  error,
+  fixed,
+  hint,
+}: {
+  error: string | null;
+  fixed: string | null;
+  hint: SlugHint | null;
+}) {
+  return (
+    <>
+      {error ? (
         <div id="v-slug-note" className="v-field__error">
           {error}
         </div>
-      )}
-      {fixed && !error && (
-        <div id="v-slug-note" className="v-field__hint">
-          {fixed}
-        </div>
+      ) : (
+        fixed && (
+          <div id="v-slug-note" className="v-field__hint">
+            {fixed}
+          </div>
+        )
       )}
       {hint && (
-        <div className="v-field__hint v-mono" style={{ fontSize: 11.5 }}>
-          {hint}
+        <div id="v-slug-hint" className="v-field__hint v-slug__hint">
+          {hint.lead && `${hint.lead} `}
+          <span className="v-mono">{hint.path}</span>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

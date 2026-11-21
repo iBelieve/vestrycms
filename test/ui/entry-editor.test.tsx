@@ -150,6 +150,10 @@ const saveButton = () => screen.getByRole("button", { name: /^(Save|Create)/ });
 const titleInput = () =>
   screen.getByPlaceholderText<HTMLInputElement>("Title…");
 const slugInput = () => screen.getByPlaceholderText<HTMLInputElement>("auto");
+/** The address or file named under the slug box. */
+const slugHintText = () => document.getElementById("v-slug-hint")?.textContent;
+/** The page's address under the title. */
+const pageAddress = () => document.querySelector(".v-page-address")!;
 const summaryInput = () =>
   document.querySelector<HTMLTextAreaElement>("textarea:not(.v-title-input)")!;
 
@@ -163,7 +167,10 @@ describe("a new entry", () => {
     await screen.findByText("New post");
     await user.type(titleInput(), "My First Post");
     expect(slugInput().value).toBe("my-first-post");
-    expect(screen.getByText("src/content/posts/my-first-post.md")).toBeTruthy();
+    // Its address is under the title, not yet a link; the slug box has no note.
+    expect(pageAddress().textContent).toBe("example.org/posts/my-first-post");
+    expect(pageAddress().querySelector("a")).toBeNull();
+    expect(slugHintText()).toBeUndefined();
     await user.click(saveButton());
     await screen.findByText("Saved to disk");
     expect(await read(root, "src/content/posts/my-first-post.md")).toContain(
@@ -263,7 +270,7 @@ describe("a new entry", () => {
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("keeps a date from the date field in front of its slug", async () => {
+  it("shows where a date from the date field goes under its slug", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {
       url: "/collections/news/new",
@@ -274,10 +281,15 @@ describe("a new entry", () => {
     fireEvent.change(screen.getByLabelText("Date"), {
       target: { value: "2026-11-17" },
     });
-    expect(screen.getByTitle("Set by the date field").textContent).toBe(
-      "2026-11-17-",
-    );
     expect(slugInput().value).toBe("big-news");
+    expect(slugHintText()).toBe("src/content/news/2026-11-17-big-news.md");
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-11-18" },
+    });
+    expect(slugHintText()).toBe("src/content/news/2026-11-18-big-news.md");
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-11-17" },
+    });
     await user.click(saveButton());
     await screen.findByText("Saved to disk");
     expect(
@@ -287,6 +299,75 @@ describe("a new entry", () => {
 });
 
 describe("the title", () => {
+  it("is the first field of the fields card, which then has no heading", async () => {
+    await openPanel(config, { url: "/collections/authors/ann", files });
+    await screen.findByDisplayValue("Ann");
+    const card = titleInput().closest(".v-card")!;
+    expect(card.textContent).toContain("Mentor");
+    expect(screen.queryByRole("heading", { name: "Details" })).toBeNull();
+  });
+
+  it("keeps a card of its own above a section of the main column", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    expect(titleInput().closest(".v-card")!.textContent).not.toContain(
+      "Summary",
+    );
+    expect(screen.getByRole("heading", { name: "Summary" })).toBeTruthy();
+  });
+
+  it("heads the fields card when a main section shows nothing", async () => {
+    const authors = config.collections!.authors;
+    await openPanel(
+      defineConfig({
+        ...config,
+        collections: {
+          authors: {
+            ...authors,
+            sections: [{ label: "Hidden", fields: ["secret"] }],
+            schema: {
+              ...authors.schema,
+              secret: fields.text({ hidden: true }),
+            },
+          },
+        },
+      }),
+      { url: "/collections/authors/ann", files },
+    );
+    await screen.findByDisplayValue("Ann");
+    expect(titleInput().closest(".v-card")!.textContent).toContain("Mentor");
+    expect(screen.queryByRole("heading", { name: "Details" })).toBeNull();
+  });
+
+  it("takes its field's settings like any field", async () => {
+    const authors = config.collections!.authors;
+    await openPanel(
+      defineConfig({
+        ...config,
+        collections: {
+          authors: {
+            ...authors,
+            schema: {
+              ...authors.schema,
+              title: fields.text({
+                readOnly: true,
+                description: "Set by the directory.",
+                placeholder: "Full name",
+                maxLength: 40,
+              }),
+            },
+          },
+        },
+      }),
+      { url: "/collections/authors/ann", files },
+    );
+    const title = await screen.findByDisplayValue<HTMLTextAreaElement>("Ann");
+    expect(title.readOnly).toBe(true);
+    expect(title.placeholder).toBe("Full name");
+    expect(title.maxLength).toBe(40);
+    expect(screen.getByText("Set by the directory.")).toBeTruthy();
+  });
+
   it("wraps rather than taking line breaks", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {
@@ -295,6 +376,8 @@ describe("the title", () => {
     });
     await screen.findByDisplayValue("Hello");
     expect(titleInput().tagName).toBe("TEXTAREA");
+    // Labelled like any field, with the required mark.
+    expect(screen.getByLabelText("Title*")).toBe(titleInput());
     await user.type(titleInput(), " there{Enter}");
     expect(titleInput().value).toBe("Hello there");
     fireEvent.change(titleInput(), {
@@ -333,6 +416,31 @@ describe("the title", () => {
 });
 
 describe("an existing entry", () => {
+  it("links its page under the title, and says where an edit moves it", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    const link = screen.getByRole("link", { name: "example.org/posts/hello" });
+    expect(link.getAttribute("href")).toBe("https://example.org/posts/hello");
+    expect(slugHintText()).toBeUndefined();
+    fireEvent.change(slugInput(), { target: { value: "hi" } });
+    expect(slugHintText()).toBe("Moves to /posts/hi");
+    // The page stays where it is until the rename is saved.
+    expect(link.getAttribute("href")).toBe("https://example.org/posts/hello");
+    expect(screen.getByTitle("View on the site").getAttribute("href")).toBe(
+      "https://example.org/posts/hello",
+    );
+  });
+
+  it("doesn't say where a slug it can't be saved under moves it", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    fireEvent.change(screen.getByLabelText("Slug"), {
+      target: { value: "a b" },
+    });
+    expect(screen.getByText(/^Use letters, numbers/)).toBeTruthy();
+    expect(slugHintText()).toBeUndefined();
+  });
+
   it("is edited and saved", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {
@@ -341,7 +449,7 @@ describe("an existing entry", () => {
     });
     await screen.findByDisplayValue("Hello");
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText("src/content/posts/hello.md")).toBeTruthy();
+    expect(screen.getByTitle("src/content/posts/hello.md")).toBeTruthy();
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue("Set on save")).toBeTruthy();
     expect(
@@ -420,9 +528,9 @@ describe("an existing entry", () => {
     });
     await screen.findByDisplayValue("Ann");
     fireEvent.change(slugInput(), { target: { value: "anna" } });
-    expect(
-      screen.getByText("Renames the file to src/content/authors/anna.md"),
-    ).toBeTruthy();
+    expect(slugHintText()).toBe(
+      "Renames the file to src/content/authors/anna.md",
+    );
     await user.click(saveButton());
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toContain("2 other entries refer to this one");
@@ -461,7 +569,7 @@ describe("an existing entry", () => {
       ),
     );
     // The file it now lives in, which the editor there shows.
-    await screen.findByText("src/content/authors/robert.md");
+    await screen.findByTitle("src/content/authors/robert.md");
     expect(titleInput().value).toBe("Robert");
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
     expect(await read(root, "src/content/authors/robert.md")).toContain(
@@ -486,7 +594,7 @@ describe("an existing entry", () => {
     );
     fireEvent.change(titleInput(), { target: { value: "Kat" } });
     release();
-    await screen.findByText("src/content/authors/kat.md");
+    await screen.findByTitle("src/content/authors/kat.md");
     expect(titleInput().value).toBe("Kat");
     // Saving what was typed keeps the reference on the entry's new slug.
     fireEvent.click(saveButton());
@@ -511,11 +619,11 @@ describe("an existing entry", () => {
     );
     fireEvent.change(slugInput(), { target: { value: "roberto" } });
     release();
-    await screen.findByText("src/content/authors/robert.md");
+    await screen.findByTitle("src/content/authors/robert.md");
     expect(slugInput().value).toBe("roberto");
-    expect(
-      screen.getByText("Renames the file to src/content/authors/roberto.md"),
-    ).toBeTruthy();
+    expect(slugHintText()).toBe(
+      "Renames the file to src/content/authors/roberto.md",
+    );
   });
 
   it("can drop a rename at the confirmation", async () => {
