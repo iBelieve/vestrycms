@@ -329,6 +329,11 @@ describe("assets", () => {
 
   it("lists files and folders, skipping hidden ones", async () => {
     await writeFile(path.join(root, "src/assets/images/.hidden"), "");
+    await mkdir(path.join(root, "src/assets/images/.cache"));
+    await writeFile(path.join(root, "src/assets/images/.cache/c.png"), "");
+    // A folder kept in git by a hidden file still shows.
+    await mkdir(path.join(root, "src/assets/images/empty"));
+    await writeFile(path.join(root, "src/assets/images/empty/.gitkeep"), "");
     const { data } = await call<{
       items: { name: string; kind: string }[];
       folders: string[];
@@ -336,7 +341,7 @@ describe("assets", () => {
     expect(data.items).toEqual([
       expect.objectContaining({ name: "my-photo.png", kind: "image" }),
     ]);
-    expect(data.folders).toEqual(["old"]);
+    expect(data.folders).toEqual(["empty", "old"]);
   });
 
   it("lists every file below a folder for a search", async () => {

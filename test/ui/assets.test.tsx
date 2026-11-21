@@ -199,6 +199,8 @@ describe("the assets list and search", () => {
       within(screen.getByRole("dialog")).getByRole("button", { name: "Done" }),
     );
     await user.click(within(table).getByRole("button", { name: /sub/ }));
+    // The folder left behind doesn't stand in while this one loads.
+    expect(screen.queryByText("a.png")).toBeNull();
     expect(await screen.findByText("b.png")).toBeTruthy();
 
     view.unmount();
@@ -221,6 +223,8 @@ describe("the assets list and search", () => {
     await screen.findByText("a.png");
     const search = screen.getByRole("searchbox", { name: "Search files" });
     await user.type(search, "B");
+    // Nothing in this folder itself matches, but those inside it aren't in.
+    expect(screen.queryByText("No matches")).toBeNull();
     expect(await screen.findByText("b-final.png")).toBeTruthy();
     expect(screen.getByText("b.png")).toBeTruthy();
     expect(screen.queryByText("a.png")).toBeNull();

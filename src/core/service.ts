@@ -792,13 +792,15 @@ export class ContentService {
     const prefix = `${dir}/`;
     for (const f of files) {
       const rest = f.path.slice(prefix.length);
-      // Hidden files and folders (.cache, .DS_Store) are left out.
-      if (rest.split("/").some((part) => part.startsWith("."))) continue;
       const slash = rest.indexOf("/");
       if (slash !== -1 && !recursive) {
-        folders.add(rest.slice(0, slash));
+        // A hidden folder (.cache) is left out, but not a folder that holds
+        // only hidden files (a .gitkeep).
+        if (!rest.startsWith(".")) folders.add(rest.slice(0, slash));
         continue;
       }
+      // Hidden files (.DS_Store), and in a search those in hidden folders.
+      if (rest.split("/").some((part) => part.startsWith("."))) continue;
       const name = rest.slice(rest.lastIndexOf("/") + 1);
       const ext = extname(name);
       items.push({

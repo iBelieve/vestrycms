@@ -593,11 +593,12 @@ export function Segment<T extends string>({
   label?: string;
 }) {
   return (
-    <div className="v-segment" aria-label={label}>
+    <div className="v-segment" role="group" aria-label={label}>
       {options.map((o) => (
         <button
           key={o}
           type="button"
+          aria-pressed={value === o}
           className={cx(value === o && "is-active")}
           onClick={() => onChange(o)}
         >

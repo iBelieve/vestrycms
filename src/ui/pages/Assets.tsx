@@ -1,9 +1,4 @@
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Search, Trash } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
@@ -116,6 +111,7 @@ export function AssetsPage() {
         {q.data && (
           <AssetsListing
             listing={q.data}
+            pending={q.isPlaceholderData}
             base={joinPath(container.directory, dir)}
             view={view}
             search={search}
@@ -155,8 +151,13 @@ function useAssetListing(
     queryFn: () => api.listAssets(key, dir, { all }),
     enabled,
     // Typing the first letter keeps the folder on screen until the
-    // matches arrive.
-    placeholderData: keepPreviousData,
+    // matches arrive. Another folder's or container's files never stand in.
+    placeholderData: (previous, previousQuery) =>
+      all &&
+      previousQuery?.queryKey[1] === key &&
+      previousQuery.queryKey[2] === dir
+        ? previous
+        : undefined,
   });
 }
 
@@ -207,6 +208,7 @@ function useUpload(key: string, dir: string) {
 
 function AssetsListing({
   listing,
+  pending,
   base,
   view,
   search,
@@ -216,6 +218,8 @@ function AssetsListing({
   onOpenFolder,
 }: {
   listing: { items: AssetItem[]; folders: string[] };
+  /** `listing` is the folder's own, standing in until a search's arrives. */
+  pending: boolean;
   /** The folder shown, from the repository root. */
   base: string;
   view: View;
@@ -233,8 +237,13 @@ function AssetsListing({
     () => sortAssets(matchAssets(listing.items, search, base), sort),
     [listing.items, search, base, sort],
   );
+  // No match in the folder itself yet says nothing about those below it.
   if (items.length === 0 && folders.length === 0)
-    return <NoAssets searching={searching} emptyIcon={emptyIcon} />;
+    return pending ? (
+      <Loading />
+    ) : (
+      <NoAssets searching={searching} emptyIcon={emptyIcon} />
+    );
   if (view === "list")
     return (
       <div className="v-card">

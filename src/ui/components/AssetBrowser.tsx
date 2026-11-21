@@ -164,8 +164,12 @@ export function FolderGrid({
   );
 }
 
-/** The folder a file sits in under `base`, when that isn't `base` itself. */
+/**
+ * The folder a file sits in under `base`, when that isn't `base` itself;
+ * nothing without a `base` (the picker) or for a file outside it.
+ */
 function subfolder(base: string, path: string): string {
+  if (!base || !path.startsWith(`${base}/`)) return "";
   const rel = relativeTo(base, path);
   return rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
 }
@@ -351,7 +355,9 @@ function AssetTableRow({
           </span>
         </button>
       </td>
-      <td className="v-table__cell v-muted">{item.ext.toUpperCase()}</td>
+      <td className="v-table__cell v-muted">
+        {item.ext ? item.ext.toUpperCase() : "File"}
+      </td>
       <td className="v-table__cell v-muted">{formatBytes(item.size)}</td>
     </tr>
   );
