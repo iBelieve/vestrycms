@@ -2,6 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { ArrowRight, Clock } from "lucide-react";
 import { Link } from "react-router";
 import type { CollectionConfig } from "../../config/types.js";
+import { AnalyticsWidget } from "../components/AnalyticsWidget.js";
 import { TopBar } from "../components/Layout.js";
 import { Icon } from "../components/Icon.js";
 import { Badge } from "../components/ui.js";
@@ -40,6 +41,7 @@ export function DashboardPage() {
     <>
       <TopBar title="Dashboard" />
       <div className="v-page">
+        <AnalyticsWidget />
         {collections.length > 0 && (
           <section className="v-section">
             <h2 className="v-section-title">Collections</h2>

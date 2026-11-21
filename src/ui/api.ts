@@ -1,3 +1,7 @@
+import type {
+  AnalyticsPeriod,
+  AnalyticsStatus,
+} from "../core/analytics/types.js";
 import type { ClientConfig } from "../core/api.js";
 import type { DeployStatus } from "../core/deploys.js";
 import type { PublicUser, Role } from "../core/roles.js";
@@ -124,6 +128,9 @@ export function createClient(basePath: string) {
     status: () => request<{ head: string }>("/status"),
     /** Build and deploy status of the branch's recent commits. */
     deploys: () => request<DeployStatus>("/deploys"),
+    /** Visitor numbers from the site's analytics provider. */
+    analytics: (period: AnalyticsPeriod) =>
+      request<AnalyticsStatus>(`/analytics?period=${period}`),
     listUsers: () => request<{ users: PublicUser[] }>("/users"),
     inviteUser: (input: { email: string; name?: string; role: Role }) =>
       request<{ user: PublicUser; mailError?: string }>("/users", {

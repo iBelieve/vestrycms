@@ -2357,6 +2357,295 @@ button.v-table__toggle:hover {
   margin: 0 0 12px;
 }
 
+/* ------------------------------------------------------------ analytics */
+.v-analytics__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 0 0 14px;
+}
+.v-analytics__periods {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.v-analytics__periods button {
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .v-analytics__periods button {
+    padding: 0 9px;
+  }
+}
+.v-analytics__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: 13px;
+}
+.v-analytics__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--v-text-muted);
+  font-size: 12.5px;
+}
+.v-analytics__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--v-success);
+  box-shadow: 0 0 0 3px var(--v-success-soft);
+  flex: none;
+}
+.v-analytics__overview {
+  padding: 4px 18px 14px;
+}
+.v-analytics__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+@media (max-width: 900px) {
+  .v-analytics__grid {
+    grid-template-columns: 1fr;
+  }
+}
+.v-astats {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -18px 10px;
+  border-bottom: 1px solid var(--v-border);
+}
+.v-astats--compact {
+  margin-bottom: 6px;
+}
+.v-astat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 18px 12px;
+  min-width: 128px;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.v-astat--button {
+  cursor: pointer;
+}
+.v-astat--button:hover {
+  background: var(--v-surface-muted);
+}
+.v-astat.is-active {
+  border-bottom-color: var(--v-primary);
+}
+.v-astat__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--v-text-muted);
+}
+.v-astat__value {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--v-text);
+}
+.v-astat__change {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--v-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.v-astat__change svg {
+  width: 14px;
+  height: 14px;
+}
+.v-astat__change.is-good {
+  color: var(--v-success);
+}
+.v-astat__change.is-bad {
+  color: var(--v-danger);
+}
+.v-chart {
+  position: relative;
+  width: 100%;
+}
+.v-chart svg {
+  display: block;
+  overflow: visible;
+}
+.v-chart__grid {
+  stroke: var(--v-border);
+  stroke-width: 1;
+}
+.v-chart__axis {
+  fill: var(--v-text-faint);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.v-chart__area {
+  fill: var(--v-primary);
+  fill-opacity: 0.1;
+}
+.v-chart__line {
+  fill: none;
+  stroke: var(--v-primary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.v-chart__cursor {
+  stroke: var(--v-border-strong);
+  stroke-width: 1;
+}
+.v-chart__dot {
+  fill: var(--v-primary);
+  stroke: var(--v-surface);
+  stroke-width: 2;
+}
+.v-chart__hit {
+  fill: transparent;
+}
+.v-chart__tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  background: var(--v-chrome);
+  color: var(--v-chrome-text);
+  border-radius: var(--v-radius-sm);
+  padding: 6px 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  box-shadow: var(--v-shadow);
+}
+.v-chart__tip strong {
+  font-variant-numeric: tabular-nums;
+}
+.v-chart__tip-label {
+  display: block;
+  color: var(--v-chrome-muted);
+  font-size: 11.5px;
+}
+.v-breakdown {
+  padding: 14px 18px 16px;
+  min-width: 0;
+}
+.v-breakdown__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.v-breakdown__head h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.v-breakdown__head span {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--v-text-muted);
+}
+.v-breakdown__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v-breakdown__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+.v-breakdown__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--v-primary-soft);
+  border-radius: 4px;
+}
+.v-breakdown__name {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#vestry-root .v-breakdown__name a {
+  color: var(--v-text);
+}
+#vestry-root .v-breakdown__name a:hover {
+  color: var(--v-primary);
+}
+.v-breakdown__value {
+  position: relative;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.v-breakdown__empty {
+  margin: 0;
+  color: var(--v-text-muted);
+  font-size: 13px;
+}
+.v-analytics-widget {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+}
+@media (max-width: 1000px) {
+  .v-analytics-widget {
+    grid-template-columns: 1fr;
+  }
+}
+.v-analytics-widget__summary {
+  padding: 0 18px 12px;
+}
+.v-analytics-widget__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#vestry-root .v-analytics-widget__more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.v-analytics-widget__loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  color: var(--v-text-muted);
+  font-size: 13px;
+}
+
 /* ---------------------------------------------------------------- login */
 .v-login,
 .v-error-page {
