@@ -44,6 +44,12 @@ export interface FieldBase<T extends FieldType = FieldType> {
   hidden?: boolean;
   /** Make the input read-only in the editor. */
   readOnly?: boolean;
+  /**
+   * Show the field only in these entries' editors, by slug (for example
+   * `["index"]` for the home page). Other entries keep any value it has.
+   * For a collection's top-level fields; new entries don't take its default.
+   */
+  entries?: string[];
   /** Width in the main column: full width or half (two fields per row). */
   width?: "full" | "half" | "third";
 }

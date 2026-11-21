@@ -70,6 +70,7 @@ import {
   effectiveSlug,
   entryDisplay,
   entryFile,
+  entrySchema,
   readOnlySchema,
   fieldPlacement,
   publishToggle,
@@ -361,6 +362,16 @@ function useEntryForm(props: EntryFormProps) {
     draft,
   });
 
+  // The fields this entry shows, by the slug it saves under: one kept for
+  // other entries (`entries`) hides, and shows again if the slug comes back.
+  const shown = useMemo(
+    () =>
+      collection
+        ? { ...col, schema: entrySchema(col.schema, slugs.finalSlug) }
+        : col,
+    [col, collection, slugs.finalSlug],
+  );
+
   // Ask before leaving the page with anything unsaved, a rename included.
   const unsaved = doc.dirty || slugs.renaming;
   useLeaveWarning(unsaved);
@@ -374,7 +385,7 @@ function useEntryForm(props: EntryFormProps) {
     collectionKey,
     slug,
     isNew,
-    col,
+    col: shown,
     pattern,
     filePath,
     openedFile,
@@ -387,7 +398,7 @@ function useEntryForm(props: EntryFormProps) {
   const saved = savedEntry(isNew, slug, doc.savedData);
   const display = entryDisplay({
     kind,
-    col,
+    col: shown,
     data: doc.state.data,
     isNew,
     slug: addressSlug({
@@ -402,7 +413,7 @@ function useEntryForm(props: EntryFormProps) {
   });
   return {
     ...props,
-    col,
+    col: shown,
     readOnly,
     collection,
     doc,

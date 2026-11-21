@@ -7,6 +7,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **Fields for some entries.** `entries: ["index"]` on a collection's
+  top-level field shows it only in those entries' editors, such as fields
+  for the home page alone. Other entries keep any value it has, and don't
+  require it.
 - **Google Analytics.** With `provider: "google-analytics"` and a
   `propertyId`, `analytics` reads a GA4 property through the Data API as a
   service account, with its JSON key in the

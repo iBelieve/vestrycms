@@ -23,6 +23,77 @@ const posts = (overrides: Partial<CollectionConfig> = {}): VestryConfig =>
   });
 
 describe("validateConfig", () => {
+  it("accepts a top-level field for some entries", () => {
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            title: fields.text(),
+            tagline: fields.text({ entries: ["index", "guides/index"] }),
+          },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects entries that name nothing, or where there are no entries to choose", () => {
+    const withField = (field: ReturnType<typeof fields.text>) =>
+      posts({ schema: { title: fields.text(), tagline: field } });
+    expect(() =>
+      validateConfig(withField(fields.text({ entries: [] }))),
+    ).toThrow(/"tagline" has entries: \[\], which shows it nowhere/);
+    expect(() =>
+      validateConfig(withField(fields.text({ entries: ["../x"] }))),
+    ).toThrow(/"tagline" entries has "..\/x", which is not a slug/);
+    expect(() =>
+      validateConfig(
+        withField(fields.text({ entries: "index" as unknown as string[] })),
+      ),
+    ).toThrow(/"tagline" entries must be a list of slugs/);
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            meta: fields.object({
+              tagline: fields.text({ entries: ["index"] }),
+            }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /"meta.tagline" sets entries, but it is only for a top-level field/,
+    );
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          singletons: {
+            site: singleton({
+              label: "Site",
+              path: "src/data/site.yaml",
+              schema: { tagline: fields.text({ entries: ["index"] }) },
+            }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /singleton "site": "tagline" sets entries, but a singleton has one entry/,
+    );
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          components: {
+            Hero: {
+              label: "Hero",
+              props: { title: fields.text({ entries: ["index"] }) },
+            },
+          },
+        }),
+      ),
+    ).toThrow(/component "Hero": "title" sets entries/);
+  });
+
   it("accepts a date kept in the file name and known template filters", () => {
     expect(() =>
       validateConfig(

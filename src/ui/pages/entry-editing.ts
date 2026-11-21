@@ -673,6 +673,23 @@ export function slugHint({
 export type SlugHint = { lead: string | null; path: string };
 
 /**
+ * `schema` as the editor of the entry at `slug` shows it: a field kept for
+ * other entries (`entries`) is hidden, and not required, here. Its value
+ * stays in the file.
+ */
+export function entrySchema(schema: Schema, slug: string): Schema {
+  if (!Object.values(schema).some((f) => f.entries)) return schema;
+  return Object.fromEntries(
+    Object.entries(schema).map(([key, field]) => [
+      key,
+      field.entries && !field.entries.includes(slug)
+        ? { ...field, hidden: true, required: false }
+        : field,
+    ]),
+  );
+}
+
+/**
  * `schema` with every field read-only, nested ones included, for a
  * read-only collection.
  */

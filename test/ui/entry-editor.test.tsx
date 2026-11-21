@@ -67,7 +67,10 @@ const config = defineConfig({
       path: "src/pages/**.md",
       body: false,
       reservedSlugs: ["index", "404"],
-      schema: { title: fields.text() },
+      schema: {
+        title: fields.text(),
+        tagline: fields.text({ entries: ["index", "welcome"], required: true }),
+      },
     }),
     rules: collection({
       label: "Rules",
@@ -127,6 +130,7 @@ const files = {
     "- id: home\n  title: Home\n- id: about\n  title: About\n  next: home\n",
   "src/content/menus/main.md": "---\ntitle: Main\nfirst: home\n---\n",
   "src/pages/index.md": "---\ntitle: Home\n---\n",
+  "src/pages/about.md": "---\ntitle: About\ntagline: Kept\n---\n",
   "src/content/rules/first.md": "---\ntitle: First\n---\n",
   "src/content/notes/one.md":
     "---\ntitle: One\ndraft: false\ntags:\n  - a\nsee: one\nintro: An intro.\n---\nThe *body*.\n",
@@ -813,6 +817,53 @@ describe("a fixed slug", () => {
       screen.getByText("This collection doesn't allow renaming entries."),
     ).toBeTruthy();
     expect(screen.queryByTitle("Delete")).toBeNull();
+  });
+});
+
+describe("a field for some entries", () => {
+  const tagline = () => screen.queryByText("Tagline");
+
+  it("shows in the entries it names", async () => {
+    await openPanel(config, { url: "/collections/pages/index", files });
+    await screen.findByDisplayValue("Home");
+    expect(tagline()).toBeTruthy();
+  });
+
+  it("hides in the others, which keep its value and don't need one", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/pages/about",
+      files,
+    });
+    const title = await screen.findByDisplayValue("About");
+    expect(tagline()).toBeNull();
+    await user.type(title, " us");
+    await user.click(saveButton());
+    await screen.findByText("Saved to disk");
+    expect(await read(root, "src/pages/about.md")).toBe(
+      "---\ntitle: About us\ntagline: Kept\n---\n",
+    );
+  });
+
+  it("shows once the slug is one it names", async () => {
+    await openPanel(config, { url: "/collections/pages/about", files });
+    await screen.findByDisplayValue("About");
+    fireEvent.change(slugInput(), { target: { value: "welcome" } });
+    expect(tagline()).toBeTruthy();
+    expect(screen.getByDisplayValue("Kept")).toBeTruthy();
+  });
+
+  it("leaves new entries without its value", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/pages/new",
+      files,
+    });
+    await user.type(await screen.findByPlaceholderText("Title…"), "Faq");
+    expect(tagline()).toBeNull();
+    await user.click(saveButton());
+    await screen.findByText(/Created|Saved/);
+    expect(await read(root, "src/pages/faq.md")).toBe("---\ntitle: Faq\n---\n");
   });
 });
 

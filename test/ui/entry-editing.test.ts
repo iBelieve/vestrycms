@@ -13,6 +13,7 @@ import {
   entryFile,
   pagePath,
   publishToggle,
+  entrySchema,
   readOnlySchema,
   slugBox,
   slugHint,
@@ -460,6 +461,26 @@ describe("publishToggle", () => {
     expect(
       publishToggle({ statusField: null, publishedWhen: true }, {}, () => {}),
     ).toBeNull();
+  });
+});
+
+describe("entrySchema", () => {
+  const schema = {
+    title: fields.text({ required: true }),
+    tagline: fields.text({ entries: ["index"], required: true }),
+  };
+
+  it("hides, and doesn't require, a field for other entries", () => {
+    expect(entrySchema(schema, "about")).toEqual({
+      title: schema.title,
+      tagline: { ...schema.tagline, hidden: true, required: false },
+    });
+  });
+
+  it("leaves the schema alone for an entry a field names, or with none", () => {
+    expect(entrySchema(schema, "index")).toEqual(schema);
+    const plain = { title: fields.text() };
+    expect(entrySchema(plain, "about")).toBe(plain);
   });
 });
 
