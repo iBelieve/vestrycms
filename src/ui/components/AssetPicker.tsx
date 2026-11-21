@@ -100,7 +100,14 @@ export function AssetPicker({
           </div>
           {allowUpload && (
             <Dropzone onFiles={upload}>
-              Drop files here to upload{accept ? ` (${accept.join(", ")})` : ""}
+              <span className="v-drop-hint">Drop files here to upload</span>
+              {accept && (
+                <span className="v-drop-accept">
+                  <span className="v-drop-hint"> (</span>
+                  {accept.join(", ")}
+                  <span className="v-drop-hint">)</span>
+                </span>
+              )}
             </Dropzone>
           )}
           <PickerListing

@@ -132,7 +132,10 @@ function AssetsListing({
       <FolderGrid folders={listing.folders} onOpen={onOpenFolder} />
       {listing.items.length === 0 && listing.folders.length === 0 ? (
         <EmptyState icon={<Icon name={emptyIcon} />} title="No files here yet">
-          <p>Upload files with the button above or drop them onto this page.</p>
+          <p>
+            Upload files with the button above
+            <span className="v-drop-hint"> or drop them onto this page</span>.
+          </p>
         </EmptyState>
       ) : (
         <AssetGrid
