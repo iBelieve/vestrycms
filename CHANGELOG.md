@@ -130,6 +130,15 @@ while Vestry is below 1.0, a minor version may change behaviour.
   empty.
 - An `index` entry's View link opens its folder's page (`/`, or
   `/guides` for `guides/index`) instead of `/index`.
+- A component prop kept as written (a function, or a template literal
+  with placeholders) that spans lines keeps its indentation on save; each
+  save took two spaces off its later lines, whitespace inside a template
+  literal included. Vestry now depends on `mdast-util-mdx-jsx` 3.2.1 or
+  later directly, whatever version a site's `mdast-util-mdx` resolves.
+- A string prop holding a character reference (`Tom &amp; Jerry`) is
+  saved as an expression, so a save no longer decodes it to `Tom & Jerry`.
+- Saving a body with a block fragment (`<>` … `</>`) no longer writes
+  `<><>`, which MDX cannot read.
 
 ## 0.7.0
 
