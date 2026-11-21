@@ -10,6 +10,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -476,7 +477,8 @@ function EntryMain({ form }: { form: EntryFormModel }) {
       {titleKey && (
         <TitleCard
           value={display.titleValue}
-          placeholder={`${fieldLabel(titleKey, col.schema[titleKey])}…`}
+          label={fieldLabel(titleKey, col.schema[titleKey])}
+          required={!!col.schema[titleKey]?.required}
           onChange={(title) =>
             doc.setData((data) => ({ ...data, [titleKey]: title }))
           }
@@ -1197,7 +1199,8 @@ function ErrorList({ errors }: { errors: ValidationError[] }) {
 
 function TitleCard({
   value,
-  placeholder,
+  label,
+  required,
   onChange,
   autoFocus,
   error,
@@ -1205,7 +1208,9 @@ function TitleCard({
   readOnly,
 }: {
   value: string;
-  placeholder: string;
+  /** The title field's label, shown above it like any field's. */
+  label: string;
+  required: boolean;
   onChange: (value: string) => void;
   autoFocus: boolean;
   error?: string;
@@ -1213,12 +1218,18 @@ function TitleCard({
   /** The page's address on the site, linked once it is there. */
   address: { text: string; href: string | null } | null;
 }) {
+  const id = useId();
   return (
     <div className="v-card">
       <div className="v-card__body" style={{ padding: "14px 18px" }}>
+        <label className="v-field__label" htmlFor={id}>
+          {label}
+          {required && <span className="v-field__required">*</span>}
+        </label>
         <TitleInput
+          id={id}
           value={value}
-          placeholder={placeholder}
+          placeholder={`${label}…`}
           onChange={onChange}
           autoFocus={autoFocus}
           readOnly={readOnly}
@@ -1252,12 +1263,14 @@ function PageAddress({ text, href }: { text: string; href: string | null }) {
  * nothing and spaces.
  */
 function TitleInput({
+  id,
   value,
   placeholder,
   onChange,
   autoFocus,
   readOnly,
 }: {
+  id: string;
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
@@ -1289,6 +1302,7 @@ function TitleInput({
   return (
     <textarea
       ref={ref}
+      id={id}
       className="v-title-input"
       rows={1}
       value={value}

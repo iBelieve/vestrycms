@@ -307,6 +307,8 @@ describe("the title", () => {
     });
     await screen.findByDisplayValue("Hello");
     expect(titleInput().tagName).toBe("TEXTAREA");
+    // Labelled like any field, with the required mark.
+    expect(screen.getByLabelText("Title*")).toBe(titleInput());
     await user.type(titleInput(), " there{Enter}");
     expect(titleInput().value).toBe("Hello there");
     fireEvent.change(titleInput(), {
