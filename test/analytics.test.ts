@@ -6,9 +6,9 @@ import { describe, expect, it } from "vitest";
 import { validateConfig } from "../src/config/validate.js";
 import type { VestryConfig } from "../src/config/types.js";
 import { analyticsReport } from "../src/core/analytics/index.js";
+import { previousRange } from "../src/core/analytics/dates.js";
 import {
   PLAUSIBLE_API_KEY,
-  previousRange,
   resolvedRange,
   siteHour,
 } from "../src/core/analytics/plausible.js";
@@ -399,7 +399,7 @@ describe("analytics config", () => {
 
   it("rejects an unknown provider", () => {
     expect(check({ provider: "umami", siteId: "x" })).toThrow(
-      'analytics.provider must be "plausible" (got "umami")',
+      'analytics.provider must be "plausible" or "google-analytics" (got "umami")',
     );
   });
 

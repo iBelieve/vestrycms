@@ -7,6 +7,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **Google Analytics.** With `provider: "google-analytics"` and a
+  `propertyId`, `analytics` reads a GA4 property through the Data API as a
+  service account, with its JSON key in the
+  `VESTRY_GOOGLE_ANALYTICS_CREDENTIALS` secret. The dashboard card and the
+  Analytics page show the same numbers as with Plausible (visitors are
+  GA4's active users, visits its sessions).
 - **`dashboard: false`** on a collection leaves it off the dashboard: no
   tile, "Recent …" list or New button, and the dashboard request no
   longer lists it. It stays in the sidebar. For collections editors
@@ -31,6 +37,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - `recent` must be true, false or a number: anything else (a string in a
   `.js` config, say) is an error at startup instead of quietly falling
   back to the default.
+- `importRsaPrivateKey` is no longer exported from `vestrycms/core`: the
+  RS256 key handling moved to an internal module that the GitHub App and
+  Google Analytics sign-ins share.
 
 ### Fixed
 
