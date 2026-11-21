@@ -6,6 +6,7 @@ import type { VestryConfig } from "../config/types.js";
 import { isAPIError } from "better-auth/api";
 import {
   createVestryAuth,
+  isEmailAddress,
   nameFromEmail,
   normalizeEmail,
   tablePrefixError,
@@ -625,7 +626,7 @@ async function inviteUser(
     role?: Role;
   }>(request);
   const email = normalizeEmail(String(body.email ?? ""));
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  if (!isEmailAddress(email))
     return error("Enter a valid email address.", 400, "invalid_email");
   const role: Role = isRole(body.role) ? body.role : "editor";
   const created = await auth.api.createUser({

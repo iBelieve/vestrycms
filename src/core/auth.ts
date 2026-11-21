@@ -62,6 +62,11 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Whether a (normalized) string looks like an email address. */
+export function isEmailAddress(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 /** Display name fallback: the part before the `@`, title-cased a little. */
 export function nameFromEmail(email: string): string {
   const local = email.split("@")[0] ?? email;
@@ -260,10 +265,15 @@ export function createVestryAuth(opts: VestryAuthOptions) {
   /**
    * Gives every config admin an account, as their first sign-in would, so
    * the Users page lists them (to rename or invite) before they sign in.
+   * An entry that isn't an address (empty, or a typo without a domain) gets
+   * none: nobody could sign in to it, and it couldn't be removed.
    */
   const ensureConfigAdmins = async () => {
     const { internalAdapter } = await auth.$context;
-    for (const email of admins) await ensureConfigAdmin(internalAdapter, email);
+    const emails = [...new Set(admins)].filter(isEmailAddress);
+    await Promise.all(
+      emails.map((email) => ensureConfigAdmin(internalAdapter, email)),
+    );
   };
 
   return {
@@ -291,10 +301,21 @@ async function ensureConfigAdmin(adapter: InternalAdapter, email: string) {
       await adapter.updateUser(existing.user.id, { role: "admin" });
     return;
   }
-  await adapter.createUser(
-    { email, name: nameFromEmail(email), emailVerified: false, role: "admin" },
-    { method: "email-otp" },
-  );
+  try {
+    await adapter.createUser(
+      {
+        email,
+        name: nameFromEmail(email),
+        emailVerified: false,
+        role: "admin",
+      },
+      { method: "email-otp" },
+    );
+  } catch (e) {
+    // Another request created it a moment earlier (the Users page opening
+    // while the address asks for a code, say); the email is unique.
+    if (!(await adapter.findUserByEmail(email))) throw e;
+  }
 }
 
 function toIso(value: Date | string): string {

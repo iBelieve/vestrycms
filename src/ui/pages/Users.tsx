@@ -39,7 +39,12 @@ export function UsersPage() {
 
   const resend = useMutation({
     mutationFn: (u: PublicUser) => api.resendInvite(u.id),
-    onSuccess: (_r, u) => toast("success", `Invitation re-sent to ${u.email}.`),
+    onSuccess: (_r, u) =>
+      toast(
+        "success",
+        // A config admin listed before signing in was never invited.
+        `Invitation ${u.origin === "config" ? "sent" : "re-sent"} to ${u.email}.`,
+      ),
     onError: (e) => toast("error", message(e)),
   });
   const remove = useMutation({
@@ -371,7 +376,11 @@ function UserMenu({
               }}
             >
               <Mail />
-              <span>Re-send invitation</span>
+              <span>
+                {u.origin === "config"
+                  ? "Send invitation"
+                  : "Re-send invitation"}
+              </span>
             </button>
           )}
           {canRemove && (

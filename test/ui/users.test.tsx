@@ -255,9 +255,9 @@ describe("the users page", () => {
     expect(within(tr).getByText("Second")).toBeTruthy();
     expect(within(tr).getByText(/config/)).toBeTruthy();
     expect(within(tr).getByText("Invited")).toBeTruthy();
-    await action(user, "Second", "Re-send invitation");
+    await action(user, "Second", "Send invitation");
     expect(
-      await screen.findByText("Invitation re-sent to second@example.org."),
+      await screen.findByText("Invitation sent to second@example.org."),
     ).toBeTruthy();
     expect(auth.mailer.sent.at(-1)!.to).toBe("second@example.org");
     // Listing again doesn't add the address twice.
