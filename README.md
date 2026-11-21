@@ -550,7 +550,8 @@ matching pinned entries at the top.
 
 ## Dashboard
 
-Each collection gets a tile with its entry count. Collections whose `sort`
+Each collection gets a tile with its entry count (unless it is
+`dashboard: false`, below). Collections whose `sort`
 field is a date or datetime also get a "Recent …" list; set `recent: false`
 to hide it, `recent: true` to show it for other collections, or a number to
 change how many entries appear. The list shows the newest entries by the
@@ -561,7 +562,9 @@ for each collection with a recent list, unless it is `fixedEntries` or
 `readOnly`. `dashboard: false` on a collection leaves it off the dashboard
 altogether (no tile, list or button, and the dashboard request doesn't list
 it), for collections editors rarely open such as categories, authors or
-generated entries; it stays in the sidebar.
+generated entries; it stays in the sidebar. Setting `recent` on such a
+collection is an error at startup, as is a `recent` that is not true, false
+or a number.
 
 The dashboard loads with one request (`GET /admin/api/dashboard`) that
 returns each collection's counts and recent entries, rather than one full

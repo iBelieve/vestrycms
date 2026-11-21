@@ -234,6 +234,26 @@ describe("validateConfig", () => {
       );
   });
 
+  it("accepts recent only as true, false or a number", () => {
+    for (const recent of [true, false, 0, 3])
+      expect(() => validateConfig(posts({ recent }))).not.toThrow();
+    for (const recent of ["5", null, Infinity, Number.NaN])
+      expect(() => validateConfig(posts({ recent: recent as never }))).toThrow(
+        "recent must be true, false or a number of entries",
+      );
+  });
+
+  it("rejects a recent list on a collection off the dashboard", () => {
+    for (const recent of [true, 3])
+      expect(() => validateConfig(posts({ dashboard: false, recent }))).toThrow(
+        "sets recent, but dashboard: false leaves it off the dashboard",
+      );
+    for (const recent of [false, 0, undefined])
+      expect(() =>
+        validateConfig(posts({ dashboard: false, recent })),
+      ).not.toThrow();
+  });
+
   it("still requires the repository", () => {
     expect(() => validateConfig({ repo: { owner: "", name: "" } })).toThrow(
       /repo\.owner/,

@@ -403,15 +403,17 @@ export interface CollectionConfig {
    * Show a "Recent …" list on the dashboard, and a New button for the
    * collection in the dashboard's top bar (unless the collection is
    * `fixedEntries` or `readOnly`). Defaults to true when `sort` points at a
-   * date/datetime field. A number sets how many entries to show. The list
-   * is newest first by the sort field's date, or else by the first date
-   * column's, and in the sort order when there is neither.
+   * date/datetime field, unless `dashboard` is `false`. A number sets how
+   * many entries to show. The list is newest first by the sort field's
+   * date, or else by the first date column's, and in the sort order when
+   * there is neither.
    */
   recent?: boolean | number;
   /**
    * `false` leaves the collection off the dashboard: no tile, no "Recent …"
    * list and no New button there. It stays in the sidebar. For collections
    * editors rarely open, such as categories, authors or generated entries.
+   * Setting `recent` on such a collection is an error at startup.
    */
   dashboard?: boolean;
   /**
