@@ -163,6 +163,8 @@ const DEFAULTS: {
 export function defaultValues(schema: Schema): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, field] of Object.entries(schema)) {
+    // A field for some entries only stays out of new ones.
+    if (field.entries) continue;
     const v = defaultValue(field);
     if (v !== "" && v !== null && !(Array.isArray(v) && v.length === 0))
       out[key] = v;

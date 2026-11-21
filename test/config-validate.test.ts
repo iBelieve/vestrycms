@@ -23,6 +23,146 @@ const posts = (overrides: Partial<CollectionConfig> = {}): VestryConfig =>
   });
 
 describe("validateConfig", () => {
+  it("accepts a top-level field for some entries", () => {
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            title: fields.text(),
+            tagline: fields.text({ entries: ["index", "guides/index"] }),
+          },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects entries that name nothing, or where there are no entries to choose", () => {
+    const withField = (field: ReturnType<typeof fields.text>) =>
+      posts({ schema: { title: fields.text(), tagline: field } });
+    expect(() =>
+      validateConfig(withField(fields.text({ entries: [] }))),
+    ).toThrow(/"tagline" has entries: \[\], which shows it nowhere/);
+    expect(() =>
+      validateConfig(withField(fields.text({ entries: ["../x"] }))),
+    ).toThrow(/"tagline" entries has "..\/x", which is not a slug/);
+    expect(() =>
+      validateConfig(
+        withField(fields.text({ entries: "index" as unknown as string[] })),
+      ),
+    ).toThrow(/"tagline" entries must be a list of slugs/);
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            meta: fields.object({
+              tagline: fields.text({ entries: ["index"] }),
+            }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /"meta.tagline" sets entries, but it is only for a top-level field/,
+    );
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          singletons: {
+            site: singleton({
+              label: "Site",
+              path: "src/data/site.yaml",
+              schema: { tagline: fields.text({ entries: ["index"] }) },
+            }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /singleton "site": "tagline" sets entries, but a singleton has one entry/,
+    );
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          singletons: {
+            site: singleton({
+              label: "Site",
+              path: "src/data/site.yaml",
+              schema: {
+                hero: fields.object({
+                  tagline: fields.text({ entries: ["index"] }),
+                }),
+              },
+            }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /singleton "site": "hero.tagline" sets entries, but a singleton has one entry/,
+    );
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          components: {
+            Hero: {
+              label: "Hero",
+              props: { title: fields.text({ entries: ["index"] }) },
+            },
+          },
+        }),
+      ),
+    ).toThrow(/component "Hero": "title" sets entries/);
+  });
+
+  it("rejects entries on a field that every entry has", () => {
+    expect(() =>
+      validateConfig(
+        posts({ schema: { title: fields.text({ entries: ["index"] }) } }),
+      ),
+    ).toThrow(/"title" sets entries, but the title shows in every entry/);
+    expect(() =>
+      validateConfig(
+        posts({
+          status: { field: "draft", publishedWhen: false },
+          schema: {
+            title: fields.text(),
+            draft: fields.boolean({ entries: ["index"] }),
+          },
+        }),
+      ),
+    ).toThrow(/"draft" sets entries, but the publish switch shows/);
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            title: fields.text(),
+            date: fields.date({ storeIn: "filename", entries: ["index"] }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /"date" sets entries, but every entry's file name holds its date/,
+    );
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            title: fields.text(),
+            updated: fields.datetime({ autoUpdate: true, entries: ["index"] }),
+          },
+        }),
+      ),
+    ).toThrow(/"updated" sets entries, but saving any entry sets it/);
+    // A title that isn't a text box is an ordinary field.
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: { title: fields.textarea({ entries: ["index"] }) },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
   it("accepts a date kept in the file name and known template filters", () => {
     expect(() =>
       validateConfig(

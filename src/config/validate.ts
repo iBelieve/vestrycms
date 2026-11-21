@@ -95,6 +95,57 @@ function checkDateDefaults(what: string, schema: Schema) {
   }
 }
 
+/**
+ * `entries` names the entries a top-level field shows in, by slug; a
+ * nested field shows wherever its parent does.
+ */
+function checkEntryFields(what: string, col: CollectionConfig) {
+  for (const [key, field] of Object.entries(col.schema)) {
+    if (field.entries === undefined) continue;
+    checkSlugList(what, `"${key}" entries`, field.entries);
+    if (!field.entries.length)
+      fail(
+        `${what}: "${key}" has entries: [], which shows it nowhere; name an entry or use hidden: true`,
+      );
+    const why = entriesIgnored(col, key, field);
+    if (why) fail(`${what}: "${key}" sets entries, but ${why}`);
+  }
+  checkNoEntryFields(
+    what,
+    nestedFields(col.schema),
+    "it is only for a top-level field",
+  );
+}
+
+/**
+ * Why a field is shown or written in every entry, whatever its `entries`
+ * says, if it is: it has a control of its own, or saving sets it.
+ */
+function entriesIgnored(
+  col: CollectionConfig,
+  key: string,
+  field: Field,
+): string | null {
+  if (key === (col.titleField ?? "title") && field.type === "text")
+    return "the title shows in every entry";
+  if (key === col.status?.field)
+    return "the publish switch shows in every entry";
+  if (isFilenameDate(field)) return "every entry's file name holds its date";
+  if (field.type === "datetime" && field.autoUpdate)
+    return "saving any entry sets it";
+  return null;
+}
+
+/** Fields where `entries` has nothing to choose between. */
+function checkNoEntryFields(
+  what: string,
+  fields: [string, Field][],
+  why: string,
+) {
+  const found = fields.find(([, field]) => field.entries !== undefined);
+  if (found) fail(`${what}: "${found[0]}" sets entries, but ${why}`);
+}
+
 /** A `{field|filter}` placeholder must name a filter that exists. */
 function checkTemplate(what: string, template: string | undefined) {
   const error = template ? templateError(template) : undefined;
@@ -120,6 +171,11 @@ export function validateConfig(config: VestryConfig) {
     checkIcon(`${what} icon`, singleton.icon);
     checkFilenameDates(what, singleton.schema, false);
     checkDateDefaults(what, singleton.schema);
+    checkNoEntryFields(
+      what,
+      [...Object.entries(singleton.schema), ...nestedFields(singleton.schema)],
+      "a singleton has one entry",
+    );
     checkTemplate(`${what} previewUrl`, singleton.previewUrl);
     checkTemplate(`${what} commitMessage`, singleton.commitMessage);
   }
@@ -210,6 +266,7 @@ function checkCollection(
   }
   checkFilenameDates(what, col.schema, !parsePathPattern(col.path).single);
   checkDateDefaults(what, col.schema);
+  checkEntryFields(what, col);
   checkTemplate(`${what} previewUrl`, col.previewUrl);
   checkTemplate(`${what} slug.template`, col.slug?.template);
   // A `*` path lists only the files directly in its directory, so entries
@@ -324,4 +381,9 @@ function checkComponent(name: string, component: ComponentConfig) {
     );
   }
   checkDateDefaults(`component "${name}"`, props);
+  checkNoEntryFields(
+    `component "${name}"`,
+    [...Object.entries(props), ...nestedFields(props)],
+    "it is only for a collection's top-level fields",
+  );
 }

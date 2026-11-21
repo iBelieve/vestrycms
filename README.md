@@ -763,6 +763,21 @@ freshly uploaded images before they are committed.
 Fields accept `label`, `description`, `required`, `sidebar`, `hidden`,
 `readOnly` and `width` (`full` | `half` | `third`).
 
+A collection's top-level field can be for some entries only: `entries`
+lists their slugs, and the editor shows the field in those entries alone.
+
+```ts
+tagline: fields.textarea({ entries: ["index"] }), // the home page's
+```
+
+Elsewhere it is hidden and not required, as with `hidden: true`, and any
+value it has stays in the file. The editor goes by the slug the entry will
+be saved under, so renaming an entry to one of them shows the field. New
+entries don't take its `default`, and saving another entry doesn't check
+its value. A nested field, a singleton's or a component prop can't set
+`entries`, and nor can a field every entry has: the title, the status
+field, a date kept in the file name or an `autoUpdate` datetime.
+
 `fields.array` takes the item field and then its options,
 `fields.array(fields.text(), { addLabel: "Add tag" })`, or a single options
 object like the other builders: `fields.array({ of: fields.text(), addLabel:
