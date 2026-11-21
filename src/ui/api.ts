@@ -186,9 +186,10 @@ export function createClient(basePath: string) {
         method: "PUT",
         body: JSON.stringify(input),
       }),
-    listAssets: (container: string, dir = "") =>
+    /** With `all`, every file below `dir` and no folders (for a search). */
+    listAssets: (container: string, dir = "", { all = false } = {}) =>
       request<{ items: AssetItem[]; folders: string[] }>(
-        `/assets/${enc(container)}?dir=${encodeURIComponent(dir)}`,
+        `/assets/${enc(container)}?dir=${encodeURIComponent(dir)}${all ? "&all=1" : ""}`,
       ),
     uploadAssets: (
       container: string,

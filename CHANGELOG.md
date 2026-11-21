@@ -23,6 +23,16 @@ while Vestry is below 1.0, a minor version may change behaviour.
   rarely open, such as categories, authors or generated entries. Asking
   such a collection for a recent list (`recent: true` or a count) is an
   error at startup.
+- **Assets list and search.** The Assets page shows files as a list as well
+  as tiles: each file's whole name with a preview, its type and size,
+  sortable by any of them, and on phones as stacked rows. The choice is
+  remembered for each asset folder; a folder that accepts only documents
+  (say, `accept: ["pdf"]`) opens as a list. A search box finds files by
+  name in the folder shown and every folder inside it, naming the folder
+  each match sits in. The assets API takes `all=1` for that recursive
+  listing.
+- Hidden folders in an asset folder (`.cache`, say) no longer show up as
+  folders, as hidden files already didn't.
 - **More icons**: `book-down`, `book-marked`, `circle-question-mark`,
   `columns-4`, `diamond`, `download`, `feather`, `grid-3x3`, `library`,
   `list-indent-increase`, `music`, `notebook-pen`, `shopping-cart`,

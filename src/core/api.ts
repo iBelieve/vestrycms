@@ -859,7 +859,10 @@ async function assetsRoute(
   service: ContentService,
 ): Promise<Response> {
   const dir = url.searchParams.get("dir") ?? "";
-  if (method === "GET") return json(await service.listAssets(container, dir));
+  if (method === "GET") {
+    const recursive = url.searchParams.get("all") === "1";
+    return json(await service.listAssets(container, dir, { recursive }));
+  }
   if (method === "POST") {
     const body = await readJson<{
       dir?: string;

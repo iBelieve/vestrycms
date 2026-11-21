@@ -270,9 +270,10 @@ describe("the field inputs", () => {
     await user.click(
       await within(dialog).findByRole("button", { name: /sub/ }),
     );
-    await user.click(
-      await within(dialog).findByRole("button", { name: /b\.png/ }),
-    );
+    const tile = await within(dialog).findByRole("button", { name: /b\.png/ });
+    // A tile names only its size: the picker shows one folder at a time.
+    expect(tile.querySelector(".v-asset__meta")?.textContent).toBe("1 B");
+    await user.click(tile);
     await user.click(within(dialog).getByRole("button", { name: "Choose" }));
     expect(within(photo()).getByText("b.png")).toBeTruthy();
     expect(photo().querySelector("img")?.getAttribute("src")).toContain(

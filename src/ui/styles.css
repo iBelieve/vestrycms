@@ -2296,6 +2296,50 @@ button.v-table__toggle:hover {
   height: 16px;
   color: var(--v-warning);
 }
+/* The Assets page's list: a small preview beside each whole name. The
+   name is a button that fills its cell, so the row is easy to hit. */
+.v-asset-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.v-asset-row:hover .v-table__title {
+  color: var(--v-primary);
+}
+.v-asset-row__thumb {
+  flex: none;
+  width: 44px;
+  height: 32px;
+  border-radius: 4px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--v-surface-muted);
+  color: var(--v-text-faint);
+}
+.v-asset-row__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.v-asset-row__thumb svg {
+  width: 18px;
+  height: 18px;
+}
+.v-asset-row__thumb.is-folder svg {
+  color: var(--v-warning);
+}
+.v-asset-table .v-table__title {
+  overflow-wrap: anywhere;
+}
 .v-dropzone {
   border: 2px dashed var(--v-border-strong);
   border-radius: var(--v-radius);
@@ -3276,6 +3320,27 @@ button.v-table__toggle:hover {
   .v-table:not(.v-recent) td:has(> .v-table__clip:empty),
   .v-table:not(.v-recent) td:has(> .v-table__clip > .v-faint:only-child) {
     display: none;
+  }
+  /* An asset row: the preview and whole name on the first line, the type
+     and size beneath, lined up with the name. A folder's icon says it is
+     one, so its "Folder" goes. */
+  .v-table.v-asset-table > tbody > tr {
+    row-gap: 0;
+  }
+  .v-table.v-asset-table td.v-table__main {
+    flex-basis: 100%;
+  }
+  .v-table.v-asset-table td:not(.v-table__main) {
+    margin-top: -10px;
+  }
+  .v-table.v-asset-table td.v-table__main + td {
+    margin-left: 56px;
+  }
+  .v-table.v-asset-table tr:has(.is-folder) > td:not(.v-table__main) {
+    display: none;
+  }
+  .v-asset-table .v-asset-row:not(:has(.is-folder)) {
+    align-items: flex-start;
   }
   /* The band between pinned pages and the rest, as on a wider screen. Its
      cell is empty, so it must outrank td:empty, and the hover rule's

@@ -191,7 +191,7 @@ Routes injected into the site:
   load the shell; data comes from the API).
 - `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `dashboard`, `analytics?period=`, `collections/:key`,
   `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
-  `singletons/:key`, `assets/:container`,
+  `singletons/:key`, `assets/:container?dir=` (`&all=1` for every file below it),
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
 
 Virtual modules provided by the Vite plugin: `virtual:vestry/config`,

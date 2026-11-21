@@ -29,10 +29,12 @@ import {
   EmptyState,
   Loading,
   NotFoundState,
+  Segment,
 } from "../components/ui.js";
 import type { EntrySummary } from "../../core/service.js";
 import { useVestry } from "../context.js";
 import { type TreeRow, treeRows } from "../lib/entry-tree.js";
+import { useStoredState } from "../lib/stored-state.js";
 import {
   cx,
   entryHref,
@@ -225,34 +227,6 @@ function sortEntries(
         sortValue(b, sort.field, titleField),
         dir,
       ) || a.title.localeCompare(b.title),
-  );
-}
-
-/** A row of buttons choosing one of `options`, each labelled in title case. */
-function Segment<T extends string>({
-  options,
-  value,
-  onChange,
-  label,
-}: {
-  options: readonly T[];
-  value: T;
-  onChange: (value: T) => void;
-  label?: string;
-}) {
-  return (
-    <div className="v-segment" aria-label={label}>
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          className={cx(value === o && "is-active")}
-          onClick={() => onChange(o)}
-        >
-          {titleCase(o)}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -693,52 +667,6 @@ function EntryLink({
 }
 
 const NONE_OPEN: string[] = [];
-
-/**
- * State kept in localStorage under `key`, so a view or an expanded folder
- * survives a reload. Storage that fails, or holds anything `valid` rejects,
- * falls back to `initial`.
- */
-function useStoredState<T>(
-  key: string,
-  initial: T,
-  valid: (value: unknown) => value is T,
-): [T, (update: ((value: T) => T) | T) => void] {
-  const read = (): T => {
-    try {
-      const raw = localStorage.getItem(key);
-      const stored: unknown = raw === null ? initial : JSON.parse(raw);
-      return valid(stored) ? stored : initial;
-    } catch {
-      return initial;
-    }
-  };
-  const [state, setState] = useState<{ key: string; value: T }>(() => ({
-    key,
-    value: read(),
-  }));
-  // Another collection's list (the page stays mounted): read its key once.
-  let value = state.value;
-  if (state.key !== key) {
-    value = read();
-    setState({ key, value });
-  }
-  const set = (update: ((value: T) => T) | T) =>
-    setState((s) => {
-      const current = s.key === key ? s.value : read();
-      const next =
-        typeof update === "function"
-          ? (update as (value: T) => T)(current)
-          : update;
-      try {
-        localStorage.setItem(key, JSON.stringify(next));
-      } catch {
-        // Not remembered, but still applied.
-      }
-      return { key, value: next };
-    });
-  return [value, set];
-}
 
 /**
  * The list's columns around the title. The title always shows, as the

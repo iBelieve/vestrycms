@@ -768,9 +768,15 @@ export class ContentService {
 
   // ------------------------------------------------------------------ assets
 
+  /**
+   * The files and folders directly in `subdir` of the container, or, with
+   * `recursive`, every file anywhere below it (and no folders): what a
+   * search looks through.
+   */
   async listAssets(
     containerKey: string,
     subdir = "",
+    { recursive = false }: { recursive?: boolean } = {},
   ): Promise<{ items: AssetItem[]; folders: string[] }> {
     const container = this.assetContainer(containerKey);
     const dir = joinPath(container.directory, subdir);
@@ -787,14 +793,18 @@ export class ContentService {
     for (const f of files) {
       const rest = f.path.slice(prefix.length);
       const slash = rest.indexOf("/");
-      if (slash !== -1) {
-        folders.add(rest.slice(0, slash));
+      if (slash !== -1 && !recursive) {
+        // A hidden folder (.cache) is left out, but not a folder that holds
+        // only hidden files (a .gitkeep).
+        if (!rest.startsWith(".")) folders.add(rest.slice(0, slash));
         continue;
       }
-      if (rest.startsWith(".")) continue;
-      const ext = extname(rest);
+      // Hidden files (.DS_Store), and in a search those in hidden folders.
+      if (rest.split("/").some((part) => part.startsWith("."))) continue;
+      const name = rest.slice(rest.lastIndexOf("/") + 1);
+      const ext = extname(name);
       items.push({
-        name: rest,
+        name,
         path: f.path,
         sha: f.sha,
         size: f.size,
@@ -802,7 +812,9 @@ export class ContentService {
         kind: IMAGE_EXTS.has(ext) ? "image" : "file",
       });
     }
-    items.sort((a, b) => a.name.localeCompare(b.name));
+    items.sort(
+      (a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path),
+    );
     return { items, folders: [...folders].sort() };
   }
 
