@@ -7,6 +7,11 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **Form submissions.** `forms` in the config names the site's forms, and
+  `saveSubmission` (from the new `vestrycms/forms` export) saves what the
+  site's own handler receives into the D1 database. Admins read each form's
+  submissions on its page under **Forms** in the sidebar: newest first,
+  unread in bold, with Reply and Delete.
 - **Fields for some entries.** `entries: ["index"]` on a collection's
   top-level field shows it only in those entries' editors, such as fields
   for the home page alone. Other entries keep any value it has, and don't

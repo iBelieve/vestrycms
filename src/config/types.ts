@@ -614,6 +614,24 @@ export interface MailConfig {
   from: string;
 }
 
+/**
+ * A form on the site whose submissions the site saves with
+ * `saveSubmission` (from `vestrycms/forms`). Admins read them on the form's
+ * page in the control panel.
+ */
+export interface FormConfig {
+  /** Shown in the sidebar and as the page's title, e.g. "Contact form". */
+  label: string;
+  /** Sidebar icon (one of the panel's icons); defaults to `mail`. */
+  icon?: string;
+  /**
+   * The fields the list shows, in order, by the keys the site saves. Defaults
+   * to the first three of each submission. A field named `email` also gets
+   * a Reply link on the submission's page.
+   */
+  columns?: string[];
+}
+
 export interface VestryConfig {
   /** Display name for the control panel. */
   name?: string;
@@ -665,4 +683,11 @@ export interface VestryConfig {
    * the dashboard. Off unless set.
    */
   analytics?: AnalyticsConfig;
+  /**
+   * The site's forms, keyed by the name the site saves submissions under.
+   * Each gets a page that lists them, for admins. Stored in the sign-in
+   * database (the D1 binding), in the `submission` table with
+   * `auth.tablePrefix` before it.
+   */
+  forms?: Record<string, FormConfig>;
 }

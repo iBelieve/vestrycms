@@ -31,6 +31,7 @@ import { MailError, consoleMailer, resendMailer, type Mailer } from "./mail.js";
 import { isRole, type PublicUser, type Role } from "./roles.js";
 import { ContentService, type SaveEntryInput } from "./service.js";
 import { SourceError, withAuthor, type ContentSource } from "./source.js";
+import { submissionStore, type SubmissionDatabase } from "./submissions.js";
 import { GitHubSource } from "./sources/github.js";
 import { installationTokenProvider } from "./sources/github-app.js";
 import { extname, normalizePath } from "./paths.js";
@@ -63,6 +64,12 @@ export interface ApiOptions {
   };
   /** Name of the binding holding the D1 database for users and sessions. */
   databaseBinding?: string;
+  /**
+   * Where form submissions are kept, when not the sign-in database (a SQL
+   * one: D1 or `node:sqlite`). For tests, whose sign-in runs on Better
+   * Auth's memory adapter.
+   */
+  submissionsDatabase?: SubmissionDatabase;
   cache?: Cache;
   /** Fetch for outside services such as analytics (defaults to the global one). */
   fetch?: typeof fetch;
@@ -354,7 +361,7 @@ export function createApi(options: ApiOptions) {
       );
     }
 
-    return signedInRoute(request, route, user, signIn);
+    return signedInRoute(request, route, user, signIn, ctx);
   }
 
   /** Everything past sign-in: users, analytics, deploys and content. */
@@ -363,11 +370,14 @@ export function createApi(options: ApiOptions) {
     route: Route,
     user: PublicUser,
     signIn: SignIn,
+    ctx: RequestContext,
   ): Promise<Response> {
     const { url, segments, method } = route;
     if (segments[0] === "users") {
       return usersRoute(request, route, user, signIn);
     }
+    if (segments[0] === "submissions")
+      return submissionsRoute(route, user, ctx);
 
     // Analytics come from the provider, not the repository.
     if (segments[0] === "analytics" && method === "GET") return analytics(url);
@@ -470,6 +480,92 @@ export function createApi(options: ApiOptions) {
       normalizePath(url.searchParams.get("path") ?? "") ===
         normalizePath(config.logo!)
     );
+  }
+
+  /**
+   * A form's submissions, for admins: `/submissions/<form>` lists them
+   * (`?before=<id>&at=<createdAt>` of the last one shown for the next page),
+   * `/submissions/<form>/<id>` opens one (marking it read) or deletes it.
+   */
+  async function submissionsRoute(
+    route: Route,
+    user: PublicUser,
+    ctx: RequestContext,
+  ): Promise<Response> {
+    if (user.role !== "admin")
+      return error("Only admins can read form submissions.", 403, "forbidden");
+    const form = route.segments[1];
+    if (!form || !config.forms || !Object.hasOwn(config.forms, form))
+      return notFound();
+    const store = submissionStoreFor(ctx);
+    if (store instanceof Response) return store;
+    return route.segments.length === 2
+      ? listSubmissions(store, route, form)
+      : submissionRequest(store, route, form);
+  }
+
+  function submissionStoreFor(
+    ctx: RequestContext,
+  ): ReturnType<typeof submissionStore> | Response {
+    const resolved = options.submissionsDatabase
+      ? { database: options.submissionsDatabase }
+      : resolveDatabase(ctx);
+    if ("error" in resolved) {
+      return error(
+        options.localSource && !authRequired
+          ? "Form submissions are kept in the site's D1 database, which local mode doesn't use. Start the dev server with VESTRY_MODE=auth to read them locally."
+          : resolved.error,
+        400,
+        "setup",
+      );
+    }
+    // The sign-in database may be any Better Auth accepts; submissions need
+    // a SQL one.
+    const database = resolved.database as Partial<SubmissionDatabase>;
+    if (typeof database.prepare !== "function")
+      return error(
+        "Form submissions need a D1 or node:sqlite database (or the API's submissionsDatabase option).",
+        500,
+        "setup",
+      );
+    return submissionStore(
+      database as SubmissionDatabase,
+      config.auth?.tablePrefix,
+    );
+  }
+
+  async function listSubmissions(
+    store: ReturnType<typeof submissionStore>,
+    { url, method }: Route,
+    form: string,
+  ): Promise<Response> {
+    if (method !== "GET") return notFound();
+    // The cursor carries the last row's time, so paging on doesn't depend
+    // on that row still being there.
+    const id = url.searchParams.get("before");
+    const createdAt = url.searchParams.get("at");
+    if (!id !== !createdAt)
+      return error("before and at go together", 400, "bad_request");
+    const before = id && createdAt ? { id, createdAt } : undefined;
+    return json(await store.list(form, { before }));
+  }
+
+  async function submissionRequest(
+    store: ReturnType<typeof submissionStore>,
+    { segments, method }: Route,
+    form: string,
+  ): Promise<Response> {
+    const id = segments[2];
+    if (!id || segments.length !== 3) return notFound();
+    if (method === "DELETE") {
+      await store.remove(form, id);
+      return json({ ok: true });
+    }
+    if (method !== "GET") return notFound();
+    const submission = await store.get(form, id);
+    if (!submission) return notFound();
+    if (!submission.readAt) await store.markRead(form, id);
+    return json({ submission });
   }
 
   function usersRoute(

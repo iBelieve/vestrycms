@@ -27,6 +27,7 @@ import {
   SingletonPage,
 } from "./pages/EntryEditor.js";
 import { LoginPage } from "./pages/Login.js";
+import { SubmissionPage, SubmissionsPage } from "./pages/Submissions.js";
 import { UsersPage } from "./pages/Users.js";
 
 export function App({ basePath, name }: { basePath: string; name: string }) {
@@ -158,6 +159,8 @@ function Root({ basePath, name }: { basePath: string; name: string }) {
                 <Route path="assets/:container" element={<AssetsPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="forms/:form" element={<SubmissionsPage />} />
+                <Route path="forms/:form/:id" element={<SubmissionPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Shell>
