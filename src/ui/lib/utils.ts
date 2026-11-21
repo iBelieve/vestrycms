@@ -57,6 +57,17 @@ export function splitLinks(text: string): { text: string; url?: string }[] {
   return parts;
 }
 
+/**
+ * A label lowercased to sit mid-sentence ("Recent articles"), keeping
+ * acronyms and names with capitals past their first letter ("FAQs", "iPad").
+ * Each part of a hyphenated word is judged on its own ("pre-service").
+ */
+export function inSentence(label: string): string {
+  return label.replace(/[^\s-]+/g, (word) =>
+    /\p{Lu}/u.test(word.slice(1)) ? word : word.toLowerCase(),
+  );
+}
+
 export function titleCase(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")

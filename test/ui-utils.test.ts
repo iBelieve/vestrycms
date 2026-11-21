@@ -7,6 +7,7 @@ import {
   defaultValues,
   formatBytes,
   formatDate,
+  inSentence,
   initials,
   summarize,
   summarizeProps,
@@ -283,5 +284,23 @@ describe("summarizeProps", () => {
         "count=3",
       ].join(" · "),
     );
+  });
+});
+
+describe("inSentence", () => {
+  it("lowercases words but keeps acronyms and inner capitals", () => {
+    expect(inSentence("Articles")).toBe("articles");
+    expect(inSentence("Lectionary Files")).toBe("lectionary files");
+    expect(inSentence("FAQs")).toBe("FAQs");
+    expect(inSentence("FAQ")).toBe("FAQ");
+    expect(inSentence("PDF Downloads")).toBe("PDF downloads");
+    expect(inSentence("A")).toBe("a");
+  });
+
+  it("judges each part of a hyphenated word, and non-ASCII capitals", () => {
+    expect(inSentence("Pre-Service Notes")).toBe("pre-service notes");
+    expect(inSentence("COVID-19 Updates")).toBe("COVID-19 updates");
+    expect(inSentence("ÉTÉ Notes")).toBe("ÉTÉ notes");
+    expect(inSentence("Événements")).toBe("événements");
   });
 });

@@ -13,6 +13,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
   and devices), read from Plausible's Stats API, including self-hosted
   Plausible, with the key in the `VESTRY_PLAUSIBLE_API_KEY` secret. Built
   so other providers can be added.
+- **New entry from the dashboard.** The dashboard's top bar has a
+  **New …** button for each collection with a "Recent …" list (not for
+  `fixedEntries` or `readOnly` collections).
+- A "Recent …" list for a collection not sorted by a date
+  (`recent: true`) shows the first date field in its `columns`, and lists
+  its newest entries by that date rather than the first in its sort.
 - **Alt text and titles for images in the body.** Inserting an image into
   a body now asks for its alt text. Double-click an image in a body or
   Markdown field, or select it and press **Image details** in the
@@ -70,6 +76,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
   (before, scrolling over the sidebar never moved the page), and in the
   one-column layout below 1100px the sidebar follows the main fields
   instead of scrolling inside its own box.
+
+- Labels set mid-sentence ("All FAQs", "Search FAQs…", "Create the first
+  FAQ") keep their acronyms instead of becoming "faqs".
 
 ## 0.6.0
 
