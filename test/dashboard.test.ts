@@ -136,6 +136,31 @@ describe("buildDashboard", () => {
     });
   });
 
+  it("leaves out a collection with dashboard: false without listing it", async () => {
+    const listed: string[] = [];
+    const hidden = {
+      config: {
+        ...config,
+        collections: {
+          ...config.collections,
+          pages: { ...config.collections!.pages, dashboard: false },
+          posts: { ...config.collections!.posts, dashboard: false },
+        },
+      },
+      listEntries: async (key: string) => {
+        listed.push(key);
+        return [entry("a")];
+      },
+    } as unknown as ContentService;
+    const dashboard = await buildDashboard(hidden);
+    expect(listed).toEqual(["faqs"]);
+    expect(Object.keys(dashboard.collections)).toEqual(["faqs"]);
+    expect(
+      recentCount(hidden.config.collections!.posts),
+      "no recent list (or New button) for a hidden date-sorted collection",
+    ).toBe(0);
+  });
+
   it("reports a collection that fails and still loads the others", async () => {
     const dashboard = await buildDashboard(
       service({

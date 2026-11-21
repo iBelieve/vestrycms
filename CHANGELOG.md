@@ -5,6 +5,21 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ## Unreleased
 
+### Added
+
+- **`dashboard: false`** on a collection leaves it off the dashboard: no
+  tile, "Recent …" list or New button, and the dashboard request no
+  longer lists it. It stays in the sidebar. For collections editors
+  rarely open, such as categories, authors or generated entries. Asking
+  such a collection for a recent list (`recent: true` or a count) is an
+  error at startup.
+
+### Changed
+
+- `recent` must be true, false or a number: anything else (a string in a
+  `.js` config, say) is an error at startup instead of quietly falling
+  back to the default.
+
 ### Fixed
 
 - Choosing another period on the Analytics page keeps the page in place:

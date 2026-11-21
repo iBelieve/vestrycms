@@ -204,6 +204,25 @@ function checkCollection(
   }
   checkTemplate(`${what} commitMessage`, col.commitMessage);
   checkEditing(what, col);
+  checkRecent(what, col);
+}
+
+/**
+ * `recent` is a flag or a count, and a collection off the dashboard
+ * (`dashboard: false`) has no "Recent …" list for it to ask for.
+ */
+function checkRecent(what: string, col: CollectionConfig) {
+  const { recent } = col;
+  if (recent === undefined) return;
+  if (
+    typeof recent !== "boolean" &&
+    !(typeof recent === "number" && Number.isFinite(recent))
+  )
+    fail(`${what} recent must be true, false or a number of entries`);
+  if (col.dashboard === false && (recent === true || Number(recent) > 0))
+    fail(
+      `${what} sets recent, but dashboard: false leaves it off the dashboard; remove one of them`,
+    );
 }
 
 const KEEP_ENTRIES =
@@ -216,12 +235,15 @@ const REPLACED: Record<string, string> = {
   editable: `${KEEP_ENTRIES} (editable: false), or remove it (editable: true)`,
 };
 
-/** `fixedEntries`, `readOnly` (and the settings they replaced), `reservedSlugs` and `pinned`. */
+/**
+ * `fixedEntries`, `readOnly` (and the settings they replaced), `dashboard`,
+ * `reservedSlugs` and `pinned`.
+ */
 function checkEditing(what: string, col: CollectionConfig) {
   for (const [old, instead] of Object.entries(REPLACED))
     if (old in col)
       fail(`${what} sets ${old}, which Vestry replaced: ${instead}`);
-  for (const flag of ["fixedEntries", "readOnly"] as const)
+  for (const flag of ["fixedEntries", "readOnly", "dashboard"] as const)
     if (col[flag] !== undefined && typeof col[flag] !== "boolean")
       fail(`${what} ${flag} must be true or false`);
   checkSlugList(what, "reservedSlugs", col.reservedSlugs);
