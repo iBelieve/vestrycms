@@ -3101,6 +3101,42 @@ button.v-table__toggle:hover {
 }
 
 @media (max-width: 600px) {
+  /* The dashboard's collection tiles two to a row, not one half-width
+     tile per row. */
+  .v-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .v-stat {
+    min-width: 0;
+    padding: 10px 12px 10px 10px;
+    gap: 10px;
+  }
+  .v-stat__body {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  /* A card's note goes under its title rather than squeezing it. */
+  .v-card__header {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .v-card__header > .v-muted {
+    flex-basis: 100%;
+  }
+  /* A tree item's link (a menu item's URL) goes under its label, so both
+     have the row's width instead of ending at "W..". */
+  .v-tree__text {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  /* Two or three images to a row in the asset grid and picker. */
+  .v-asset-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
   /* Lists (entries, users) as stacked rows: the title and its View link on
      the first line, the other columns as short facts beneath, instead of a
      table that scrolls sideways with its columns cut off. The dashboard's
@@ -3731,6 +3767,14 @@ button.v-tree__toggle:hover {
 .v-table__path {
   font-size: 11.5px;
   color: var(--v-text-faint);
+}
+
+/* Nothing can be dragged onto a phone or tablet: the Upload button stays,
+   the drop target goes. */
+@media (hover: none) and (pointer: coarse) {
+  .v-dropzone {
+    display: none;
+  }
 }
 
 /* iOS zooms the page into any field set in less than 16px when it gets
