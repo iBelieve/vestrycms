@@ -80,6 +80,17 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - Choosing another period on the Analytics page keeps the page in place:
   the title, the period buttons and the last period's numbers (dimmed) stay
   on screen while the new numbers load.
+- The line under an entry's title in lists reads as text: it starts after
+  the headings (which ran into the first paragraph, "A New Translation The
+  EHV proclaims…"), links keep their words but not their addresses, and
+  images, code blocks, footnotes and the backslashes of hard line breaks
+  are left out.
+- A menu item's name stays whole beside a long link ("Donate
+  https://www.paypal.com/…", not "Do…").
+- A file field shows a file icon, not a picture's, beside a PDF or while
+  empty.
+- An `index` entry's View link opens its folder's page (`/`, or
+  `/guides` for `guides/index`) instead of `/index`.
 
 ## 0.7.0
 

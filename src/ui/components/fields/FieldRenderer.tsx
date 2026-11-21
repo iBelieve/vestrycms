@@ -4,6 +4,7 @@ import {
   ChevronRight,
   ChevronUp,
   Copy,
+  File as FileIcon,
   GripVertical,
   Image as ImageIcon,
   Plus,
@@ -654,7 +655,9 @@ function AssetInput(props: FieldProps) {
 
 /**
  * A thumbnail of the chosen file when it is an image (an upload waiting to
- * be saved, a URL or a repository file), or a placeholder icon.
+ * be saved, a URL or a repository file), or else an icon: an image's in an
+ * image field, and a file's in a file field (whose PDF is no image), as on
+ * the Assets page.
  */
 function AssetPreview({
   value,
@@ -675,8 +678,10 @@ function AssetPreview({
     <div className="v-image-field__preview">
       {src && (image || isImagePath(value)) ? (
         <img src={src} alt="" />
-      ) : (
+      ) : image ? (
         <ImageIcon />
+      ) : (
+        <FileIcon />
       )}
     </div>
   );

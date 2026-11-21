@@ -24,6 +24,7 @@ import {
   reservedSlugProblem,
   isSafeSlug,
   normalizePath,
+  previewPath,
   relativePath,
   resolveRelative,
   slugify,
@@ -601,16 +602,14 @@ export type Saved = { slug: string; data: Record<string, unknown> };
 
 /**
  * The path of an entry's page on the site, from its collection's
- * `previewUrl`, or null without one.
+ * `previewUrl` (an `index` entry's is its folder's), or null without one.
  */
 function sitePath(
   col: CollectionConfig | SingletonConfig,
   slug: string,
   data: Record<string, unknown>,
 ): string | null {
-  return col.previewUrl
-    ? fillTemplate(col.previewUrl, { ...data, slug })
-    : null;
+  return col.previewUrl ? previewPath(col.previewUrl, { ...data, slug }) : null;
 }
 
 /**

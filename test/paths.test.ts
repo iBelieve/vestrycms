@@ -8,12 +8,41 @@ import {
   isSafeSlug,
   parsePathPattern,
   pinnedEntries,
+  previewPath,
   relativePath,
   resolveRelative,
   safeFileName,
   slugFromPath,
   templateError,
 } from "../src/core/paths.js";
+
+describe("previewPath", () => {
+  it("is an index entry's folder, as Astro serves it", () => {
+    expect(previewPath("/{slug}", { slug: "index" })).toBe("/");
+    expect(previewPath("/{slug}", { slug: "guides/index" })).toBe("/guides");
+    expect(previewPath("/{slug}?draft#top", { slug: "index" })).toBe(
+      "/?draft#top",
+    );
+  });
+
+  it("keeps a template's trailing slash", () => {
+    expect(previewPath("/{slug}/", { slug: "index" })).toBe("/");
+    expect(previewPath("/{slug}/", { slug: "guides/index" })).toBe("/guides/");
+    expect(previewPath("/{slug}/?draft", { slug: "guides/index" })).toBe(
+      "/guides/?draft",
+    );
+    expect(previewPath("/{slug}/", { slug: "about" })).toBe("/about/");
+  });
+
+  it("leaves other pages alone", () => {
+    expect(previewPath("/{slug}", { slug: "about" })).toBe("/about");
+    expect(previewPath("/{slug}", { slug: "reindex" })).toBe("/reindex");
+    expect(previewPath("/{slug}", { slug: "index/more" })).toBe("/index/more");
+    expect(previewPath("/posts/{slug}", { slug: "my-index" })).toBe(
+      "/posts/my-index",
+    );
+  });
+});
 
 describe("fillTemplate", () => {
   it("fills fields, nested fields and missing values", () => {

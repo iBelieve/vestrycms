@@ -16,9 +16,9 @@ import type {
 } from "../../config/types.js";
 import {
   basename,
-  fillTemplate,
   isEditable,
   pinnedEntries,
+  previewPath,
 } from "../../core/paths.js";
 import { compareSortValues } from "../../core/values.js";
 import { Icon } from "../components/Icon.js";
@@ -575,7 +575,7 @@ function PreviewLink({
       rel="noreferrer"
       href={siteHref(
         siteUrl,
-        fillTemplate(col.previewUrl, { ...entry.data, slug: entry.slug }),
+        previewPath(col.previewUrl, { ...entry.data, slug: entry.slug }),
       )}
     >
       <ExternalLink />

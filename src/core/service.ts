@@ -25,6 +25,7 @@ import {
   serializeEntryList,
   splitFrontmatter,
 } from "./entries.js";
+import { makeExcerpt } from "./excerpt.js";
 import type { BuildIndex } from "./index-types.js";
 import {
   basename,
@@ -1053,16 +1054,6 @@ function sortEntries(
       a.title.localeCompare(b.title) ||
       bySlug(a, b),
   );
-}
-
-function makeExcerpt(body: string): string | undefined {
-  const text = body
-    .replace(/^import .*$/gm, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[#*_>`[\]]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return text ? text.slice(0, 200) : undefined;
 }
 
 function uploadChanges(uploads: Upload[] | undefined): FileChange[] {

@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { VestryConfig } from "../config/types.js";
 import { parseEntry } from "../core/entries.js";
+import { makeExcerpt } from "../core/excerpt.js";
 import type { BuildIndex, IndexedFile } from "../core/index-types.js";
 import {
   collectionFormat,
@@ -38,7 +39,7 @@ export async function buildIndex(
         files[repoPath] = {
           sha: await gitBlobSha(new Uint8Array(buf)),
           data: JSON.parse(JSON.stringify(summaryData(col, parsed.data))),
-          excerpt: excerpt(parsed.body),
+          excerpt: makeExcerpt(parsed.body),
           hasBody: parsed.body.trim().length > 0,
         };
       } catch (e) {
@@ -65,14 +66,4 @@ async function walk(dir: string, rel = ""): Promise<string[]> {
     else if (e.isFile()) out.push(r);
   }
   return out;
-}
-
-function excerpt(body: string): string | undefined {
-  const text = body
-    .replace(/^import .*$/gm, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/[#*_>`[\]]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return text ? text.slice(0, 200) : undefined;
 }
