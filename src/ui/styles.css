@@ -3732,21 +3732,13 @@ button.v-tree__toggle:hover {
   }
 }
 
-/* Slug box: a date held by the date field is shown, fixed, in front. */
-.v-slug {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+/* The address (or file) under the slug box: wraps anywhere, since a long
+   slug has no spaces to break at. */
+.v-slug__hint {
+  overflow-wrap: anywhere;
 }
-.v-slug__prefix {
-  flex: none;
-  font-size: 12.5px;
-  color: var(--v-text-muted);
-  white-space: nowrap;
-}
-.v-slug .v-input {
-  min-width: 0;
-  flex: 1;
+.v-slug__hint .v-mono {
+  font-size: 11.5px;
 }
 
 /* Entries listed in the rename confirmation. */

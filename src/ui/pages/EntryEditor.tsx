@@ -78,6 +78,7 @@ import {
   slugError,
   slugFixed,
   slugHint,
+  type SlugHint,
 } from "./entry-editing.js";
 
 export function CollectionEntryPage() {
@@ -512,12 +513,15 @@ function EntrySidebar({ form }: { form: EntryFormModel }) {
               fixed={slugs.fixed}
               onChange={slugs.setTyped}
               error={slugs.error}
-              hint={slugHint(
-                form.pattern,
-                slugs.finalSlug,
-                form.isNew,
-                slugs.renaming,
-              )}
+              hint={slugHint({
+                collection,
+                pattern: form.pattern,
+                slug: slugs.finalSlug,
+                data: doc.state.data,
+                dateKey: slugs.dateKey,
+                isNew: form.isNew,
+                renaming: slugs.renaming,
+              })}
             />
           )}
           {form.entry && (
@@ -1328,13 +1332,18 @@ function SlugField({
 }: {
   pattern: PathPattern;
   slug: string;
-  box: { value: string; prefix: string };
+  /** What the box holds: the slug, less a date set by the date field. */
+  box: string;
   /** Why the slug can't change, if it can't. */
   fixed: string | null;
   onChange: (value: string) => void;
   error: string | null;
-  hint: string | null;
+  hint: SlugHint | null;
 }) {
+  // The error and the reason the slug is fixed never show together.
+  const note = error || fixed ? "v-slug-note" : null;
+  const describedBy =
+    [note, hint && "v-slug-hint"].filter(Boolean).join(" ") || undefined;
   return (
     <div>
       <label className="v-field__label">Slug</label>
@@ -1343,44 +1352,53 @@ function SlugField({
           className="v-input v-input--mono"
           readOnly
           value={slug}
-          // The error and the reason it is fixed never show together.
-          aria-describedby={error || fixed ? "v-slug-note" : undefined}
+          aria-describedby={describedBy}
         />
       ) : (
-        <div className="v-slug">
-          {box.prefix && (
-            <span
-              className="v-slug__prefix v-mono"
-              title="Set by the date field"
-            >
-              {box.prefix}
-            </span>
-          )}
-          <input
-            className="v-input v-input--mono"
-            value={box.value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="auto"
-            aria-invalid={error ? true : undefined}
-          />
-        </div>
+        <input
+          className="v-input v-input--mono"
+          value={box}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="auto"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+        />
       )}
-      {error && (
+      <SlugNotes error={error} fixed={fixed} hint={hint} />
+    </div>
+  );
+}
+
+/** What's under the slug box: a problem or why it is fixed, then its address. */
+function SlugNotes({
+  error,
+  fixed,
+  hint,
+}: {
+  error: string | null;
+  fixed: string | null;
+  hint: SlugHint | null;
+}) {
+  return (
+    <>
+      {error ? (
         <div id="v-slug-note" className="v-field__error">
           {error}
         </div>
-      )}
-      {fixed && !error && (
-        <div id="v-slug-note" className="v-field__hint">
-          {fixed}
-        </div>
+      ) : (
+        fixed && (
+          <div id="v-slug-note" className="v-field__hint">
+            {fixed}
+          </div>
+        )
       )}
       {hint && (
-        <div className="v-field__hint v-mono" style={{ fontSize: 11.5 }}>
-          {hint}
+        <div id="v-slug-hint" className="v-field__hint v-slug__hint">
+          {hint.lead && `${hint.lead} `}
+          <span className="v-mono">{hint.path}</span>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

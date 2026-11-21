@@ -103,20 +103,15 @@ function derivedSlug(
 }
 
 /**
- * What the slug box shows (the slug, less a date held by the date field),
- * and the date prefix shown, fixed, in front of it.
+ * What the slug box shows: the slug, less a date held by the date field
+ * (the address under the box shows where that date goes).
  */
 export function slugBox(
   slug: string,
   typed: string,
   dateKey: string | null,
-): { value: string; prefix: string } {
-  const value = typed || (dateKey ? slugWithoutDate(slug) : slug);
-  const prefix =
-    dateKey && slug !== value && !value.includes("/")
-      ? slug.slice(0, slug.length - value.length)
-      : "";
-  return { value, prefix };
+): string {
+  return typed || (dateKey ? slugWithoutDate(slug) : slug);
 }
 
 /**
@@ -547,16 +542,51 @@ export function publishToggle(
     setData({ ...data, [statusField]: on ? publishedWhen : !publishedWhen });
 }
 
-/** The file a new or renamed entry will be saved in. */
-export function slugHint(
-  pattern: PathPattern,
-  slug: string,
-  isNew: boolean,
-  renaming: boolean,
-): string | null {
-  if (pattern.single || !(isNew || renaming)) return null;
-  return `${renaming ? "Renames the file to " : ""}${entryPath(pattern, slug || "…")}`;
+/**
+ * The line under the slug box: the page's address when the collection has
+ * a `previewUrl`, else its file. It follows the slug and the date field as
+ * they change. The file is named only where it says something the File row
+ * doesn't: for a new or renamed entry, or where a date in its name is set
+ * by the date field.
+ */
+export function slugHint({
+  collection,
+  pattern,
+  slug,
+  data,
+  dateKey,
+  isNew,
+  renaming,
+}: {
+  collection: CollectionConfig;
+  pattern: PathPattern;
+  slug: string;
+  data: Record<string, unknown>;
+  /** The field whose date the file name starts with, if any. */
+  dateKey: string | null;
+  isNew: boolean;
+  renaming: boolean;
+}): SlugHint | null {
+  if (pattern.single) return null;
+  // Until there is a name (after the date, or a folder), an ellipsis
+  // stands in for it.
+  const named = /(^|[/-])$/.test(slug) ? `${slug}…` : slug;
+  if (collection.previewUrl) {
+    const address = fillTemplate(collection.previewUrl, {
+      ...data,
+      slug: named,
+    });
+    return { lead: renaming ? "Moves to" : null, path: address };
+  }
+  if (!(isNew || renaming || dateKey)) return null;
+  return {
+    lead: renaming ? "Renames the file to" : null,
+    path: entryPath(pattern, named),
+  };
 }
+
+/** The line under the slug box: a page address or file, after what saving does to it. */
+export type SlugHint = { lead: string | null; path: string };
 
 /**
  * `schema` with every field read-only, nested ones included, for a

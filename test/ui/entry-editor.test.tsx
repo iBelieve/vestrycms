@@ -150,6 +150,8 @@ const saveButton = () => screen.getByRole("button", { name: /^(Save|Create)/ });
 const titleInput = () =>
   screen.getByPlaceholderText<HTMLInputElement>("Title…");
 const slugInput = () => screen.getByPlaceholderText<HTMLInputElement>("auto");
+/** The address or file named under the slug box. */
+const slugHintText = () => document.getElementById("v-slug-hint")?.textContent;
 const summaryInput = () =>
   document.querySelector<HTMLTextAreaElement>("textarea:not(.v-title-input)")!;
 
@@ -163,7 +165,7 @@ describe("a new entry", () => {
     await screen.findByText("New post");
     await user.type(titleInput(), "My First Post");
     expect(slugInput().value).toBe("my-first-post");
-    expect(screen.getByText("src/content/posts/my-first-post.md")).toBeTruthy();
+    expect(slugHintText()).toBe("/posts/my-first-post");
     await user.click(saveButton());
     await screen.findByText("Saved to disk");
     expect(await read(root, "src/content/posts/my-first-post.md")).toContain(
@@ -263,7 +265,7 @@ describe("a new entry", () => {
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("keeps a date from the date field in front of its slug", async () => {
+  it("shows where a date from the date field goes under its slug", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {
       url: "/collections/news/new",
@@ -274,10 +276,15 @@ describe("a new entry", () => {
     fireEvent.change(screen.getByLabelText("Date"), {
       target: { value: "2026-11-17" },
     });
-    expect(screen.getByTitle("Set by the date field").textContent).toBe(
-      "2026-11-17-",
-    );
     expect(slugInput().value).toBe("big-news");
+    expect(slugHintText()).toBe("src/content/news/2026-11-17-big-news.md");
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-11-18" },
+    });
+    expect(slugHintText()).toBe("src/content/news/2026-11-18-big-news.md");
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: "2026-11-17" },
+    });
     await user.click(saveButton());
     await screen.findByText("Saved to disk");
     expect(
@@ -341,7 +348,7 @@ describe("an existing entry", () => {
     });
     await screen.findByDisplayValue("Hello");
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText("src/content/posts/hello.md")).toBeTruthy();
+    expect(screen.getByTitle("src/content/posts/hello.md")).toBeTruthy();
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue("Set on save")).toBeTruthy();
     expect(
@@ -420,9 +427,9 @@ describe("an existing entry", () => {
     });
     await screen.findByDisplayValue("Ann");
     fireEvent.change(slugInput(), { target: { value: "anna" } });
-    expect(
-      screen.getByText("Renames the file to src/content/authors/anna.md"),
-    ).toBeTruthy();
+    expect(slugHintText()).toBe(
+      "Renames the file to src/content/authors/anna.md",
+    );
     await user.click(saveButton());
     const dialog = await screen.findByRole("dialog");
     expect(dialog.textContent).toContain("2 other entries refer to this one");
@@ -461,7 +468,7 @@ describe("an existing entry", () => {
       ),
     );
     // The file it now lives in, which the editor there shows.
-    await screen.findByText("src/content/authors/robert.md");
+    await screen.findByTitle("src/content/authors/robert.md");
     expect(titleInput().value).toBe("Robert");
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
     expect(await read(root, "src/content/authors/robert.md")).toContain(
@@ -486,7 +493,7 @@ describe("an existing entry", () => {
     );
     fireEvent.change(titleInput(), { target: { value: "Kat" } });
     release();
-    await screen.findByText("src/content/authors/kat.md");
+    await screen.findByTitle("src/content/authors/kat.md");
     expect(titleInput().value).toBe("Kat");
     // Saving what was typed keeps the reference on the entry's new slug.
     fireEvent.click(saveButton());
@@ -511,11 +518,11 @@ describe("an existing entry", () => {
     );
     fireEvent.change(slugInput(), { target: { value: "roberto" } });
     release();
-    await screen.findByText("src/content/authors/robert.md");
+    await screen.findByTitle("src/content/authors/robert.md");
     expect(slugInput().value).toBe("roberto");
-    expect(
-      screen.getByText("Renames the file to src/content/authors/roberto.md"),
-    ).toBeTruthy();
+    expect(slugHintText()).toBe(
+      "Renames the file to src/content/authors/roberto.md",
+    );
   });
 
   it("can drop a rename at the confirmation", async () => {

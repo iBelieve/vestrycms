@@ -45,6 +45,13 @@ while Vestry is below 1.0, a minor version may change behaviour.
   and a card's note goes under its title. Touch-screen phones leave out
   the "Drop files here" box, keeping the Upload button (the picker lists
   the accepted file types instead).
+- **The Slug box holds only the slug.** Where the date field sets the
+  file name's date, the date is no longer shown, fixed, in front of the
+  box (it repeated the Date field and took the box's width on phones).
+  Instead a line under the box gives the page's address, filled from the
+  collection's `previewUrl` (`/articles/2026/10/title`), or the file when
+  there is no `previewUrl`, and it follows the slug and the date as they
+  change: "Moves to …" before a save that changes it.
 - `recent` must be true, false or a number: anything else (a string in a
   `.js` config, say) is an error at startup instead of quietly falling
   back to the default.

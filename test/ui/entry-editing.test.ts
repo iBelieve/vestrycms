@@ -117,25 +117,91 @@ describe("the entry's file", () => {
 
   it("is named under the slug box for a new or renamed entry", () => {
     const pattern = parsePathPattern(posts.path);
-    expect(slugHint(pattern, "a", true, false)).toBe("src/content/posts/a.md");
-    expect(slugHint(pattern, "", true, false)).toBe("src/content/posts/….md");
-    expect(slugHint(pattern, "b", false, true)).toBe(
-      "Renames the file to src/content/posts/b.md",
-    );
-    expect(slugHint(pattern, "a", false, false)).toBeNull();
-    expect(slugHint(parsePathPattern(pages.path), "a", true, false)).toBeNull();
+    const hint = (slug: string, isNew: boolean, renaming: boolean) =>
+      slugHint({
+        collection: posts,
+        pattern,
+        slug,
+        data: {},
+        dateKey: null,
+        isNew,
+        renaming,
+      });
+    expect(hint("a", true, false)).toEqual({
+      lead: null,
+      path: "src/content/posts/a.md",
+    });
+    expect(hint("", true, false)?.path).toBe("src/content/posts/….md");
+    expect(hint("b", false, true)).toEqual({
+      lead: "Renames the file to",
+      path: "src/content/posts/b.md",
+    });
+    expect(hint("a", false, false)).toBeNull();
+    expect(
+      slugHint({
+        collection: pages,
+        pattern: parsePathPattern(pages.path),
+        slug: "a",
+        data: {},
+        dateKey: null,
+        isNew: true,
+        renaming: false,
+      }),
+    ).toBeNull();
   });
 
-  it("shows a date prefix in front of the slug box", () => {
-    expect(slugBox("2026-11-17-a", "", "date")).toEqual({
-      value: "a",
-      prefix: "2026-11-17-",
+  it("is always named under the slug box when a date is in its name", () => {
+    const news = collection({
+      label: "News",
+      path: "src/content/news/*.md",
+      schema: { date: fields.date({ storeIn: "filename" }) },
     });
-    expect(slugBox("a", "", null)).toEqual({ value: "a", prefix: "" });
-    expect(slugBox("2026-11-17-x/y", "x/y", "date")).toEqual({
-      value: "x/y",
-      prefix: "",
+    expect(
+      slugHint({
+        collection: news,
+        pattern: parsePathPattern(news.path),
+        slug: "2026-11-17-a",
+        data: {},
+        dateKey: "date",
+        isNew: false,
+        renaming: false,
+      }),
+    ).toEqual({ lead: null, path: "src/content/news/2026-11-17-a.md" });
+  });
+
+  it("is the page's address when the collection has a previewUrl", () => {
+    const articles = collection({
+      label: "Articles",
+      path: "src/content/articles/*.mdx",
+      previewUrl: "/articles/{slug|year}/{slug|month}/{slug|nodate}",
+      schema: { date: fields.date({ storeIn: "filename" }) },
     });
+    const hint = (slug: string, isNew: boolean, renaming: boolean) =>
+      slugHint({
+        collection: articles,
+        pattern: parsePathPattern(articles.path),
+        slug,
+        data: {},
+        dateKey: "date",
+        isNew,
+        renaming,
+      });
+    expect(hint("2026-10-29-a-title", false, false)).toEqual({
+      lead: null,
+      path: "/articles/2026/10/a-title",
+    });
+    expect(hint("2026-11-02-a-title", false, true)).toEqual({
+      lead: "Moves to",
+      path: "/articles/2026/11/a-title",
+    });
+    // Before there is a title, the date still shows where it goes.
+    expect(hint("2026-11-21-", true, false)?.path).toBe("/articles/2026/11/…");
+  });
+
+  it("holds the slug without a date set by the date field", () => {
+    expect(slugBox("2026-11-17-a", "", "date")).toBe("a");
+    expect(slugBox("2026-11-17-a", "", null)).toBe("2026-11-17-a");
+    expect(slugBox("2026-11-17-x/y", "x/y", "date")).toBe("x/y");
   });
 });
 

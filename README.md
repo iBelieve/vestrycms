@@ -373,7 +373,8 @@ The entry is saved as `2026-03-01-title.mdx` and its file holds no `date`
 key. The editor still shows a date picker, and lists sort and display by it.
 Changing the date renames the file, so a URL built from the slug changes
 with it; add a redirect if the old address matters. The Slug box then holds
-only the part after the date, with the date shown in front of it. A slug
+only the part after the date; the line under it gives the page's address
+(from `previewUrl`, or the file without one), with the date in place. A slug
 template that leaves the date out still gets it as a prefix. On the site, read the
 date from the entry id (`entry.id.slice(0, 10)`). One such field per
 collection, at the top level of the schema, without `time`.
