@@ -9,6 +9,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -416,6 +417,7 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
       status={
         display.isPublished === null ? null : statusOf(display.isPublished)
       }
+      sticky
       crumbs={
         collection
           ? [
@@ -1125,8 +1127,9 @@ function EditorActions({
   return (
     <>
       {unsaved && (
-        <span className="v-unsaved">
-          <TriangleExclamationPoint size={13} /> Unsaved changes
+        <span className="v-unsaved" title="Unsaved changes">
+          <TriangleExclamationPoint size={13} />{" "}
+          <span className="v-unsaved__text">Unsaved changes</span>
         </span>
       )}
       {previewHref && (
@@ -1135,8 +1138,9 @@ function EditorActions({
           href={previewHref}
           target="_blank"
           rel="noreferrer"
+          title="View on the site"
         >
-          <ExternalLink /> View
+          <ExternalLink /> <span className="v-btn__label">View</span>
         </a>
       )}
       {canDelete && (
@@ -1187,17 +1191,96 @@ function TitleCard({
   return (
     <div className="v-card">
       <div className="v-card__body" style={{ padding: "14px 18px" }}>
-        <input
-          className="v-title-input"
+        <TitleInput
           value={value}
           placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
           autoFocus={autoFocus}
         />
         {error && <div className="v-field__error">{error}</div>}
       </div>
     </div>
   );
+}
+
+/**
+ * The title, wrapping onto more lines rather than running out of sight in a
+ * narrow window. A title is one line: Enter and pasted line breaks become
+ * nothing and spaces.
+ */
+function TitleInput({
+  value,
+  placeholder,
+  onChange,
+  autoFocus,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  autoFocus: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // Grows with its text (CSS `field-sizing: content` where supported).
+  useLayoutEffect(() => fitHeight(ref.current), [value]);
+  // A narrower card wraps the title onto more lines. The refit waits for
+  // the next frame: resizing the card inside the observer's own callback
+  // would raise a "ResizeObserver loop" error.
+  useEffect(() => {
+    const el = ref.current;
+    const card = el?.parentElement;
+    if (!card || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => fitHeight(el));
+    });
+    observer.observe(card);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
+  return (
+    <textarea
+      ref={ref}
+      className="v-title-input"
+      rows={1}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(oneLine(e.target))}
+      onKeyDown={(e) => {
+        // An Enter that ends an input method's composition is left to it.
+        if (e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
+      }}
+      autoFocus={autoFocus}
+    />
+  );
+}
+
+/** Sets a textarea's height to its text's. */
+function fitHeight(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+const LINE_BREAKS = /\s*[\r\n]+\s*/g;
+
+/**
+ * The field's text with its line breaks made spaces. When there were some
+ * (a paste), the field is rewritten here with the caret kept where it was;
+ * left to React, the new value would put the caret at the end.
+ */
+function oneLine(el: HTMLTextAreaElement) {
+  const text = el.value.replace(LINE_BREAKS, " ");
+  if (text !== el.value) {
+    const caret = el.value
+      .slice(0, el.selectionEnd)
+      .replace(LINE_BREAKS, " ").length;
+    el.value = text;
+    el.setSelectionRange(caret, caret);
+  }
+  return text;
 }
 
 function PublishCard({

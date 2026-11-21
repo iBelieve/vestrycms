@@ -3,6 +3,7 @@ import { ArrowRight, Clock, Plus } from "lucide-react";
 import { Link } from "react-router";
 import type { CollectionConfig } from "../../config/types.js";
 import {
+  onDashboard,
   recentCount,
   recentDateField,
   type DashboardCollection,
@@ -18,7 +19,9 @@ import { entryHref, formatDate, inSentence } from "../lib/utils.js";
 
 export function DashboardPage() {
   const { config, api, client } = useVestry();
-  const collections = Object.entries(config.collections ?? {});
+  const collections = Object.entries(config.collections ?? {}).filter(
+    ([, col]) => onDashboard(col),
+  );
   const creatable = collections.filter(
     ([, col]) => recentCount(col) > 0 && isEditable(col),
   );

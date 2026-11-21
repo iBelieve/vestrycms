@@ -7,20 +7,44 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
-- **Google Analytics.** `analytics: { provider: "google-analytics",
-propertyId }` reads a GA4 property through the Data API as a service
-  account, with its JSON key in the `VESTRY_GOOGLE_ANALYTICS_CREDENTIALS`
-  secret. The dashboard card and the Analytics page show the same numbers
-  as with Plausible (visitors are GA4's active users, visits its sessions).
+- **Google Analytics.** With `provider: "google-analytics"` and a
+  `propertyId`, `analytics` reads a GA4 property through the Data API as a
+  service account, with its JSON key in the
+  `VESTRY_GOOGLE_ANALYTICS_CREDENTIALS` secret. The dashboard card and the
+  Analytics page show the same numbers as with Plausible (visitors are
+  GA4's active users, visits its sessions).
+- **`dashboard: false`** on a collection leaves it off the dashboard: no
+  tile, "Recent …" list or New button, and the dashboard request no
+  longer lists it. It stays in the sidebar. For collections editors
+  rarely open, such as categories, authors or generated entries. Asking
+  such a collection for a recent list (`recent: true` or a count) is an
+  error at startup.
 
 ### Changed
 
+- **Phones and narrow screens.** Below 860 px the sidebar is a drawer,
+  opened from a menu button in the top bar, instead of a block stacked
+  above every page. The page itself scrolls under a sticky top bar (so
+  phone browsers can tuck their address bar away), and on phones a link
+  above the title leads back to the breadcrumb's page, such as an entry's
+  collection, including one not in the sidebar.
+- **Editing on a phone.** The editor's heading (back, title, View, Delete,
+  Save) stays under the top bar on narrow screens, so Save is always in
+  reach, and the body's toolbar is one row that scrolls sideways and
+  sticks below it. Side-by-side fields take the full width on phones, the
+  title wraps instead of running out of sight, and touch screens get 16px
+  fields so iOS no longer zooms in on one.
+- `recent` must be true, false or a number: anything else (a string in a
+  `.js` config, say) is an error at startup instead of quietly falling
+  back to the default.
 - `importRsaPrivateKey` is no longer exported from `vestrycms/core`: the
   RS256 key handling moved to an internal module that the GitHub App and
   Google Analytics sign-ins share.
 
 ### Fixed
 
+- The editor no longer runs off the right edge of a narrow window when a
+  body holds components (a 1fr column grew to its widest field).
 - Choosing another period on the Analytics page keeps the page in place:
   the title, the period buttons and the last period's numbers (dimmed) stay
   on screen while the new numbers load.

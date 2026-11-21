@@ -210,7 +210,10 @@ function useMdxEditor(
     extensions,
     editable: !readOnly,
     content: initialDoc ?? { type: "doc", content: [{ type: "paragraph" }] },
-    editorProps: { attributes: { class: "v-prose", spellcheck: "true" } },
+    editorProps: {
+      attributes: { class: "v-prose", spellcheck: "true" },
+      ...caretScrollMargins(),
+    },
     onUpdate: ({ editor }) =>
       out.schedule(() => serialize(editor.getJSON() as PMNode)),
   });
@@ -230,6 +233,19 @@ function useMdxEditor(
   }, [value, editor, visual, parse]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { editor, parseError, load, emit: out.emit, flush: out.flush };
+}
+
+/**
+ * On narrow screens the page scrolls under the dark bar, the editor's
+ * heading and this toolbar, all stuck to the top (`--v-chrome-height`,
+ * `--v-topbar-sticky-height` and a one-row toolbar in styles.css). Typing
+ * scrolls the caret clear of them rather than just inside the window.
+ */
+function caretScrollMargins() {
+  if (!window.matchMedia?.("(max-width: 860px)").matches) return {};
+  const top = 52 + 57 + 48;
+  const margins = { top, bottom: 24, left: 5, right: 5 };
+  return { scrollMargin: margins, scrollThreshold: margins };
 }
 
 /**

@@ -49,8 +49,7 @@ function fittedValue(el: HTMLElement, scroller: HTMLElement) {
 export function useFitToScrollport(ref: RefObject<HTMLElement | null>) {
   useLayoutEffect(() => {
     const el = ref.current;
-    const first = el && scrollParent(el);
-    if (!el || !first) return;
+    if (!el) return;
     let scroller: HTMLElement | null = null;
     let fitted = "";
     let frame = 0;
@@ -78,12 +77,14 @@ export function useFitToScrollport(ref: RefObject<HTMLElement | null>) {
     // The scroll container resizes with the window; its children change size
     // when content above the element (an error list, a wrapped heading) does.
     // A resize can also cross a breakpoint that moves the scrolling to
-    // another box (below 860px the shell scrolls, not the panel), so the
-    // container is looked up again after one.
-    const ro = new ResizeObserver(() => {
+    // another box, or to none (below 860px the page itself scrolls, not the
+    // panel), so the container is looked up again after one. With no
+    // container to observe, only the window's resize says so.
+    const relook = () => {
       moved = true;
       schedule();
-    });
+    };
+    const ro = new ResizeObserver(relook);
     const watch = (next: HTMLElement | null) => {
       if (next === scroller) return;
       scroller?.removeEventListener("scroll", schedule);
@@ -94,10 +95,12 @@ export function useFitToScrollport(ref: RefObject<HTMLElement | null>) {
       ro.observe(next);
       for (const child of next.children) ro.observe(child);
     };
-    watch(first);
+    window.addEventListener("resize", relook);
+    watch(scrollParent(el));
     update();
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener("resize", relook);
       watch(null);
       el.style.removeProperty(FIT_HEIGHT_PROPERTY);
     };

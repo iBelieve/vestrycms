@@ -150,6 +150,8 @@ const saveButton = () => screen.getByRole("button", { name: /^(Save|Create)/ });
 const titleInput = () =>
   screen.getByPlaceholderText<HTMLInputElement>("Title…");
 const slugInput = () => screen.getByPlaceholderText<HTMLInputElement>("auto");
+const summaryInput = () =>
+  document.querySelector<HTMLTextAreaElement>("textarea:not(.v-title-input)")!;
 
 describe("a new entry", () => {
   it("is created at a slug from its title", async () => {
@@ -187,7 +189,7 @@ describe("a new entry", () => {
       expect((saveButton() as HTMLButtonElement).disabled).toBe(true),
     );
     fireEvent.change(titleInput(), { target: { value: "Second" } });
-    fireEvent.change(document.querySelector("textarea")!, {
+    fireEvent.change(summaryInput(), {
       target: { value: "Typed while saving." },
     });
     release();
@@ -284,6 +286,52 @@ describe("a new entry", () => {
   });
 });
 
+describe("the title", () => {
+  it("wraps rather than taking line breaks", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/posts/hello",
+      files,
+    });
+    await screen.findByDisplayValue("Hello");
+    expect(titleInput().tagName).toBe("TEXTAREA");
+    await user.type(titleInput(), " there{Enter}");
+    expect(titleInput().value).toBe("Hello there");
+    fireEvent.change(titleInput(), {
+      target: { value: "Pasted\n  over\r\nlines" },
+    });
+    expect(titleInput().value).toBe("Pasted over lines");
+    await user.click(saveButton());
+    await screen.findByText("Saved to disk");
+    expect(await read(root, "src/content/posts/hello.md")).toContain(
+      "title: Pasted over lines",
+    );
+  });
+
+  it("keeps the caret where a pasted line break became a space", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    const title = titleInput();
+    // As a paste of a line break after "Hel" leaves it, caret after the break.
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )!.set!.call(title, "Hel\nlo");
+    title.setSelectionRange(4, 4);
+    fireEvent.input(title);
+    expect(title.value).toBe("Hel lo");
+    expect(title.selectionStart).toBe(4);
+  });
+
+  it("heads an editor that stays in view on narrow screens", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    expect(document.querySelector(".v-topbar")!.classList).toContain(
+      "v-topbar--sticky",
+    );
+  });
+});
+
 describe("an existing entry", () => {
   it("is edited and saved", async () => {
     const user = userEvent.setup();
@@ -301,7 +349,7 @@ describe("an existing entry", () => {
     ).toBe("https://example.org/posts/hello");
     // A section of one field named like it shows no second label.
     expect(screen.queryByLabelText("Summary")).toBeNull();
-    await user.type(document.querySelector("textarea")!, "Short.");
+    await user.type(summaryInput(), "Short.");
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
     await user.click(screen.getByRole("checkbox", { name: "Draft" }));
     expect(screen.getAllByText("Published").length).toBeGreaterThan(0);
