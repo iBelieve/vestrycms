@@ -23,6 +23,33 @@ const posts = (overrides: Partial<CollectionConfig> = {}): VestryConfig =>
   });
 
 describe("validateConfig", () => {
+  it("checks forms' names, labels, icons and columns", () => {
+    const withForms = (forms: unknown) =>
+      ({ repo, forms }) as unknown as VestryConfig;
+    expect(() =>
+      validateConfig(
+        withForms({
+          contact: { label: "Contact form", icon: "mail", columns: ["name"] },
+        }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateConfig(withForms({ Contact: { label: "x" } })),
+    ).toThrow(/form "Contact": a form's name must be lowercase/);
+    expect(() => validateConfig(withForms({ contact: {} }))).toThrow(
+      /form "contact" needs a label/,
+    );
+    expect(() =>
+      validateConfig(withForms({ contact: { label: "x", icon: "envelope" } })),
+    ).toThrow(/form "contact" icon is "envelope"/);
+    expect(() =>
+      validateConfig(withForms({ contact: { label: "x", columns: "name" } })),
+    ).toThrow(/form "contact" columns must be a list of field names/);
+    expect(() => validateConfig(withForms([]))).toThrow(
+      /forms must be an object/,
+    );
+  });
+
   it("accepts a top-level field for some entries", () => {
     expect(() =>
       validateConfig(

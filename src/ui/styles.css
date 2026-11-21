@@ -3997,3 +3997,62 @@ button.v-tree__toggle:hover {
 .v-preview__frame[data-front] {
   visibility: visible;
 }
+
+/* Form submissions: a list whose rows open the submission, unread ones in
+   bold with a dot, and the submission's fields one under another. */
+.v-submission {
+  cursor: pointer;
+}
+.v-submission td:not(.v-table__main) {
+  max-width: 320px;
+}
+.v-submission .v-table__title {
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.v-submission.is-unread .v-table__title,
+.v-submission.is-unread .v-submission__cell {
+  font-weight: 700;
+}
+.v-submission__cell {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--v-primary);
+  flex-shrink: 0;
+}
+.v-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+.v-submission-detail {
+  padding: 20px 24px;
+}
+.v-submission-detail dl {
+  margin: 0;
+  display: grid;
+  gap: 16px;
+}
+.v-submission-detail dt {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--v-text-muted);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.v-submission-detail dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}

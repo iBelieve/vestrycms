@@ -104,8 +104,12 @@ Sign-in runs on [Better Auth](https://www.better-auth.com) with its email OTP
 and admin plugins. Editors sign in with a six-digit code emailed to them;
 there are no passwords. `auth.admins` lists the addresses that are always
 admins (they can sign in before anyone has invited them, which bootstraps the
-user list). Admins invite everyone else from the **Users** page and choose a
-role:
+user list). The **Users** page lists them before their first sign-in too,
+named from their address, so an admin can rename them or send them an
+invitation. That listing gives each address its account, so taking an
+address out of `auth.admins` later leaves it an ordinary admin: remove it on
+the **Users** page as well. Admins invite everyone else from the **Users**
+page and choose a role:
 
 | Role     | Can                                                          |
 | -------- | ------------------------------------------------------------ |
@@ -842,6 +846,43 @@ heroFocalPoint: fields.focalPoint({ image: "hero", previews: ["16:9", "1:1"] }),
 Both read the sibling field named by `image` at the same level of the
 schema (top level, or inside the same object/array item), and preview
 freshly uploaded images before they are committed.
+
+## Forms
+
+Vestry can keep what people send with a form on the site, such as a contact
+form, for admins to read in the control panel. Name each form in the
+config:
+
+```ts
+forms: {
+  contact: { label: "Contact form", columns: ["name", "email", "subject"] },
+},
+```
+
+and save each submission from the site's own handler (an Astro action, an
+endpoint), after its own checks, into the sign-in database:
+
+```ts
+import { env } from "cloudflare:workers";
+import { saveSubmission } from "vestrycms/forms";
+import vestryConfig from "../vestry.config";
+
+await saveSubmission({
+  config: vestryConfig,
+  database: env.VESTRY_DB,
+  form: "contact",
+  data: { name, email, subject, message },
+});
+```
+
+Each form gets a page under **Forms** in the sidebar, for admins: its
+submissions newest first, unread ones in bold, with the form's `columns`
+(by default the first three fields). A submission's page shows every field
+and has Reply (when it has an `email` field) and Delete. They are kept in a
+`submission` table in the D1 database, after `auth.tablePrefix`, created on
+first use, until an admin deletes them. In local mode (`astro dev` without
+`VESTRY_MODE=auth`) the page has no database to read; in `astro dev` the
+site's handler writes to Wrangler's local D1, not `.vestry/auth.sqlite`.
 
 ## Field types
 

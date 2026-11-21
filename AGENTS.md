@@ -81,11 +81,12 @@ main consumer; keep it free of site-specific code.
 ## Conventions
 
 - Only `dist/` is published. Exports: `.`, `./config`, `./core`, `./mdx`
-  (the MDX ⇄ editor document converter, for migration scripts),
-  `./pages/admin.astro`, `./pages/api`, `./pages/preview.astro`. The
-  integration injects its routes by package specifier
-  (`vestrycms/pages/...`), so the package name and these exports must stay
-  in step.
+  (the MDX ⇄ editor document converter, for migration scripts), `./forms`
+  (`saveSubmission`, for a site's form handlers; it must not import Better
+  Auth or anything else heavy), `./pages/admin.astro`, `./pages/api`,
+  `./pages/preview.astro`. The integration injects its routes by package
+  specifier (`vestrycms/pages/...`), so the package name and these exports
+  must stay in step.
 - Relative imports use `.js` extensions so tsc output runs as-is.
 - When the control panel gains or drops a browser dependency, update
   `src/integration/client-deps.ts`; the build fails until it matches. The

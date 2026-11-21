@@ -20,7 +20,11 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - In `astro dev` with local files, links to the site (View, the address
   under the title, the lists' and analytics' links) go to the dev server
   rather than to `siteUrl`.
-
+- **Form submissions.** `forms` in the config names the site's forms, and
+  `saveSubmission` (from the new `vestrycms/forms` export) saves what the
+  site's own handler receives into the D1 database. Admins read each form's
+  submissions on its page under **Forms** in the sidebar: newest first,
+  unread in bold, with Reply and Delete.
 - **Fields for some entries.** `entries: ["index"]` on a collection's
   top-level field shows it only in those entries' editors, such as fields
   for the home page alone. Other entries keep any value it has, and don't
@@ -56,6 +60,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Changed
 
+- **Config admins are listed before they sign in.** Each address in
+  `auth.admins` gets its account when an admin opens the Users page, as
+  their first sign-in would, so they can be renamed or sent an invitation
+  before then. Taking an address out of `auth.admins` afterwards leaves its
+  account as an ordinary admin, to remove on the Users page. Entries that
+  aren't addresses get no account.
 - **Unknown icons are an error at startup** on collections, singletons,
   asset containers and components, as they already were on pinned entries,
   instead of quietly showing a file icon. The message lists the names the
