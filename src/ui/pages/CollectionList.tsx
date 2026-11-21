@@ -520,15 +520,7 @@ function EntryRow({
     );
   const inTree = !!onToggle || !!pinned?.inTree;
   return (
-    <tr
-      // On phones the row's other columns sit under the title, indented to
-      // line up with it (styles.css).
-      style={
-        inTree
-          ? ({ "--v-depth": onToggle ? row.depth : 0 } as CSSProperties)
-          : undefined
-      }
-    >
+    <tr style={inTree ? depthStyle(onToggle ? row.depth : 0) : undefined}>
       {cells(columns.before)}
       <td className="v-table__main">
         <div
@@ -549,19 +541,41 @@ function EntryRow({
       {cells(columns.after)}
       {columns.extraStatus && <td>{e && <Badge status={e.status} />}</td>}
       <td className="v-table__actions">
-        {e && col.previewUrl && (
-          <a
-            className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
-            title="View on site"
-            target="_blank"
-            rel="noreferrer"
-            href={`${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...e.data, slug: e.slug })}`}
-          >
-            <ExternalLink />
-          </a>
-        )}
+        {e && <PreviewLink col={col} entry={e} siteUrl={siteUrl} />}
       </td>
     </tr>
+  );
+}
+
+/**
+ * A tree row's depth, for styles.css: on phones the row's other columns sit
+ * under the title, indented to line up with it.
+ */
+function depthStyle(depth: number): CSSProperties {
+  return { "--v-depth": depth } as CSSProperties;
+}
+
+/** An entry's link to its page on the site, when the collection has one. */
+function PreviewLink({
+  col,
+  entry,
+  siteUrl,
+}: {
+  col: CollectionConfig;
+  entry: EntrySummary;
+  siteUrl?: string;
+}) {
+  if (!col.previewUrl) return null;
+  return (
+    <a
+      className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
+      title="View on site"
+      target="_blank"
+      rel="noreferrer"
+      href={`${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...entry.data, slug: entry.slug })}`}
+    >
+      <ExternalLink />
+    </a>
   );
 }
 
