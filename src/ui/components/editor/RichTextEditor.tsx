@@ -42,6 +42,8 @@ import {
   type ReactNode,
 } from "react";
 import { parseMdx, serializeMdx } from "../../../mdx/index.js";
+import { assetsToRepoPaths, assetsToStored } from "../../../core/values.js";
+import { mapComponentProps } from "./component-props.js";
 import type {
   ComponentConfig,
   TextStyleConfig,
@@ -174,7 +176,7 @@ function useMdxEditor(
   >,
   visual: boolean,
 ) {
-  const { parse, serialize, parseError } = useMdxCodec(format, env.components);
+  const { parse, serialize, parseError } = useMdxCodec(format, env);
   const out = useEmitter(onChange, value);
   const initialDoc = useMemo(() => parse(value), []); // eslint-disable-line react-hooks/exhaustive-deps
   const extensions = useMemo(
@@ -218,7 +220,7 @@ function useMdxEditor(
  */
 function useMdxCodec(
   format: "md" | "mdx",
-  components: Record<string, ComponentConfig>,
+  { components, filePath }: Pick<EditorEnv, "components" | "filePath">,
 ) {
   const [parseError, setParseError] = useState<string | null>(null);
   const importsRef = useRef<Record<string, ImportSpec>>({});
@@ -241,23 +243,34 @@ function useMdxCodec(
         const parsed = parseMdx(mdx, { format });
         importsRef.current = parsed.imports;
         setParseError(null);
-        return parsed.doc;
+        return filePath === undefined
+          ? parsed.doc
+          : mapComponentProps(parsed.doc, components, (schema, props) =>
+              assetsToRepoPaths(schema, props, filePath),
+            );
       } catch (e) {
         setParseError((e as Error).message);
         return null;
       }
     },
-    [format],
+    [format, components, filePath],
   );
 
   const serialize = useCallback(
     (doc: PMNode) =>
-      serializeMdx(doc, {
-        format,
-        components: registry,
-        existingImports: importsRef.current,
-      }),
-    [format, registry],
+      serializeMdx(
+        filePath === undefined
+          ? doc
+          : mapComponentProps(doc, components, (schema, props) =>
+              assetsToStored(schema, props, filePath),
+            ),
+        {
+          format,
+          components: registry,
+          existingImports: importsRef.current,
+        },
+      ),
+    [format, registry, components, filePath],
   );
 
   return { parse, serialize, parseError };

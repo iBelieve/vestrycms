@@ -22,12 +22,6 @@ import { CodeInput } from "../fields/CodeInput.js";
 // fallow-ignore-next-line circular-dependency
 import { changedValue, FieldRenderer } from "../fields/FieldRenderer.js";
 import { useEditorEnv } from "./EditorContext.js";
-import { assetToRepoPath } from "../../../core/values.js";
-
-/** Repo path of an image prop value (values are already repo paths in the editor; tolerate stored forms too). */
-function assetPath(field: { directory: string }, value: string): string {
-  return assetToRepoPath(field, value, "");
-}
 
 /**
  * Keeps a value in local state while also pushing it to the document.
@@ -274,13 +268,15 @@ function Thumbnail({
     ([k, f]) => f.type === "image" && typeof props[k] === "string" && props[k],
   );
   if (!image) return null;
-  const [key, field] = image as [string, { directory: string }];
-  const src = env.toDocPath(assetPath(field, String(props[key])));
+  // A repository path (see EditorEnv.filePath), or a URL.
+  const value = String(props[image[0]]);
+  const src = /^https?:\/\//.test(value) ? value : env.assetUrl?.(value);
+  if (!src) return null;
   return (
     <img
       className="v-thumb"
       style={{ width: 36, height: 26 }}
-      src={env.resolveImage?.(src) ?? ""}
+      src={src}
       alt=""
     />
   );

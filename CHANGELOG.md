@@ -16,6 +16,15 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Fixed
 
+- **Image props of components preview with any `storeAs`.** A component's
+  image and file props were edited as the MDX stores them, so only a
+  `repo` path previewed: with `filename`, `relative` or `public` the
+  settings showed a broken image (and, for `relative`, so did the block's
+  thumbnail), and a newly chosen file was written as a repository path
+  whatever `storeAs` said. They now hold repository paths while the editor
+  has the document, like frontmatter fields, and are written in their
+  `storeAs` form, so a site can drop a `storeAs: "repo"` workaround.
+
 - **Editor sidebar reaches its bottom.** The editor's sidebar is sized to
   the visible part of the panel as the page scrolls, so its last fields
   can be scrolled into view while the page heading is still showing.

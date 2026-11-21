@@ -218,7 +218,10 @@ from the injected Astro endpoint in production. Both call the same
 - Entry values are normalised for the editor: image/file fields always hold
   repository paths; on save they are written back in the configured form
   (`relative` to the entry file, bare `filename`, `public` URL or `repo`
-  path).
+  path). Image and file props of a configured component in the body (or in
+  a `markdown` field) are handled the same way: repository paths while the
+  editor holds the document, written back in their `storeAs` form whenever
+  it serializes the document.
 - The body editor parses MDX into a ProseMirror document. JSX components
   become `mdxComponent` nodes with their attributes converted to JSON where
   they are literals (anything else is kept verbatim as an expression).

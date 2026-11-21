@@ -204,13 +204,8 @@ export function toEditorValues(
   filePath: string,
 ): Record<string, unknown> {
   return walkValues(schema, data, (field, value) => {
-    if (
-      (field.type === "image" || field.type === "file") &&
-      typeof value === "string" &&
-      value
-    ) {
-      return assetToRepoPath(field, value, filePath);
-    }
+    if (isAssetValue(field, value))
+      return assetToRepoPath(field as AssetField, value, filePath);
     if (field.type === "date" && value instanceof Date)
       return value.toISOString().slice(0, 10);
     if (field.type === "datetime" && value instanceof Date)
@@ -244,7 +239,7 @@ export function toStoredValues(
   data: Record<string, unknown>,
   filePath: string,
 ): Record<string, unknown> {
-  const stored = storedFieldValues(schema, data, filePath);
+  const stored = assetsToStored(schema, data, filePath);
   // A date kept in the file name is not written to the file as well. A
   // value that is not a plain date never reached the name (`slugWithDate`
   // leaves the slug alone), so it stays in the file rather than being lost.
@@ -257,21 +252,43 @@ export function toStoredValues(
   return stored;
 }
 
-function storedFieldValues(
+/** An image or file field's value, when it names a file. */
+function isAssetValue(field: Field, value: unknown): value is string {
+  return (
+    (field.type === "image" || field.type === "file") &&
+    typeof value === "string" &&
+    value !== ""
+  );
+}
+
+/**
+ * The image and file values in `data` (which may nest), from the form the
+ * content file holds them in to repository paths, the form the editor
+ * works with. `filePath` is the file they are written in.
+ */
+export function assetsToRepoPaths(
   schema: Schema,
   data: Record<string, unknown>,
   filePath: string,
 ): Record<string, unknown> {
-  return walkValues(schema, data, (field, value) => {
-    if (
-      (field.type === "image" || field.type === "file") &&
-      typeof value === "string" &&
-      value
-    ) {
-      return repoPathToAsset(field, value, filePath);
-    }
-    return value;
-  });
+  return walkValues(schema, data, (field, value) =>
+    isAssetValue(field, value)
+      ? assetToRepoPath(field as AssetField, value, filePath)
+      : value,
+  );
+}
+
+/** The reverse of `assetsToRepoPaths`: repository paths in each field's `storeAs` form. */
+export function assetsToStored(
+  schema: Schema,
+  data: Record<string, unknown>,
+  filePath: string,
+): Record<string, unknown> {
+  return walkValues(schema, data, (field, value) =>
+    isAssetValue(field, value)
+      ? repoPathToAsset(field as AssetField, value, filePath)
+      : value,
+  );
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

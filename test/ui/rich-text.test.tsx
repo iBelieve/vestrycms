@@ -398,3 +398,197 @@ describe("the rich text editor", () => {
     ).toContain("![](/images/a.png)");
   });
 });
+
+describe("component image props", () => {
+  /** A page whose `Shot` component keeps its image as `storeAs` says. */
+  function shotConfig(storeAs: "filename" | "relative" | "public" | "repo") {
+    const directory =
+      storeAs === "public" ? "public/shots" : "src/assets/shots";
+    return defineConfig({
+      name: "Test Site",
+      repo: { owner: "o", name: "r", branch: "main" },
+      assets: { shots: { label: "Shots", directory } },
+      components: {
+        Shot: {
+          props: {
+            src: fields.image({ directory, storeAs }),
+            caption: fields.text(),
+          },
+        },
+      },
+      collections: {
+        docs: collection({
+          label: "Docs",
+          path: "src/content/docs/*.mdx",
+          body: { components: ["Shot"] },
+          schema: { title: fields.text() },
+        }),
+      },
+    });
+  }
+
+  const cases = [
+    {
+      storeAs: "filename",
+      before: "a.png",
+      after: "b.png",
+      dir: "src/assets/shots",
+    },
+    {
+      storeAs: "relative",
+      before: "../../assets/shots/a.png",
+      after: "../../assets/shots/b.png",
+      dir: "src/assets/shots",
+    },
+    {
+      storeAs: "public",
+      before: "/shots/a.png",
+      after: "/shots/b.png",
+      dir: "public/shots",
+    },
+    {
+      storeAs: "repo",
+      before: "src/assets/shots/a.png",
+      after: "src/assets/shots/b.png",
+      dir: "src/assets/shots",
+    },
+  ] as const;
+
+  it.each(cases)(
+    "previews and saves a $storeAs image",
+    async ({ storeAs, before, after, dir }) => {
+      const user = userEvent.setup();
+      const file = "src/content/docs/intro.mdx";
+      const { root } = await openPanel(shotConfig(storeAs), {
+        url: "/collections/docs/intro",
+        files: {
+          [file]: `---\ntitle: Intro\n---\n\n<Shot src="${before}" caption="One" />\n\nText\n`,
+          [`${dir}/a.png`]: "a",
+          [`${dir}/b.png`]: "b",
+        },
+      });
+      const block = (
+        await screen.findByText("Shot", { selector: ".v-block__name" })
+      ).closest(".v-block") as HTMLElement;
+      const repoUrl = (name: string) => encodeURIComponent(`${dir}/${name}`);
+
+      // The header thumbnail and the settings' preview load the file.
+      expect(block.querySelector("img.v-thumb")?.getAttribute("src")).toContain(
+        repoUrl("a.png"),
+      );
+      const preview = () =>
+        block.querySelector(".v-image-field__preview img")?.getAttribute("src");
+      expect(preview()).toContain(repoUrl("a.png"));
+      expect(within(block).getByText("a.png")).toBeTruthy();
+
+      // A new choice previews, and is saved in the field's own form.
+      await user.click(within(block).getByRole("button", { name: "Replace" }));
+      const dialog = await screen.findByRole("dialog");
+      await user.dblClick(
+        await within(dialog).findByRole("button", { name: /b\.png/ }),
+      );
+      await waitFor(() => expect(preview()).toContain(repoUrl("b.png")));
+      expect(block.querySelector("img.v-thumb")?.getAttribute("src")).toContain(
+        repoUrl("b.png"),
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Unsaved changes")).toBeTruthy(),
+      );
+      await user.click(screen.getByRole("button", { name: /^Save/ }));
+      await screen.findByText("Saved to disk");
+      expect(await readFile(path.join(root, file), "utf8")).toContain(
+        `<Shot src="${after}" caption="One" />`,
+      );
+    },
+  );
+
+  it("converts images in lists, and keeps expressions and other props", async () => {
+    const user = userEvent.setup();
+    const config = defineConfig({
+      name: "Test Site",
+      repo: { owner: "o", name: "r", branch: "main" },
+      components: {
+        Row: {
+          props: {
+            photos: fields.array(
+              fields.object({
+                image: fields.image({
+                  directory: "src/assets/shots",
+                  storeAs: "filename",
+                }),
+                title: fields.text(),
+              }),
+            ),
+            background: fields.image({ directory: "src/assets/shots" }),
+            caption: fields.text(),
+          },
+        },
+      },
+      collections: {
+        docs: collection({
+          label: "Docs",
+          path: "src/content/docs/*.mdx",
+          body: { components: ["Row"] },
+          schema: { title: fields.text() },
+        }),
+      },
+    });
+    const file = "src/content/docs/intro.mdx";
+    const { root } = await openPanel(config, {
+      url: "/collections/docs/intro",
+      files: {
+        [file]:
+          '---\ntitle: Intro\n---\n\n<Row photos={[{ image: "a.png", title: "A" }]} background={bg} caption="One" />\n',
+        "src/assets/shots/a.png": "a",
+      },
+    });
+    const block = (
+      await screen.findByText("Row", { selector: ".v-block__name" })
+    ).closest(".v-block") as HTMLElement;
+    await user.click(within(block).getByTitle("Edit settings"));
+    await user.type(within(block).getByLabelText("Caption"), "!");
+    await waitFor(() =>
+      expect(screen.getByText("Unsaved changes")).toBeTruthy(),
+    );
+    await user.click(screen.getByRole("button", { name: /^Save/ }));
+    await screen.findByText("Saved to disk");
+    const saved = await readFile(path.join(root, file), "utf8");
+    expect(saved).toContain('image: "a.png"');
+    expect(saved).toContain("background={bg}");
+    expect(saved).toContain('caption="One!"');
+  });
+
+  it("previews images in components inside a Markdown field", async () => {
+    const config = defineConfig({
+      name: "Test Site",
+      repo: { owner: "o", name: "r", branch: "main" },
+      components: {
+        Shot: {
+          props: { src: fields.image({ directory: "src/assets/shots" }) },
+        },
+      },
+      collections: {
+        docs: collection({
+          label: "Docs",
+          path: "src/content/docs/*.mdx",
+          body: false,
+          schema: { intro: fields.markdown({ components: ["Shot"] }) },
+        }),
+      },
+    });
+    await openPanel(config, {
+      url: "/collections/docs/intro",
+      files: {
+        "src/content/docs/intro.mdx":
+          '---\nintro: <Shot src="../../assets/shots/a.png" />\n---\n',
+        "src/assets/shots/a.png": "a",
+      },
+    });
+    const block = (
+      await screen.findByText("Shot", { selector: ".v-block__name" })
+    ).closest(".v-block") as HTMLElement;
+    expect(block.querySelector("img.v-thumb")?.getAttribute("src")).toContain(
+      encodeURIComponent("src/assets/shots/a.png"),
+    );
+  });
+});
