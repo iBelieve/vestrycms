@@ -61,6 +61,7 @@ import {
 } from "../lib/utils.js";
 import {
   bodyEnv,
+  rebaseDraft,
   effectiveSlug,
   entryDisplay,
   entryFile,
@@ -358,6 +359,9 @@ function useEntryForm(props: EntryFormProps) {
   useLeaveWarning(unsaved);
 
   const filePath = entryFile(kind, col, pattern, slugs.finalSlug);
+  // What the body was written for: its relative references follow the
+  // file, so they are rewritten only when a save moves it.
+  const openedFile = entryFile(kind, col, pattern, slug ?? "");
   const saving = useSave({
     kind,
     collectionKey,
@@ -366,6 +370,7 @@ function useEntryForm(props: EntryFormProps) {
     col,
     pattern,
     filePath,
+    openedFile,
     doc,
     slugs,
     setErrors,
@@ -393,6 +398,7 @@ function useEntryForm(props: EntryFormProps) {
     slugs,
     unsaved,
     filePath,
+    openedFile,
     saving,
     remove,
     display,
@@ -577,7 +583,7 @@ function EntryFields({
         pendingUploads: doc.uploads,
         isNew: form.isNew,
         siblings: doc.state.data,
-        filePath: form.filePath,
+        filePath: form.openedFile,
       }}
     />
   );
@@ -590,7 +596,7 @@ function EntryBody({ form }: { form: EntryFormModel }) {
   return (
     <BodyCard
       col={form.col}
-      filePath={form.filePath}
+      filePath={form.openedFile}
       config={config}
       fileUrl={api.fileUrl}
       doc={form.doc}
@@ -843,6 +849,7 @@ function useSave({
   col,
   pattern,
   filePath,
+  openedFile,
   doc,
   slugs,
   setErrors,
@@ -855,12 +862,13 @@ function useSave({
   col: Entry;
   pattern: PathPattern;
   filePath: string;
+  openedFile: string;
   doc: Document;
   slugs: Slugs;
   setErrors: (errors: ValidationError[]) => void;
   readOnly: boolean;
 }) {
-  const { api, client } = useVestry();
+  const { api, client, config } = useVestry();
   const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
@@ -882,6 +890,8 @@ function useSave({
         collectionKey,
         pattern,
         filePath,
+        openedFile,
+        config,
         state: sent.state,
         sha: doc.sha,
         isNew,
@@ -929,9 +939,18 @@ function useSave({
             slug!,
             res.slug,
           ) ?? draft.data;
+      // What changed while it saved was written for the file it opened;
+      // the data as saved (`res.data`) was moved by the save.
       handoff = draft && {
         key: draftKey(kind, collectionKey, res.slug),
-        draft,
+        draft: rebaseDraft(
+          draft,
+          col,
+          config,
+          openedFile,
+          entryFile(kind, col, pattern, res.slug),
+          res.data,
+        ),
       };
       void navigate(entryHref(collectionKey, res.slug), { replace: true });
     },

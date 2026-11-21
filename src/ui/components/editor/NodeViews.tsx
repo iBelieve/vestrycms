@@ -22,7 +22,11 @@ import { CodeInput } from "../fields/CodeInput.js";
 // fallow-ignore-next-line circular-dependency
 import { changedValue, FieldRenderer } from "../fields/FieldRenderer.js";
 import { useEditorEnv } from "./EditorContext.js";
-import { assetToRepoPath, type AssetField } from "../../../core/values.js";
+import {
+  assetToRepoPath,
+  isRemoteUrl,
+  type AssetField,
+} from "../../../core/values.js";
 
 /**
  * Keeps a value in local state while also pushing it to the document.
@@ -275,7 +279,7 @@ function Thumbnail({
   const value = String(props[key]);
   const repoPath =
     env.filePath === undefined ? assetToRepoPath(field, value, "") : value;
-  const src = /^https?:\/\//.test(value) ? value : env.assetUrl?.(repoPath);
+  const src = isRemoteUrl(value) ? value : env.assetUrl?.(repoPath);
   if (!src) return null;
   return (
     <img

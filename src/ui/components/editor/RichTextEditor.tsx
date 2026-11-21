@@ -43,16 +43,12 @@ import {
 } from "react";
 import { parseMdx, serializeMdx } from "../../../mdx/index.js";
 import { assetsToRepoPaths, assetsToStored } from "../../../core/values.js";
-import { mapComponentProps } from "./component-props.js";
+import { componentRegistry, mapComponentProps } from "./component-props.js";
 import type {
   ComponentConfig,
   TextStyleConfig,
 } from "../../../config/types.js";
-import type {
-  ComponentRegistry,
-  ImportSpec,
-  PMNode,
-} from "../../../mdx/types.js";
+import type { ImportSpec, PMNode } from "../../../mdx/types.js";
 import {
   cssToStyle,
   cx,
@@ -249,18 +245,7 @@ function useMdxCodec(
   // How the document wrote the image and file props it was loaded with, so
   // that those nobody changes are written back as they were.
   const writtenRef = useRef(new Map<string, string>());
-  const registry = useMemo<ComponentRegistry>(() => {
-    const out: ComponentRegistry = {};
-    for (const [name, c] of Object.entries(components)) {
-      out[name] = {
-        import: c.import,
-        namedImport: c.namedImport,
-        inline: c.inline,
-        children: c.children,
-      };
-    }
-    return out;
-  }, [components]);
+  const registry = useMemo(() => componentRegistry(components), [components]);
 
   const parse = useCallback(
     (mdx: string): PMNode | null => {
