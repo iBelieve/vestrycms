@@ -227,6 +227,60 @@ describe("validateConfig", () => {
     ).toThrow('pinned has ["index","house"], which is not a slug');
   });
 
+  it("accepts only the panel's icons on collections, singletons, assets and components", () => {
+    const config = (icon: string) =>
+      defineConfig({
+        repo,
+        collections: {
+          faqs: collection({
+            label: "FAQs",
+            path: "content/faqs/*.md",
+            schema: { title: fields.text() },
+            icon,
+          }),
+        },
+      });
+    expect(() => validateConfig(config("circle-question-mark"))).not.toThrow();
+    // Lucide's old name, which the panel would draw as a plain file icon.
+    expect(() => validateConfig(config("circle-help"))).toThrow(
+      'collection "faqs" icon is "circle-help", which is not one of the panel\'s icons',
+    );
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          singletons: {
+            site: singleton({
+              label: "Site",
+              path: "site.yaml",
+              schema: {},
+              icon: "gear",
+            }),
+          },
+        }),
+      ),
+    ).toThrow('singleton "site" icon is "gear"');
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
+          assets: {
+            downloads: {
+              label: "Downloads",
+              directory: "public/downloads",
+              icon: "arrow-down",
+            },
+          },
+        }),
+      ),
+    ).toThrow('asset container "downloads" icon is "arrow-down"');
+    expect(() =>
+      validateConfig(
+        defineConfig({ repo, components: { Callout: { icon: 4 as never } } }),
+      ),
+    ).toThrow('component "Callout" icon must be an icon name');
+  });
+
   it("accepts fixedEntries, readOnly and dashboard only as true or false", () => {
     for (const flag of ["fixedEntries", "readOnly", "dashboard"])
       expect(() => validateConfig(posts({ [flag]: "true" as never }))).toThrow(

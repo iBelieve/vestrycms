@@ -555,6 +555,18 @@ when it sits in one (`resources/lectionaries`); one with entries under it
 also stays in the tree, at the head of its folder. A search or filter keeps
 matching pinned entries at the top.
 
+## Icons
+
+Collections, singletons, asset containers and components each take an
+`icon`, shown beside them in the sidebar and on the dashboard (components:
+in the insert menu and on the block). It is a [Lucide](https://lucide.dev)
+name from the panel's own set, `ICON_NAMES` in `src/config/icons.ts`, which
+is kept small to keep the control panel light. Any other name, including
+Lucide's older names for the same icons (`circle-help` for
+`circle-question-mark`), is an error at startup that lists the set. Give
+each sidebar item its own icon, so editors can tell them apart at a glance.
+To use one that isn't there yet, add it to `ICON_NAMES` and `Icon.tsx`.
+
 ## Dashboard
 
 Each collection gets a tile with its entry count (unless it is
