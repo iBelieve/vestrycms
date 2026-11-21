@@ -3,6 +3,7 @@ import type {
   AnalyticsStatus,
 } from "../core/analytics/types.js";
 import type { ClientConfig } from "../core/api.js";
+import type { Dashboard } from "../core/dashboard.js";
 import type { DeployStatus } from "../core/deploys.js";
 import type { PublicUser, Role } from "../core/roles.js";
 import type {
@@ -128,6 +129,8 @@ export function createClient(basePath: string) {
     status: () => request<{ head: string }>("/status"),
     /** Build and deploy status of the branch's recent commits. */
     deploys: () => request<DeployStatus>("/deploys"),
+    /** Every collection's counts and recent entries, in one request. */
+    dashboard: () => request<Dashboard>("/dashboard"),
     /** Visitor numbers from the site's analytics provider. */
     analytics: (period: AnalyticsPeriod) =>
       request<AnalyticsStatus>(`/analytics?period=${period}`),

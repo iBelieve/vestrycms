@@ -18,6 +18,7 @@ import {
   isAnalyticsPeriod,
 } from "./analytics/index.js";
 import { sharedMemoryCache, type Cache } from "./cache.js";
+import { buildDashboard } from "./dashboard.js";
 import {
   DEPLOY_HISTORY,
   deployStatus,
@@ -773,6 +774,8 @@ async function contentRoute(
   if (section === "status" && method === "GET") {
     return json({ head: await source.head(), source: source.info() });
   }
+  if (section === "dashboard" && !key && method === "GET")
+    return json(await buildDashboard(service));
   if (section === "collections" && key)
     return collectionRoute(request, route, key, source, service);
   if (section === "singletons" && key)
@@ -909,17 +912,39 @@ async function serveFile(
   const file = await service.readFile(path);
   if (!file) return error("File not found", 404, "not_found");
   const etag = `"${file.sha}"`;
+  // A 304 carries the Cache-Control too: the browser keeps the policy it
+  // stored unless the revalidation replaces it, so an image cached before
+  // the `&v=` URLs became immutable would otherwise revalidate forever.
+  const cacheControl = fileCacheControl(file.sha, request);
   if (request.headers.get("if-none-match") === etag) {
-    return new Response(null, { status: 304, headers: { ETag: etag } });
+    return new Response(null, {
+      status: 304,
+      headers: { ETag: etag, "Cache-Control": cacheControl },
+    });
   }
   const ext = extname(normalizePath(path));
   return new Response(file.bytes as BodyInit, {
     headers: {
       "Content-Type": MIME[ext] ?? "application/octet-stream",
-      "Cache-Control": "private, max-age=0, must-revalidate",
+      "Cache-Control": cacheControl,
       ETag: etag,
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "sandbox",
     },
   });
+}
+
+/**
+ * A URL naming the file's blob SHA (`&v=`, as the panel builds them for
+ * listed assets) always means the same bytes, so the browser may keep it
+ * without asking again; this spares a Worker invocation per image each time
+ * an asset grid opens. Without it, or when the file has changed since the
+ * URL was made, the browser revalidates with the ETag. Private either way,
+ * because the panel's files (all but the logo) are for signed-in users.
+ */
+function fileCacheControl(sha: string, request: Request): string {
+  const version = new URL(request.url).searchParams.get("v");
+  return version === sha
+    ? "private, max-age=31536000, immutable"
+    : "private, max-age=0, must-revalidate";
 }

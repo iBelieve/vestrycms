@@ -379,6 +379,40 @@ describe("files", () => {
     expect(again.status).toBe(304);
   });
 
+  it("lets the browser keep a file whose URL names its blob SHA", async () => {
+    const list = await call<{ items: { path: string; sha: string }[] }>(
+      "GET",
+      "/assets/images?dir=",
+    );
+    const photo = list.data.items.find((i) => i.path.endsWith("my-photo.png"))!;
+    const pinned = await call("GET", `/file?path=${photo.path}&v=${photo.sha}`);
+    expect(pinned.response.headers.get("cache-control")).toBe(
+      "private, max-age=31536000, immutable",
+    );
+    const plain = await call("GET", `/file?path=${photo.path}`);
+    expect(plain.response.headers.get("cache-control")).toBe(
+      "private, max-age=0, must-revalidate",
+    );
+    // A URL made before the file changed must not be kept for the new bytes.
+    const stale = await call("GET", `/file?path=${photo.path}&v=0123abc`);
+    expect(stale.status).toBe(200);
+    expect(stale.response.headers.get("cache-control")).toBe(
+      "private, max-age=0, must-revalidate",
+    );
+    // A copy the browser stored before (must-revalidate) takes the new
+    // policy from the 304 that confirms it.
+    const revalidated = await call(
+      "GET",
+      `/file?path=${photo.path}&v=${photo.sha}`,
+      undefined,
+      { "if-none-match": pinned.response.headers.get("etag")! },
+    );
+    expect(revalidated.status).toBe(304);
+    expect(revalidated.response.headers.get("cache-control")).toBe(
+      "private, max-age=31536000, immutable",
+    );
+  });
+
   it("serves the logo", async () => {
     const { data, response } = await call(
       "GET",
@@ -411,6 +445,23 @@ describe("files", () => {
     expect(
       (await call("GET", "/file?path=src/assets/images/none.png")).status,
     ).toBe(404);
+  });
+});
+
+describe("dashboard", () => {
+  it("answers every collection's counts in one request", async () => {
+    const { status, data } = await call<{
+      collections: Record<string, { count: number; drafts: number }>;
+    }>("GET", "/dashboard");
+    expect(status).toBe(200);
+    expect(Object.keys(data.collections)).toEqual(["authors", "posts"]);
+    for (const key of ["authors", "posts"]) {
+      const list = await call<{ entries: unknown[] }>(
+        "GET",
+        `/collections/${key}`,
+      );
+      expect(data.collections[key].count).toBe(list.data.entries.length);
+    }
   });
 });
 

@@ -188,7 +188,7 @@ Routes injected into the site:
 
 - `/admin/[...path]` – the control panel shell (on-demand, no auth needed to
   load the shell; data comes from the API).
-- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `analytics?period=`, `collections/:key`,
+- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `dashboard`, `analytics?period=`, `collections/:key`,
   `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
   `singletons/:key`, `assets/:container`,
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
@@ -560,6 +560,12 @@ highest numbers), and in the collection's sort order when it has neither. The da
 for each collection with a recent list, unless it is `fixedEntries` or
 `readOnly`.
 
+The dashboard loads with one request (`GET /admin/api/dashboard`) that
+returns each collection's counts and recent entries, rather than one full
+listing per collection: on a Worker every request pays the sign-in check
+and the framework's start-up again. A collection that fails to list shows
+"Couldn't load" on its tile, and the rest still load.
+
 ## Analytics
 
 Set `analytics` and the panel shows the site's visitor numbers: a
@@ -592,6 +598,24 @@ Plausible, caching each period's report for five minutes (a report takes
 eight requests, and Plausible allows 600 an hour per key). Other providers
 can be added as variants of `analytics`, each implementing the report in
 `src/core/analytics/`.
+
+## Caching
+
+The GitHub source keeps what it reads in an in-memory cache that lives as
+long as the Worker isolate: the branch head (trusted for 20 seconds, then
+revalidated with its ETag, which costs no rate limit), the file tree by tree
+SHA and file contents up to 2 MB by blob SHA (both immutable), and the
+recent commits behind the build status (5 seconds); analytics reports are
+kept there for five minutes too. Concurrent requests
+share one fetch of the head and tree. The cache holds at most 2,000 entries
+and about 32 MB, evicting the least recently used, because a Worker isolate
+has 128 MB in all. A host that calls `createApi` itself can pass `cache`
+(a `MemoryCache` with other limits, or `kvCache` over a KV namespace).
+
+Files the panel shows from an asset listing are requested as
+`file?path=…&v=<blob SHA>`; those responses are `private, immutable`, so
+the browser does not ask again. Other file URLs (a field's image preview,
+the logo) revalidate with an ETag.
 
 ## Build status
 

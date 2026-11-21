@@ -64,6 +64,12 @@ export class GitHubSource implements ContentSource {
   #cache: Cache;
   #headTtl: number;
   #apiBase: string;
+  #inflight = new Map<string, { promise: Promise<unknown>; started: number }>();
+  /**
+   * Branch moves we know of (our commits, and the pushes our conflicts
+   * reveal), so a head load that one overtook does not undo it.
+   */
+  #commits = 0;
 
   constructor(private opts: GitHubSourceOptions) {
     this.#branch = opts.branch;
@@ -135,7 +141,47 @@ export class GitHubSource implements ContentSource {
     return `gh:${this.repoPath}:head:${branch}`;
   }
 
-  async #resolveHead(): Promise<CachedHead> {
+  /**
+   * Concurrent callers of `load` under one key share its promise, so the
+   * dashboard's parallel listings (or several editors at once) cost one
+   * GitHub round trip and one parse rather than one each.
+   *
+   * A load is joined only while it is young. On a Worker the load belongs to
+   * the request that started it, and when that request's client goes away
+   * its pending fetches are cancelled and their promises never settle; an
+   * entry older than `SHARED_LOAD_MS` is taken for such a load and replaced,
+   * so it cannot hold up every later request in the isolate. A caller that
+   * joined it waits only until the window ends, then loads again itself.
+   */
+  #shared<T>(key: string, load: () => Promise<T>): Promise<T> {
+    const pending = this.#inflight.get(key);
+    const age = pending ? Date.now() - pending.started : SHARED_LOAD_MS;
+    if (!pending || age >= SHARED_LOAD_MS) return this.#startShared(key, load);
+    return settleWithin(
+      pending.promise as Promise<T>,
+      SHARED_LOAD_MS - age,
+      () =>
+        this.#inflight.get(key) === pending
+          ? this.#startShared(key, load)
+          : this.#shared(key, load),
+    );
+  }
+
+  #startShared<T>(key: string, load: () => Promise<T>): Promise<T> {
+    const promise = load().finally(() => {
+      if (this.#inflight.get(key)?.promise === promise)
+        this.#inflight.delete(key);
+    });
+    this.#inflight.set(key, { promise, started: Date.now() });
+    return promise;
+  }
+
+  #resolveHead(): Promise<CachedHead> {
+    return this.#shared("head", () => this.#loadHead());
+  }
+
+  async #loadHead(): Promise<CachedHead> {
+    const commits = this.#commits;
     const branch = await this.branch();
     const key = this.#headKey(branch);
     const fresh = await this.#cache.get<CachedHead & { checked: number }>(key);
@@ -147,14 +193,30 @@ export class GitHubSource implements ContentSource {
     }>(`/repos/${this.repoPath}/git/ref/heads/${encodeURIComponent(branch)}`, {
       etag: fresh?.etag,
     });
-    if (status === 304 && fresh) {
-      const bumped = { ...fresh, checked: Date.now() };
-      await this.#cache.set(key, bumped, 3600);
-      return bumped;
-    }
+    if (status === 304 && fresh)
+      return this.#storeHead(key, { ...fresh, checked: Date.now() }, commits);
     const sha = data.object.sha;
     const treeSha = await this.#treeShaForCommit(sha);
-    const head = { sha, treeSha, etag, checked: Date.now() };
+    return this.#storeHead(
+      key,
+      { sha, treeSha, etag, checked: Date.now() },
+      commits,
+    );
+  }
+
+  /**
+   * Caches the head a load read, unless the branch moved while it was
+   * reading: GitHub may have answered before the move, so the head our
+   * commit cached is the newer one, and after a conflict (which leaves no
+   * head cached) what the load read is not cached at all.
+   */
+  async #storeHead(
+    key: string,
+    head: CachedHead & { checked: number },
+    commits: number,
+  ): Promise<CachedHead> {
+    if (commits !== this.#commits)
+      return (await this.#cache.get<CachedHead>(key)) ?? head;
     await this.#cache.set(key, head, 3600);
     return head;
   }
@@ -174,7 +236,11 @@ export class GitHubSource implements ContentSource {
     return (await this.#resolveHead()).sha;
   }
 
-  async #tree(treeSha: string): Promise<TreeEntry[]> {
+  #tree(treeSha: string): Promise<TreeEntry[]> {
+    return this.#shared(`tree:${treeSha}`, () => this.#loadTree(treeSha));
+  }
+
+  async #loadTree(treeSha: string): Promise<TreeEntry[]> {
     const key = `gh:${this.repoPath}:tree:${treeSha}`;
     const cached = await this.#cache.get<TreeEntry[]>(key);
     if (cached) return cached;
@@ -318,7 +384,11 @@ export class GitHubSource implements ContentSource {
       );
     } catch (e) {
       if (e instanceof SourceError && (e.status === 422 || e.status === 409)) {
-        // Not a fast-forward: the branch moved while we were committing.
+        // Not a fast-forward: the branch moved while we were committing. A
+        // head load still in flight may have read it before it moved, so it
+        // must neither be joined nor cache what it read.
+        this.#commits++;
+        this.#inflight.delete("head");
         await this.#cache.delete(this.#headKey(branch));
         throw new SourceError(
           "The branch changed while saving. Reload and try again.",
@@ -335,6 +405,10 @@ export class GitHubSource implements ContentSource {
       etag: undefined,
       checked: Date.now(),
     };
+    // A head load still in flight may have read the branch before this
+    // commit: later callers must not join it, nor may it overwrite this.
+    this.#commits++;
+    this.#inflight.delete("head");
     await this.#cache.set(this.#headKey(branch), newHead, 3600);
     await this.#cache.delete(this.#commitsKey(branch));
     await this.#cache.set(
@@ -470,6 +544,29 @@ async function responseError(
     res.status,
     ERROR_CODES[res.status] ?? "github_error",
   );
+}
+
+/** How long (ms) a pending head or tree load is joined by other callers. */
+const SHARED_LOAD_MS = 10_000;
+
+/**
+ * `promise`'s outcome, unless it has not settled within `ms`: then
+ * `fallback()`'s. On a Worker a shared load can be cancelled with the
+ * request that started it and never settle, and a caller that joined it
+ * would otherwise wait until the runtime gave up on its own request.
+ */
+function settleWithin<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: () => Promise<T>,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<T>((resolve, reject) => {
+    timer = setTimeout(() => {
+      fallback().then(resolve, reject);
+    }, ms);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
 }
 
 // ------------------------------------------------------------ check runs

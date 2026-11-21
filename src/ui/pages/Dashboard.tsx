@@ -1,10 +1,14 @@
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock, Plus } from "lucide-react";
 import { Link } from "react-router";
 import type { CollectionConfig } from "../../config/types.js";
+import {
+  recentCount,
+  recentDateField,
+  type DashboardCollection,
+} from "../../core/dashboard.js";
 import type { EntrySummary } from "../../core/service.js";
 import { isEditable } from "../../core/paths.js";
-import { compareSortValues } from "../../core/values.js";
 import { AnalyticsWidget } from "../components/AnalyticsWidget.js";
 import { TopBar } from "../components/Layout.js";
 import { Icon } from "../components/Icon.js";
@@ -12,67 +16,18 @@ import { Badge } from "../components/ui.js";
 import { useVestry } from "../context.js";
 import { entryHref, formatDate, inSentence } from "../lib/utils.js";
 
-const DEFAULT_RECENT = 5;
-
-function isDateField(col: CollectionConfig, field: string | undefined) {
-  const type = field ? col.schema[field]?.type : undefined;
-  return type === "date" || type === "datetime";
-}
-
-/** The date field the default `recent` rule keys on: a date `sort`. */
-function sortDateField(col: CollectionConfig): string | null {
-  const field = col.sort?.field;
-  return field && isDateField(col, field) ? field : null;
-}
-
-/**
- * Which date field (if any) a collection's recent list should show: the
- * sort field when it is a date, else the first date column of its list.
- */
-function recentDateField(col: CollectionConfig): string | null {
-  const column = (col.columns ?? [])
-    .map((c) => (typeof c === "string" ? c : c.field))
-    .find((field) => isDateField(col, field));
-  return sortDateField(col) ?? column ?? null;
-}
-
-function recentCount(col: CollectionConfig): number {
-  if (col.recent === false) return 0;
-  if (typeof col.recent === "number") return Math.max(0, col.recent);
-  if (col.recent === true) return DEFAULT_RECENT;
-  return sortDateField(col) ? DEFAULT_RECENT : 0;
-}
-
-/**
- * A collection's `limit` most recent entries: newest first by its date
- * field, or in its sort order when it has no date to go by. A collection
- * sorted by something else (an FAQ number) lists by its date column.
- */
-function recentEntries(
-  col: CollectionConfig,
-  entries: EntrySummary[],
-  limit: number,
-): EntrySummary[] {
-  const dateField = recentDateField(col);
-  if (!dateField || sortDateField(col)) return entries.slice(0, limit);
-  return [...entries]
-    .sort((a, b) => compareSortValues(a.data[dateField], b.data[dateField], -1))
-    .slice(0, limit);
-}
-
 export function DashboardPage() {
   const { config, api, client } = useVestry();
   const collections = Object.entries(config.collections ?? {});
   const creatable = collections.filter(
     ([, col]) => recentCount(col) > 0 && isEditable(col),
   );
-  const queries = useQueries({
-    queries: collections.map(([key]) => ({
-      queryKey: ["entries", key],
-      queryFn: () => api.listEntries(key),
-      staleTime: 30_000,
-    })),
+  const query = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => api.dashboard(),
+    staleTime: 30_000,
   });
+  const summaries = query.data?.collections ?? {};
 
   return (
     <>
@@ -88,42 +43,32 @@ export function DashboardPage() {
           <section className="v-section">
             <h2 className="v-section-title">Collections</h2>
             <div className="v-stats">
-              {collections.map(([key, col], i) => {
-                const q = queries[i];
-                const count = q.data?.entries.length;
-                const drafts =
-                  q.data?.entries.filter((e) => e.status === "draft").length ??
-                  0;
-                return (
-                  <Link
-                    key={key}
-                    to={`/collections/${key}`}
-                    className="v-card v-stat"
-                  >
-                    <span className="v-stat__icon">
-                      <Icon name={col.icon ?? "files"} />
+              {collections.map(([key, col]) => (
+                <Link
+                  key={key}
+                  to={`/collections/${key}`}
+                  className="v-card v-stat"
+                >
+                  <span className="v-stat__icon">
+                    <Icon name={col.icon ?? "files"} />
+                  </span>
+                  <span className="v-stat__body">
+                    <span className="v-stat__label">{col.label}</span>
+                    <span
+                      className="v-stat__meta"
+                      title={statError(summaries[key], query.error)}
+                    >
+                      {statMeta(summaries[key], query.isError)}
                     </span>
-                    <span className="v-stat__body">
-                      <span className="v-stat__label">{col.label}</span>
-                      <span className="v-stat__meta">
-                        {count === undefined
-                          ? "…"
-                          : `${count} ${count === 1 ? "entry" : "entries"}`}
-                        {drafts > 0 &&
-                          ` · ${drafts} draft${drafts === 1 ? "" : "s"}`}
-                      </span>
-                    </span>
-                  </Link>
-                );
-              })}
+                  </span>
+                </Link>
+              ))}
             </div>
           </section>
         )}
-        {collections.map(([key, col], i) => {
-          const limit = recentCount(col);
-          const recent = limit
-            ? recentEntries(col, queries[i].data?.entries ?? [], limit)
-            : [];
+        {collections.map(([key, col]) => {
+          const summary = summaries[key];
+          const recent = summary && "recent" in summary ? summary.recent : [];
           if (!recent.length) return null;
           return (
             <RecentSection
@@ -143,6 +88,29 @@ export function DashboardPage() {
       </div>
     </>
   );
+}
+
+/** A collection tile's second line: its entry and draft counts. */
+function statMeta(
+  summary: DashboardCollection | undefined,
+  failed: boolean,
+): string {
+  if (!summary) return failed ? "Couldn't load" : "…";
+  if ("error" in summary) return "Couldn't load";
+  const { count, drafts } = summary;
+  const entries = `${count} ${count === 1 ? "entry" : "entries"}`;
+  return drafts > 0
+    ? `${entries} · ${drafts} draft${drafts === 1 ? "" : "s"}`
+    : entries;
+}
+
+/** Why a collection tile says "Couldn't load", shown when hovering it. */
+function statError(
+  summary: DashboardCollection | undefined,
+  error: Error | null,
+): string | undefined {
+  if (summary && "error" in summary) return summary.error;
+  return summary ? undefined : error?.message;
 }
 
 /**
