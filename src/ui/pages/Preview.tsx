@@ -313,7 +313,11 @@ async function drawPreview({
   // The token ran out (or the secret changed): ask for another, once.
   if (res.status === 401) res = await post(true);
   const text = await res.text();
-  if (res.ok) return text;
+  if (res.ok && res.headers.get("x-vestry-preview")) return text;
+  if (res.ok)
+    throw new Error(
+      "the preview route didn't answer. A component it imports may fail to load: see the server's log, and give that component preview: false",
+    );
   const plain = res.headers.get("content-type")?.startsWith("text/plain");
   throw new Error(
     plain && text

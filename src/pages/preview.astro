@@ -14,6 +14,10 @@ const { entry, body, components } = opened;
 const Preview = opened.Preview as any;
 Astro.response.headers.set("Cache-Control", "no-store");
 Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+// The preview window checks for this: when this route fails to load in
+// `astro dev` (a component it imports can't run there), Astro answers with
+// the next route that matches, the control panel.
+Astro.response.headers.set("X-Vestry-Preview", "1");
 ---
 
 <Preview entry={entry}>

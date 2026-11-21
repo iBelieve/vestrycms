@@ -623,8 +623,11 @@ How it works:
   only the build has. Components that read `astro:content` (a list of
   recent posts, say) would bundle the whole content store into the Worker:
   give those `preview: false`, and the preview shows a placeholder in their
-  place. A build that can't resolve a component's `import` leaves it out
-  with a warning.
+  place. So do components that read files with `node:fs` (build-time data)
+  or import every page: the route fails to load with them, and in
+  `astro dev` the control panel's route answers in its place, which the
+  window reports as "the preview route didn't answer". A build that can't
+  resolve a component's `import` leaves it out with a warning.
 - Each request costs CPU time like any on-demand page: the layout, the
   components, and whatever the preview component does with the body. The
   window sends one request at a time, the newest change only, and keeps the

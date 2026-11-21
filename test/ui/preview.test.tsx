@@ -172,7 +172,12 @@ describe("the preview window", () => {
             })
           : new Response(
               `<!doctype html><html><head><title>t</title></head><body>Page ${drawn.length}</body></html>`,
-              { headers: { "Content-Type": "text/html" } },
+              {
+                headers: {
+                  "Content-Type": "text/html",
+                  "X-Vestry-Preview": "1",
+                },
+              },
             );
       },
     });
@@ -249,6 +254,25 @@ describe("the preview window", () => {
     await waitFor(() =>
       expect(heard.filter((m) => m.type === "hello")).toHaveLength(2),
     );
+  });
+
+  it("doesn't draw a page the preview route didn't answer", async () => {
+    const { channel, heard } = listen();
+    // What `astro dev` does when the route fails to load: the control panel
+    // answers instead.
+    await openPanel(config, {
+      url: "/preview",
+      files,
+      site: async () =>
+        new Response('<!doctype html><div id="vestry-root"></div>', {
+          headers: { "Content-Type": "text/html" },
+        }),
+    });
+    await waitFor(() => expect(heard).toContainEqual({ type: "hello" }));
+    channel.postMessage({ type: "entry", snapshot: snapshot() });
+    expect(await screen.findByText("Couldn't draw the page")).toBeTruthy();
+    expect(screen.getByText(/preview route didn't answer/)).toBeTruthy();
+    expect(document.querySelector("iframe")).toBeNull();
   });
 
   it("remembers the width it was set to", async () => {
