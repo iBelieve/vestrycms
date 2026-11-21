@@ -327,7 +327,7 @@ describe("assets", () => {
     expect(data.error.code).toBe("validation");
   });
 
-  it("lists files and folders, skipping hidden files", async () => {
+  it("lists files and folders, skipping hidden ones", async () => {
     await writeFile(path.join(root, "src/assets/images/.hidden"), "");
     const { data } = await call<{
       items: { name: string; kind: string }[];
@@ -337,6 +337,23 @@ describe("assets", () => {
       expect.objectContaining({ name: "my-photo.png", kind: "image" }),
     ]);
     expect(data.folders).toEqual(["old"]);
+  });
+
+  it("lists every file below a folder for a search", async () => {
+    await mkdir(path.join(root, "src/assets/images/old/.thumbs"), {
+      recursive: true,
+    });
+    await writeFile(path.join(root, "src/assets/images/old/.thumbs/a.png"), "");
+    const { data } = await call<{
+      items: { name: string; path: string }[];
+      folders: string[];
+    }>("GET", "/assets/images?all=1");
+    expect(data.items.map((i) => [i.name, i.path])).toEqual([
+      ["a.png", "src/assets/images/old/a.png"],
+      ["b.jpg", "src/assets/images/old/b.jpg"],
+      ["my-photo.png", "src/assets/images/my-photo.png"],
+    ]);
+    expect(data.folders).toEqual([]);
   });
 
   it("refuses a folder outside the container", async () => {

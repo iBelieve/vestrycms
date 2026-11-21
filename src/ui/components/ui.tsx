@@ -23,7 +23,7 @@ import {
 import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import { describeError } from "../api.js";
-import { cx, splitLinks } from "../lib/utils.js";
+import { cx, splitLinks, titleCase } from "../lib/utils.js";
 
 // ---------------------------------------------------------------- Button
 export function Button({
@@ -577,5 +577,33 @@ export function Toggle({
       <span className="v-toggle__track" />
       {label && <span className="v-toggle__label">{label}</span>}
     </label>
+  );
+}
+
+/** A row of buttons choosing one of `options`, each labelled in title case. */
+export function Segment<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (value: T) => void;
+  label?: string;
+}) {
+  return (
+    <div className="v-segment" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          className={cx(value === o && "is-active")}
+          onClick={() => onChange(o)}
+        >
+          {titleCase(o)}
+        </button>
+      ))}
+    </div>
   );
 }

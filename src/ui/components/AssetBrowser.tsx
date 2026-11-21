@@ -1,11 +1,23 @@
 /**
  * The pieces the Assets page and the asset picker share: the folder
- * breadcrumbs, the drop zone, and the folder and file grids.
+ * breadcrumbs, the drop zone, the folder and file grids, and the file list.
  */
-import { ChevronRight, File as FileIcon, Folder, Upload } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  File as FileIcon,
+  Folder,
+  Upload,
+} from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import type { AssetItem } from "../../core/service.js";
 import { fileToBase64 } from "../api.js";
+import {
+  type AssetSort,
+  type AssetSortField,
+  relativeTo,
+} from "../lib/asset-list.js";
 import { useVestry } from "../context.js";
 import { cx, formatBytes } from "../lib/utils.js";
 import { Button, Spinner } from "./ui.js";
@@ -152,14 +164,23 @@ export function FolderGrid({
   );
 }
 
+/** The folder a file sits in under `base`, when that isn't `base` itself. */
+function subfolder(base: string, path: string): string {
+  const rel = relativeTo(base, path);
+  return rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "";
+}
+
 /** The files, as tiles; clicking one selects it. */
 export function AssetGrid({
   items,
+  base = "",
   selected,
   onSelect,
   onOpen,
 }: {
   items: AssetItem[];
+  /** The folder shown: a file from below it (a search) names its folder. */
+  base?: string;
   selected: string | null;
   onSelect: (path: string) => void;
   /** On double click. */
@@ -190,9 +211,148 @@ export function AssetGrid({
           <div className="v-asset__name" title={item.name}>
             {item.name}
           </div>
-          <div className="v-asset__meta">{formatBytes(item.size)}</div>
+          <div className="v-asset__meta">
+            {[subfolder(base, item.path), formatBytes(item.size)]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
         </button>
       ))}
     </div>
+  );
+}
+
+function SortHeader({
+  field,
+  label,
+  sort,
+  onSort,
+}: {
+  field: AssetSortField;
+  label: string;
+  sort: AssetSort;
+  onSort: (field: AssetSortField) => void;
+}) {
+  const active = sort.field === field;
+  return (
+    <th
+      aria-sort={
+        active ? (sort.dir === "asc" ? "ascending" : "descending") : undefined
+      }
+    >
+      <button type="button" onClick={() => onSort(field)}>
+        {label}
+        {active && (sort.dir === "asc" ? <ArrowUp /> : <ArrowDown />)}
+      </button>
+    </th>
+  );
+}
+
+/**
+ * The folders and files as a table: each file's whole name, with its folder
+ * under it when it sits below `base` (a search), its type and its size.
+ * Clicking a name selects the file, or opens the folder.
+ */
+export function AssetTable({
+  folders,
+  items,
+  base,
+  sort,
+  onSort,
+  onSelect,
+  onOpenFolder,
+}: {
+  folders: string[];
+  items: AssetItem[];
+  base: string;
+  sort: AssetSort;
+  onSort: (field: AssetSortField) => void;
+  onSelect: (path: string) => void;
+  onOpenFolder: (folder: string) => void;
+}) {
+  const header = (field: AssetSortField, label: string) => (
+    <SortHeader field={field} label={label} sort={sort} onSort={onSort} />
+  );
+  return (
+    <div className="v-table-wrap">
+      <table className="v-table v-asset-table">
+        <thead>
+          <tr>
+            {header("name", "Name")}
+            {header("type", "Type")}
+            {header("size", "Size")}
+          </tr>
+        </thead>
+        <tbody>
+          {folders.map((f) => (
+            <tr key={`folder:${f}`}>
+              <td className="v-table__main">
+                <button
+                  type="button"
+                  className="v-asset-row"
+                  onClick={() => onOpenFolder(f)}
+                >
+                  <span className="v-asset-row__thumb is-folder">
+                    <Folder />
+                  </span>
+                  <span className="v-table__title">{f}</span>
+                </button>
+              </td>
+              <td className="v-table__cell v-muted">Folder</td>
+              <td className="v-table__cell" />
+            </tr>
+          ))}
+          {items.map((item) => (
+            <AssetTableRow
+              key={item.path}
+              item={item}
+              folder={subfolder(base, item.path)}
+              onSelect={onSelect}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AssetTableRow({
+  item,
+  folder,
+  onSelect,
+}: {
+  item: AssetItem;
+  folder: string;
+  onSelect: (path: string) => void;
+}) {
+  const { api } = useVestry();
+  return (
+    <tr>
+      <td className="v-table__main">
+        <button
+          type="button"
+          className="v-asset-row"
+          onClick={() => onSelect(item.path)}
+        >
+          <span className="v-asset-row__thumb">
+            {item.kind === "image" ? (
+              <img
+                src={api.fileUrl(item.path, item.sha)}
+                alt=""
+                loading="lazy"
+              />
+            ) : (
+              <FileIcon />
+            )}
+          </span>
+          <span className="v-table__label">
+            <span className="v-table__title">{item.name}</span>
+            {folder && <span className="v-table__sub v-mono">{folder}/</span>}
+          </span>
+        </button>
+      </td>
+      <td className="v-table__cell v-muted">{item.ext.toUpperCase()}</td>
+      <td className="v-table__cell v-muted">{formatBytes(item.size)}</td>
+    </tr>
   );
 }
