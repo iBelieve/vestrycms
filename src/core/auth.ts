@@ -164,7 +164,9 @@ export function createVestryAuth(opts: VestryAuthOptions) {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== "/email-otp/send-verification-otp") return;
         const email = normalizeEmail(String(ctx.body?.email ?? ""));
-        if (!isConfigAdmin(email)) return;
+        // As on the Users page, an entry that isn't an address gets no
+        // account: this runs before the endpoint refuses the address.
+        if (!isConfigAdmin(email) || !isEmailAddress(email)) return;
         await ensureConfigAdmin(ctx.context.internalAdapter, email);
       }),
     },

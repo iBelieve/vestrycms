@@ -157,4 +157,14 @@ describe("config admins' accounts", () => {
       { email: "b@example.org", role: "admin" },
     ]);
   });
+
+  it("aren't created for an entry that isn't an address when it asks for a code", async () => {
+    const s = site("owner", "typo_");
+    await s.sendCode("owner");
+    const emails = database.prepare(`SELECT email FROM "typo_user"`).all() as {
+      email: string;
+    }[];
+    expect(emails).toEqual([]);
+    expect(s.mailer.sent).toHaveLength(0);
+  });
 });
