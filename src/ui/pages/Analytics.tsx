@@ -57,6 +57,8 @@ export function AnalyticsPage() {
   };
   const report = query.data?.available ? query.data : null;
   const picker = <PeriodPicker period={period} onChange={choose} />;
+  // The last period's report, kept on screen while the chosen one loads.
+  const loading = query.isPlaceholderData;
 
   return (
     <>
@@ -82,7 +84,12 @@ export function AnalyticsPage() {
         {query.isLoading ? (
           <Loading label="Loading analytics…" />
         ) : report ? (
-          <AnalyticsReportView report={report} toolbar={picker} />
+          <AnalyticsReportView
+            report={report}
+            period={period}
+            loading={loading}
+            toolbar={picker}
+          />
         ) : query.error ? (
           <ErrorState
             title="Analytics couldn't load"
@@ -136,20 +143,27 @@ const PAGE_STATS: TotalKey[] = [
 
 function AnalyticsReportView({
   report,
+  period,
+  loading,
   toolbar,
 }: {
   report: AnalyticsReport;
+  /** The chosen period, which `report` is for unless it is `loading`. */
+  period: AnalyticsPeriod;
+  loading: boolean;
   toolbar: ReactNode;
 }) {
   const { config } = useVestry();
   const [metric, setMetric] = useState<ChartMetric>("visitors");
-  const range = rangeLabel(report.range);
+  const range = loading ? "Loading…" : rangeLabel(report.range);
   return (
     <>
       <div className="v-analytics__toolbar">
         <p className="v-analytics__meta">
-          {PERIOD_LABELS[report.period]}
-          {range && ` · ${range}`}
+          <span role="status">
+            {PERIOD_LABELS[period]}
+            {range && ` · ${range}`}
+          </span>
           {report.current !== null && (
             <span className="v-analytics__live">
               <span className="v-analytics__pulse" />
@@ -160,37 +174,39 @@ function AnalyticsReportView({
         </p>
         {toolbar}
       </div>
-      <section className="v-card v-analytics__overview">
-        <div className="v-astats">
-          {PAGE_STATS.map((stat) => (
-            <AnalyticsStat
-              key={stat}
-              report={report}
-              stat={stat}
-              active={stat === metric}
-              onSelect={
-                stat === "visitors" || stat === "pageviews"
-                  ? () => setMetric(stat)
-                  : undefined
-              }
-            />
-          ))}
+      <div className="v-analytics__body" aria-busy={loading}>
+        <section className="v-card v-analytics__overview">
+          <div className="v-astats">
+            {PAGE_STATS.map((stat) => (
+              <AnalyticsStat
+                key={stat}
+                report={report}
+                stat={stat}
+                active={stat === metric}
+                onSelect={
+                  stat === "visitors" || stat === "pageviews"
+                    ? () => setMetric(stat)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+          <AnalyticsChart report={report} metric={metric} height={260} />
+        </section>
+        <div className="v-analytics__grid">
+          <Breakdown
+            title="Top pages"
+            rows={report.pages}
+            href={(row) => sitePageUrl(config.siteUrl, row.name)}
+          />
+          <Breakdown
+            title="Top sources"
+            rows={report.sources}
+            empty="No visits from other sites yet."
+          />
+          <Breakdown title="Countries" rows={report.countries} />
+          <Breakdown title="Devices" rows={report.devices} />
         </div>
-        <AnalyticsChart report={report} metric={metric} height={260} />
-      </section>
-      <div className="v-analytics__grid">
-        <Breakdown
-          title="Top pages"
-          rows={report.pages}
-          href={(row) => sitePageUrl(config.siteUrl, row.name)}
-        />
-        <Breakdown
-          title="Top sources"
-          rows={report.sources}
-          empty="No visits from other sites yet."
-        />
-        <Breakdown title="Countries" rows={report.countries} />
-        <Breakdown title="Devices" rows={report.devices} />
       </div>
     </>
   );

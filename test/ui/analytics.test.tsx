@@ -121,6 +121,47 @@ describe("the Analytics page", () => {
     ).toBeTruthy();
   });
 
+  it("keeps the page in place while a new period loads", async () => {
+    // Start on 30 days, whatever an earlier test chose.
+    localStorage.clear();
+    const plausible = fakePlausible();
+    // Hold the 7-day queries until the test lets them through.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const fetch: typeof plausible.fetch = async (input, init) => {
+      if (typeof init?.body === "string" && init.body.includes('"7d"')) {
+        await held;
+      }
+      return plausible.fetch(input, init);
+    };
+    await open(config, {
+      url: "/analytics",
+      plausible: { ...plausible, fetch },
+    });
+    await screen.findByText("Top sources");
+    fireEvent.click(screen.getByRole("button", { name: "7 days" }));
+    // The chosen period shows at once, over the last period's numbers.
+    expect(await screen.findByText("Last 7 days · Loading…")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "7 days" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("link", { name: /Open in Plausible/ }),
+    ).toBeTruthy();
+    expect(screen.getByText("Top sources")).toBeTruthy();
+    expect(
+      document.querySelector(".v-analytics__body")?.getAttribute("aria-busy"),
+    ).toBe("true");
+    expect(screen.queryByText("Loading analytics…")).toBeNull();
+    release();
+    expect(await screen.findByText(/Nov 13 – Nov 19, 2026/)).toBeTruthy();
+    expect(
+      document.querySelector(".v-analytics__body")?.getAttribute("aria-busy"),
+    ).toBe("false");
+  });
+
   it("goes back to the dashboard without analytics in the config", async () => {
     await open({ ...config, analytics: undefined }, { url: "/analytics" });
     expect(

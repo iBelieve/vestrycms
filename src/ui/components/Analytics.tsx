@@ -1,5 +1,5 @@
 /** Pieces shared by the Analytics page and the dashboard's visitors card. */
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import type {
   AnalyticsPeriod,
@@ -20,7 +20,11 @@ import {
 import { cx } from "../lib/utils.js";
 import { Alert } from "./ui.js";
 
-/** The report for a period; refreshed every five minutes while open. */
+/**
+ * The report for a period; refreshed every five minutes while open. While a
+ * newly chosen period loads, the last period's report stays as placeholder
+ * data (`isPlaceholderData`), so the page can keep its layout.
+ */
 export function useAnalytics(period: AnalyticsPeriod, enabled = true) {
   const { api } = useVestry();
   return useQuery({
@@ -28,6 +32,7 @@ export function useAnalytics(period: AnalyticsPeriod, enabled = true) {
     queryFn: () => api.analytics(period),
     enabled,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
     refetchInterval: 5 * 60_000,
     retry: false,
   });

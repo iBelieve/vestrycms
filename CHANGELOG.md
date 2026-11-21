@@ -3,6 +3,14 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Fixed
+
+- Choosing another period on the Analytics page keeps the page in place:
+  the title, the period buttons and the last period's numbers (dimmed) stay
+  on screen while the new numbers load.
+
 ## 0.7.0
 
 ### Added
