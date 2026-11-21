@@ -9,5 +9,6 @@ export * from "./roles.js";
 export * from "./mail.js";
 export * from "./index-types.js";
 export * from "./values.js";
+export * from "./submissions.js";
 export { GitHubSource } from "./sources/github.js";
 export * from "./sources/github-app.js";

@@ -3,6 +3,7 @@
  * with Better Auth on its memory adapter and a capturing mailer. The tests
  * share one database and run in order, each building on the last.
  */
+import { DatabaseSync } from "node:sqlite";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, it } from "vitest";
 import { createApi } from "../src/core/api.js";
@@ -19,6 +20,7 @@ const config: VestryConfig = {
   repo: { owner: "o", name: "r", branch: "main" },
   auth: { admins: ["Owner@Example.org"] },
   collections: {},
+  forms: { contact: { label: "Contact form" } },
 };
 const mailer = memoryMailer();
 const api = createApi({
@@ -41,6 +43,7 @@ const api = createApi({
     dev: true,
     migrate: false,
   },
+  submissionsDatabase: new DatabaseSync(":memory:"),
 });
 
 /** Cookie jar: one per simulated browser. */
@@ -215,6 +218,12 @@ describe("invitations", () => {
 });
 
 describe("editors", () => {
+  it("cannot read form submissions", async () => {
+    expect((await edBrowser.call("GET", "/submissions/contact")).status).toBe(
+      403,
+    );
+  });
+
   it("cannot list or invite users", async () => {
     expect((await edBrowser.call("GET", "/users")).status).toBe(403);
     expect(

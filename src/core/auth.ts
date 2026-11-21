@@ -16,6 +16,7 @@ import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";
 import type { Mailer } from "./mail.js";
 import { isRole, type PublicUser, type Role } from "./roles.js";
+import { tablePrefixError } from "./table-prefix.js";
 
 export type AuthDatabase = NonNullable<BetterAuthOptions["database"]>;
 
@@ -88,16 +89,7 @@ export const AUTH_TABLES = [
   "rateLimit",
 ] as const;
 
-// Lowercase only: SQLite (and so D1) table names ignore case, so `Site_`
-// and `site_` would silently name the same tables.
-const TABLE_PREFIX = /^[a-z][a-z0-9_]*$/;
-
-/** Why a `tablePrefix` is unusable, or undefined when it is fine. */
-export function tablePrefixError(prefix: string | undefined) {
-  if (prefix === undefined || prefix === "" || TABLE_PREFIX.test(prefix))
-    return undefined;
-  return `auth.tablePrefix ${JSON.stringify(prefix)} must be lowercase letters, digits and underscores, starting with a letter.`;
-}
+export { tablePrefixError };
 
 /**
  * Migrations run once per database and table prefix per isolate, whichever

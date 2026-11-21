@@ -6,6 +6,7 @@ import type { ClientConfig } from "../core/api.js";
 import type { Dashboard } from "../core/dashboard.js";
 import type { DeployStatus } from "../core/deploys.js";
 import type { PublicUser, Role } from "../core/roles.js";
+import type { Submission } from "../core/submissions.js";
 import type {
   AssetItem,
   EntryDetail,
@@ -23,6 +24,7 @@ export type {
   SaveEntryInput,
   PublicUser,
   Role,
+  Submission,
 };
 
 /** Fired on `window` when the API answers 401, so the app can return to sign-in. */
@@ -150,6 +152,23 @@ export function createClient(basePath: string) {
     resendInvite: (id: string) =>
       request<{ user: PublicUser }>(`/users/${enc(id)}/invite`, {
         method: "POST",
+      }),
+    /** A form's submissions, newest first; `before`, the last one shown, continues a page. */
+    listSubmissions: (
+      form: string,
+      before?: Pick<Submission, "id" | "createdAt">,
+    ) =>
+      request<{ submissions: Submission[]; more: boolean }>(
+        `/submissions/${enc(form)}${before ? `?${new URLSearchParams({ before: before.id, at: before.createdAt })}` : ""}`,
+      ),
+    /** One submission, which opening marks read. */
+    getSubmission: (form: string, id: string) =>
+      request<{ submission: Submission }>(
+        `/submissions/${enc(form)}/${enc(id)}`,
+      ),
+    removeSubmission: (form: string, id: string) =>
+      request<{ ok: true }>(`/submissions/${enc(form)}/${enc(id)}`, {
+        method: "DELETE",
       }),
     listEntries: (collection: string) =>
       request<{ entries: EntrySummary[]; head: string }>(

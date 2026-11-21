@@ -183,10 +183,37 @@ export function validateConfig(config: VestryConfig) {
   for (const [name, component] of Object.entries(config.components ?? {}))
     checkComponent(name, component);
 
+  checkForms(config.forms);
+
   try {
     JSON.stringify(config);
   } catch {
     fail("config must be JSON-serializable (no functions)");
+  }
+}
+
+/** Each form has a URL-safe name, a label, and known icon and columns. */
+function checkForms(forms: VestryConfig["forms"]) {
+  if (forms === undefined) return;
+  if (typeof forms !== "object" || forms === null || Array.isArray(forms))
+    fail("forms must be an object of forms by name");
+  for (const [name, form] of Object.entries(forms)) {
+    const what = `form "${name}"`;
+    if (!/^[a-z][a-z0-9_-]*$/.test(name))
+      fail(
+        `${what}: a form's name must be lowercase letters, digits, "-" and "_", starting with a letter`,
+      );
+    if (typeof form?.label !== "string" || !form.label.trim())
+      fail(`${what} needs a label`);
+    checkIcon(`${what} icon`, form.icon);
+    if (
+      form.columns !== undefined &&
+      !(
+        Array.isArray(form.columns) &&
+        form.columns.every((c) => typeof c === "string" && c)
+      )
+    )
+      fail(`${what} columns must be a list of field names`);
   }
 }
 

@@ -44,6 +44,10 @@
       "types": "./dist/mdx/index.d.ts",
       "default": "./dist/mdx/index.js"
     },
+    "./forms": {
+      "types": "./dist/core/submissions.d.ts",
+      "default": "./dist/core/submissions.js"
+    },
     "./pages/admin.astro": "./dist/pages/admin.astro",
     "./pages/api": {
       "types": "./dist/pages/api.d.ts",

@@ -306,6 +306,16 @@ function Sidebar({
             })}
           </div>
         ))}
+        {showUsers && config.forms && Object.keys(config.forms).length > 0 && (
+          <div className="v-nav__group">
+            <h3 className="v-nav__heading">Forms</h3>
+            {Object.entries(config.forms).map(([key, form]) => (
+              <NavLink key={key} to={`/forms/${key}`} className={navLinkClass}>
+                <Icon name={form.icon ?? "mail"} /> {form.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
         {showUsers && (
           <div className="v-nav__group">
             <h3 className="v-nav__heading">System</h3>
