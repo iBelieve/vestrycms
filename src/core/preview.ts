@@ -40,6 +40,17 @@ export interface PreviewRequest {
 export const PREVIEW_TOKEN_SECONDS = 60 * 60;
 /** The largest preview request accepted, in bytes. */
 export const MAX_PREVIEW_BYTES = 4 * 1024 * 1024;
+/**
+ * The header the preview route marks its pages with. In `astro dev`, a
+ * route that fails to load is answered by the next one that matches (the
+ * control panel's), which the window must not draw.
+ */
+export const PREVIEW_HEADER = "X-Vestry-Preview";
+/**
+ * What the preview route writes after the page. A component that throws
+ * while the page is being sent cuts it short, still with status 200.
+ */
+export const PREVIEW_END = "<!-- vestry:preview-end -->";
 const MAX_DEPTH = 64;
 const PURPOSE = "vestry-preview";
 

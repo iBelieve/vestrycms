@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openPanel } from "./harness.js";
 import { collection, defineConfig, fields } from "../../src/config/index.js";
+import { PREVIEW_END, PREVIEW_HEADER } from "../../src/core/preview.js";
 import type {
   PreviewMessage,
   PreviewSnapshot,
@@ -171,11 +172,11 @@ describe("the preview window", () => {
               headers: { "Content-Type": "text/plain" },
             })
           : new Response(
-              `<!doctype html><html><head><title>t</title></head><body>Page ${drawn.length}</body></html>`,
+              `<!doctype html><html><head><title>t</title></head><body>Page ${drawn.length}</body></html>${PREVIEW_END}`,
               {
                 headers: {
                   "Content-Type": "text/html",
-                  "X-Vestry-Preview": "1",
+                  [PREVIEW_HEADER]: "1",
                 },
               },
             );
@@ -272,6 +273,40 @@ describe("the preview window", () => {
     channel.postMessage({ type: "entry", snapshot: snapshot() });
     expect(await screen.findByText("Couldn't draw the page")).toBeTruthy();
     expect(screen.getByText(/preview route didn't answer/)).toBeTruthy();
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("doesn't draw a page cut short", async () => {
+    const { channel, heard } = listen();
+    let drawn = 0;
+    const headers = { "Content-Type": "text/html", [PREVIEW_HEADER]: "1" };
+    await openPanel(config, {
+      url: "/preview",
+      files,
+      site: async () => {
+        drawn += 1;
+        // A component threw: `astro dev` ends the page where it got to...
+        if (drawn === 1)
+          return new Response("<!doctype html><html><head>", { headers });
+        // ...and a stream can break off.
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("<!doctype html>"));
+            controller.error(new Error("terminated"));
+          },
+        });
+        return new Response(stream, { headers });
+      },
+    });
+    await waitFor(() => expect(heard).toContainEqual({ type: "hello" }));
+    channel.postMessage({ type: "entry", snapshot: snapshot() });
+    expect(await screen.findByText("Couldn't draw the page")).toBeTruthy();
+    expect(screen.getByText(/stopped partway/)).toBeTruthy();
+
+    channel.postMessage({ type: "entry", snapshot: snapshot({ title: "B" }) });
+    await waitFor(() => expect(drawn).toBe(2));
+    expect(await screen.findByText("Couldn't draw the page")).toBeTruthy();
+    expect(screen.getByText(/stopped partway/)).toBeTruthy();
     expect(document.querySelector("iframe")).toBeNull();
   });
 

@@ -630,8 +630,12 @@ How it works:
   place. So do components that read files with `node:fs` (build-time data)
   or import every page: the route fails to load with them, and in
   `astro dev` the control panel's route answers in its place, which the
-  window reports as "the preview route didn't answer". A build that can't
-  resolve a component's `import` leaves it out with a warning.
+  window reports as "the preview route didn't answer" (Astro logs nothing
+  about it). The window tells the route's pages by their `X-Vestry-Preview`
+  header, so site middleware that replaces a response must keep its
+  headers, and by a comment the route writes at their end, so a page a
+  component cut short by throwing isn't drawn. A build that can't resolve
+  a component's `import` leaves it out with a warning.
 - Each request costs CPU time like any on-demand page: the layout, the
   components, and whatever the preview component does with the body. The
   window sends one request at a time, the newest change only, and keeps the

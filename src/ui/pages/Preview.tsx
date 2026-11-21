@@ -3,7 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import type { VestryConfig } from "../../config/types.js";
 import { collectionFormat } from "../../core/paths.js";
 import { assetsToStored } from "../../core/values.js";
-import type { PreviewRequest } from "../../core/preview.js";
+import {
+  PREVIEW_END,
+  PREVIEW_HEADER,
+  type PreviewRequest,
+} from "../../core/preview.js";
 import type { ApiClient } from "../api.js";
 import type { PendingUpload } from "../components/AssetPicker.js";
 import { EmptyState, Segment, Spinner } from "../components/ui.js";
@@ -312,18 +316,32 @@ async function drawPreview({
   let res = await post(false);
   // The token ran out (or the secret changed): ask for another, once.
   if (res.status === 401) res = await post(true);
-  const text = await res.text();
-  if (res.ok && res.headers.get("x-vestry-preview")) return text;
-  if (res.ok)
-    throw new Error(
-      "the preview route didn't answer. A component it imports may fail to load: see the server's log, and give that component preview: false",
-    );
+  // Null when the page broke off as it was sent.
+  const text = await res.text().catch(() => null);
+  if (res.ok) return finishedPage(res, text);
   const plain = res.headers.get("content-type")?.startsWith("text/plain");
   throw new Error(
     plain && text
       ? text
       : `the site couldn't draw this page (error ${res.status})`,
   );
+}
+
+/**
+ * The page in an OK answer, or why it isn't one to draw: another route's
+ * (see `PREVIEW_HEADER`), or one cut short (see `PREVIEW_END`).
+ */
+function finishedPage(res: Response, text: string | null): string {
+  // Astro doesn't log why the route failed to load when another answers.
+  if (!res.headers.get(PREVIEW_HEADER))
+    throw new Error(
+      "the preview route didn't answer: it failed to load, most likely because a component it imports, or the preview component's layout, reads node:fs or astro:content. Give such a component preview: false, or leave it out of the layout",
+    );
+  if (text === null || !text.includes(PREVIEW_END))
+    throw new Error(
+      "the page stopped partway: a component threw while drawing it (see the server's log)",
+    );
+  return text;
 }
 
 /**
