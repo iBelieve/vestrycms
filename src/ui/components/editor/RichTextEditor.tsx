@@ -147,7 +147,12 @@ function EditorInner(props: RichTextEditorProps) {
         />
       )}
       {mode === "visual" ? (
-        <EditorContent editor={editor} onDoubleClick={image.onDoubleClick} />
+        // Around EditorContent rather than on it: node views (a component's
+        // content) render through portals beside its element, so their
+        // events bubble past it to here.
+        <div onDoubleClick={image.onDoubleClick}>
+          <EditorContent editor={editor} />
+        </div>
       ) : (
         <div className="v-source-editor">
           {mdx.parseError && (
@@ -165,6 +170,7 @@ function EditorInner(props: RichTextEditorProps) {
       )}
       {editor && image.target && (
         <ImageDetailsDialog
+          key={image.target.pos}
           editor={editor}
           target={image.target}
           onClose={image.close}
@@ -682,6 +688,7 @@ function ImageTool({
             const pos = insertImage(editor, env.toDocPath(path));
             setOpen(false);
             if (pos !== null) onDetails({ pos, inserted: true });
+            else editor.commands.focus();
           }}
         />
       )}
@@ -967,7 +974,7 @@ function LinkDialog({
         placeholder="https://example.com or /visit"
         onChange={(e) => setHref(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") apply();
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) apply();
         }}
       />
     </Modal>

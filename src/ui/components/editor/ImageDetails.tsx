@@ -21,17 +21,22 @@ export function selectedImage(editor: Editor): number | null {
 /**
  * Inserts the image at `src` in place of the selection and selects it.
  * Returns its position, or null when it could not be inserted.
+ *
+ * It leaves the editor unfocused: the details dialog opens next, and
+ * `focus()` would take the focus back from it a frame later, so that the
+ * description typed would replace the selected image.
  */
 export function insertImage(editor: Editor, src: string): number | null {
   let pos: number | null = null;
   editor
     .chain()
-    .focus()
     .setImage({ src, alt: "" })
     .command(({ tr }) => {
-      // The cursor lands just after the inserted image.
+      // The cursor lands just after the inserted image. Nothing inserted,
+      // an image before the cursor is an older one.
       const { $from } = tr.selection;
-      if ($from.nodeBefore?.type.name !== "image") return true;
+      if (!tr.docChanged || $from.nodeBefore?.type.name !== "image")
+        return true;
       pos = $from.pos - $from.nodeBefore.nodeSize;
       return true;
     })
@@ -67,7 +72,10 @@ export function useImageDetails(editor: Editor | null, enabled: boolean) {
   };
   return {
     target,
-    open: setTarget,
+    /** Opens the dialog, if there is an image at `t.pos`. */
+    open: (t: ImageTarget) => {
+      if (editor?.state.doc.nodeAt(t.pos)?.type.name === "image") setTarget(t);
+    },
     close: () => setTarget(null),
     onDoubleClick,
   };
@@ -76,7 +84,10 @@ export function useImageDetails(editor: Editor | null, enabled: boolean) {
 /** Collapses runs of whitespace (alt text is one line); empty → null. */
 const clean = (text: string) => text.replace(/\s+/g, " ").trim() || null;
 
-/** Edits the alt text and title of the image at `target.pos`. */
+/**
+ * Edits the alt text and title of the image at `target.pos`, as it stood
+ * when the dialog opened: give each target its own `key`.
+ */
 export function ImageDetailsDialog({
   editor,
   target,
@@ -94,29 +105,49 @@ export function ImageDetailsDialog({
   if (node?.type.name !== "image") return null;
   const src = String(node.attrs.src ?? "");
 
-  const apply = () => {
-    const pos = target.pos;
-    editor
-      .chain()
-      .focus()
-      .command(({ tr }) => {
-        // The document may have changed under the dialog: only an image
-        // still at that position is updated.
-        const current = tr.doc.nodeAt(pos);
-        if (current?.type.name !== "image") return false;
-        tr.setNodeMarkup(pos, undefined, {
-          ...current.attrs,
-          alt: clean(alt),
-          title: clean(title),
-        });
-        return true;
-      })
-      .setNodeSelection(pos)
-      .run();
+  /** The same image, if it is still at `target.pos`. */
+  const still = (doc: typeof editor.state.doc) => {
+    const current = doc.nodeAt(target.pos);
+    return current?.type.name === "image" && current.attrs.src === src
+      ? current
+      : null;
+  };
+  /**
+   * Closes the dialog, returning the focus to the editor. A new image is
+   * left with the cursor after it, as the writer goes on writing; an
+   * existing one stays selected.
+   */
+  const close = () => {
+    const after = target.inserted && still(editor.state.doc);
+    const chain = editor.chain().focus();
+    if (after) chain.setTextSelection(target.pos + after.nodeSize);
+    chain.run();
     onClose();
   };
+  const apply = () => {
+    const pos = target.pos;
+    const next = { alt: clean(alt), title: clean(title) };
+    editor
+      .chain()
+      .command(({ tr, commands }) => {
+        // The document may have changed under the dialog: only the same
+        // image, still at that position, is updated (and, unless it is
+        // new, selected again).
+        const current = still(tr.doc);
+        if (!current) return false;
+        const unchanged =
+          (current.attrs.alt || null) === next.alt &&
+          (current.attrs.title || null) === next.title;
+        if (!unchanged)
+          tr.setNodeMarkup(pos, undefined, { ...current.attrs, ...next });
+        return target.inserted ? true : commands.setNodeSelection(pos);
+      })
+      .run();
+    close();
+  };
   const onEnter = (e: KeyboardEvent) => {
-    if (e.key !== "Enter") return;
+    // An Enter that ends an input method's composition is not one to apply.
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
     e.preventDefault();
     apply();
   };
@@ -124,12 +155,10 @@ export function ImageDetailsDialog({
   return (
     <Modal
       title={target.inserted ? "Describe the image" : "Image details"}
-      onClose={onClose}
+      onClose={close}
       footer={
         <>
-          <Button onClick={onClose}>
-            {target.inserted ? "Skip" : "Cancel"}
-          </Button>
+          <Button onClick={close}>{target.inserted ? "Skip" : "Cancel"}</Button>
           <Button variant="primary" onClick={apply}>
             {target.inserted ? "Done" : "Apply"}
           </Button>

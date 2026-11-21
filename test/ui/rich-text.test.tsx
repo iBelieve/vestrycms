@@ -12,11 +12,13 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Editor } from "@tiptap/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { collection, defineConfig, fields } from "../../src/config/index.js";
 import type { ComponentConfig } from "../../src/config/types.js";
 import type { EditorEnv } from "../../src/ui/components/editor/EditorContext.js";
 import { RichTextEditor } from "../../src/ui/components/editor/RichTextEditor.js";
+import { Modal } from "../../src/ui/components/ui.js";
 
 // CodeMirror needs a real browser; a textarea stands in for it.
 vi.mock("../../src/ui/components/fields/CodeInput.js", () => ({
@@ -381,6 +383,43 @@ describe("the rich text editor", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("edits the details of an image inside a component", async () => {
+    const user = userEvent.setup();
+    const ed = open("<Note>\n  See ![Old](/a.png)\n</Note>\n");
+    await waitFor(() =>
+      expect(document.querySelector(".v-block img")).not.toBeNull(),
+    );
+    fireEvent.doubleClick(document.querySelector(".v-block img")!);
+    const dialog = within(
+      screen.getByRole("dialog", { name: "Image details" }),
+    );
+    await user.type(dialog.getByLabelText("Alt text"), " rose{Enter}");
+    await ed.reports("![Old rose](/a.png)");
+  });
+
+  it("closes only the innermost dialog on Escape", async () => {
+    const user = userEvent.setup();
+    const outer = vi.fn();
+    function Nested() {
+      const [inner, setInner] = useState(true);
+      return (
+        <Modal title="Outer" onClose={outer}>
+          {inner && (
+            <Modal title="Inner" onClose={() => setInner(false)}>
+              Inside
+            </Modal>
+          )}
+        </Modal>
+      );
+    }
+    render(<Nested />);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Inner" })).toBeNull();
+    expect(outer).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(outer).toHaveBeenCalledOnce();
+  });
+
   it("edits image details in plain Markdown, but not when read-only", async () => {
     const user = userEvent.setup();
     // No image directory: images can't be inserted, but can be described.
@@ -453,28 +492,29 @@ describe("the rich text editor", () => {
       );
     };
 
-    // A new image asks for its alt text, and stays selected.
+    // A new image asks for its alt text.
     const details = await insert();
     expect(
       screen.getByRole("dialog").querySelector("img")!.getAttribute("src"),
     ).toContain("a.png");
-    await user.type(details.getByLabelText("Alt text"), "A sunrise");
+    // The description box keeps the focus, a frame on too, so typing
+    // describes the image rather than replacing it.
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(document.activeElement).toBe(details.getByLabelText("Alt text"));
+    await user.keyboard("A sunrise");
     await user.click(details.getByRole("button", { name: "Done" }));
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(tool("Image details").classList.contains("is-active")).toBe(true);
-    // Skipping leaves it without any. (Moving the cursor past the selected
-    // image first, or the new one would replace it.)
+    // The cursor is left after the new image, so writing goes on after it.
     const editor = (
       document.querySelector(".ProseMirror") as HTMLElement & {
         editor: Editor;
       }
     ).editor;
-    act(
-      () =>
-        void editor.commands.setTextSelection(
-          editor.state.doc.content.size - 1,
-        ),
+    expect(tool("Image").classList.contains("is-active")).toBe(false);
+    expect(editor.state.selection.$from.nodeBefore?.attrs.alt).toBe(
+      "A sunrise",
     );
+    // Skipping leaves the next one without any.
     await user.click((await insert()).getByRole("button", { name: "Skip" }));
     expect(
       document.querySelectorAll(".ProseMirror img[data-src]"),

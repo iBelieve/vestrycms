@@ -56,6 +56,18 @@ export function Button({
 }
 
 // ---------------------------------------------------------------- Modal
+/**
+ * The open modals' close handlers, by the order they opened in. Escape
+ * closes only the last, so that a dialog opened from inside another (an
+ * image's details in a component's settings) closes alone.
+ */
+const openModals = new Map<number, () => void>();
+let modalsOpened = 0;
+function closeLastModal(e: KeyboardEvent) {
+  if (e.key !== "Escape" || openModals.size === 0) return;
+  openModals.get(Math.max(...openModals.keys()))?.();
+}
+
 export function Modal({
   title,
   onClose,
@@ -70,13 +82,18 @@ export function Modal({
   wide?: boolean;
 }) {
   const titleId = useId();
+  // Numbered as it first renders, so that one inside another comes after it.
+  const [order] = useState(() => ++modalsOpened);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    if (openModals.size === 0)
+      window.addEventListener("keydown", closeLastModal);
+    openModals.set(order, onClose);
+    return () => {
+      openModals.delete(order);
+      if (openModals.size === 0)
+        window.removeEventListener("keydown", closeLastModal);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [order, onClose]);
   return (
     <div
       className="v-modal-backdrop"
