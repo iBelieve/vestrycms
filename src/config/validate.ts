@@ -8,6 +8,8 @@ import type {
   CollectionConfig,
   ComponentConfig,
   Field,
+  GoogleAnalyticsConfig,
+  PlausibleAnalyticsConfig,
   Schema,
   VestryConfig,
 } from "./types.js";
@@ -143,15 +145,30 @@ function checkAnalytics(analytics: VestryConfig["analytics"]) {
   if (analytics === undefined) return;
   if (typeof analytics !== "object" || analytics === null)
     fail("analytics must be an object");
-  if (analytics.provider !== "plausible")
-    fail(
-      `analytics.provider must be "plausible" (got ${JSON.stringify(analytics.provider)})`,
-    );
+  if (analytics.provider === "plausible") return checkPlausible(analytics);
+  if (analytics.provider === "google-analytics")
+    return checkGoogleAnalytics(analytics);
+  fail(
+    `analytics.provider must be "plausible" or "google-analytics" (got ${JSON.stringify((analytics as { provider?: unknown }).provider)})`,
+  );
+}
+
+function checkPlausible(analytics: PlausibleAnalyticsConfig) {
   if (typeof analytics.siteId !== "string" || !analytics.siteId.trim())
     fail("analytics.siteId must be the site's domain in Plausible");
   if (analytics.host !== undefined && !isServerUrl(analytics.host))
     fail(
       `analytics.host must be the Plausible server's URL, e.g. https://plausible.io, with no query or #fragment; plain http only for localhost (got ${JSON.stringify(analytics.host)})`,
+    );
+}
+
+function checkGoogleAnalytics(analytics: GoogleAnalyticsConfig) {
+  if (
+    typeof analytics.propertyId !== "string" ||
+    !/^(properties\/)?\d+$/.test(analytics.propertyId.trim())
+  )
+    fail(
+      `analytics.propertyId must be the Google Analytics 4 property ID, a number such as "123456789" (not the G-… measurement ID; got ${JSON.stringify(analytics.propertyId)})`,
     );
 }
 

@@ -173,4 +173,5 @@ export function niceScale(max: number, lines = 4): number[] {
 /** Each provider's name, for "Open in …" links. */
 export const PROVIDER_LABELS: Record<AnalyticsReport["provider"], string> = {
   plausible: "Plausible",
+  "google-analytics": "Google Analytics",
 };

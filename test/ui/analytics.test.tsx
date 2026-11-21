@@ -14,6 +14,7 @@ import {
   rangeLabel,
   tickIndexes,
 } from "../../src/ui/lib/analytics.js";
+import { fakeGoogle, serviceAccountKey } from "../google-fake.js";
 import { fakePlausible } from "../plausible-fake.js";
 
 const config = defineConfig({
@@ -182,6 +183,36 @@ describe("the Analytics page", () => {
     expect(screen.queryByText("Top sources")).toBeNull();
     expect(document.activeElement).toBe(week);
     expect(week.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("reads Google Analytics too", async () => {
+    const google = fakeGoogle();
+    const credentials = serviceAccountKey();
+    await openPanel(
+      {
+        ...config,
+        analytics: { provider: "google-analytics", propertyId: "123456789" },
+      },
+      {
+        url: "/analytics",
+        api: {
+          env: (k) =>
+            k === "VESTRY_GOOGLE_ANALYTICS_CREDENTIALS"
+              ? credentials
+              : undefined,
+          fetch: google.fetch,
+          cache: new MemoryCache(),
+        },
+      },
+    );
+    expect(await screen.findByText("Direct / None")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: /Open in Google Analytics/ })
+        .getAttribute("href"),
+    ).toBe(
+      "https://analytics.google.com/analytics/web/#/p123456789/reports/intelligenthome",
+    );
   });
 
   it("goes back to the dashboard without analytics in the config", async () => {

@@ -5,6 +5,14 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ## Unreleased
 
+### Added
+
+- **Google Analytics.** `analytics: { provider: "google-analytics",
+propertyId }` reads a GA4 property through the Data API as a service
+  account, with its JSON key in the `VESTRY_GOOGLE_ANALYTICS_CREDENTIALS`
+  secret. The dashboard card and the Analytics page show the same numbers
+  as with Plausible (visitors are GA4's active users, visits its sessions).
+
 ### Fixed
 
 - Choosing another period on the Analytics page keeps the page in place:

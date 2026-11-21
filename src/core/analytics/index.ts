@@ -4,12 +4,13 @@
  *
  * A provider turns a period into a report; adding one means a variant of
  * `AnalyticsConfig`, a factory in `PROVIDERS` and its own module (see
- * `plausible.ts`). Reports are cached for a few minutes, because each one
- * takes several requests and providers limit them (Plausible allows 600 an
- * hour per key).
+ * `plausible.ts`, `google.ts`). Reports are cached for a few minutes, because
+ * each one takes several requests and providers limit them (Plausible
+ * allows 600 an hour per key; Google meters each property's requests).
  */
 import type { AnalyticsConfig, VestryConfig } from "../../config/types.js";
 import type { Cache } from "../cache.js";
+import { googleAnalyticsProvider } from "./google.js";
 import { plausibleProvider } from "./plausible.js";
 import {
   ANALYTICS_CACHE_SECONDS,
@@ -34,7 +35,12 @@ const PROVIDERS: {
   >;
 } = {
   plausible: plausibleProvider,
+  "google-analytics": googleAnalyticsProvider,
 };
+
+/** What a provider calls the site: Plausible's domain, GA4's property. */
+const siteKey = (settings: AnalyticsConfig) =>
+  settings.provider === "plausible" ? settings.siteId : settings.propertyId;
 
 /** The configured provider, or why there is none. */
 function analyticsProvider(
@@ -43,7 +49,11 @@ function analyticsProvider(
 ): AnalyticsProvider | AnalyticsUnavailable {
   const settings = config.analytics;
   if (!settings) return { available: false, reason: "disabled" };
-  const provider = PROVIDERS[settings.provider](settings, context);
+  // Each factory takes its own variant; TypeScript can't pair them up.
+  const factory = PROVIDERS[settings.provider] as ProviderFactory<
+    typeof settings
+  >;
+  const provider = factory(settings, context);
   if ("error" in provider)
     return { available: false, reason: "setup", message: provider.error };
   return provider;
@@ -58,7 +68,7 @@ export async function analyticsReport(
   const provider = analyticsProvider(config, context);
   if ("available" in provider) return provider;
   const settings = config.analytics!;
-  const key = `analytics:${settings.provider}:${settings.siteId}:${period}`;
+  const key = `analytics:${settings.provider}:${siteKey(settings)}:${period}`;
   const cached = await context.cache.get<AnalyticsReport>(key);
   if (cached) return cached;
   const report: AnalyticsReport = {

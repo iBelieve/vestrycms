@@ -129,15 +129,16 @@ Commits are made through a GitHub App installed on the repository with
 editor credited as a co-author (`Co-authored-by: Name <email>`), so GitHub
 shows both and the editor's account never needs push access.
 
-| Variable                        | Purpose                                                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------ |
-| `VESTRY_GITHUB_APP_ID`          | GitHub App id                                                                              |
-| `VESTRY_GITHUB_INSTALLATION_ID` | The app's installation id on the repository                                                |
-| `VESTRY_GITHUB_PRIVATE_KEY`     | The app's PEM private key (PKCS#1 as issued, PKCS#8, `\n`-escaped or base64 also accepted) |
-| `VESTRY_RESEND_API_KEY`         | Resend API key (when `mail.provider` is `resend`)                                          |
-| `VESTRY_SECRET`                 | Signs session cookies (`openssl rand -hex 32`); dev modes fall back to a fixed value       |
-| `VESTRY_PLAUSIBLE_API_KEY`      | Plausible Stats API key (when [analytics](#analytics) uses Plausible)                      |
-| `VESTRY_MODE`                   | `auth` or `github` to turn sign-in on in `astro dev`                                       |
+| Variable                              | Purpose                                                                                                          |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `VESTRY_GITHUB_APP_ID`                | GitHub App id                                                                                                    |
+| `VESTRY_GITHUB_INSTALLATION_ID`       | The app's installation id on the repository                                                                      |
+| `VESTRY_GITHUB_PRIVATE_KEY`           | The app's PEM private key (PKCS#1 as issued, PKCS#8, `\n`-escaped or base64 also accepted)                       |
+| `VESTRY_RESEND_API_KEY`               | Resend API key (when `mail.provider` is `resend`)                                                                |
+| `VESTRY_SECRET`                       | Signs session cookies (`openssl rand -hex 32`); dev modes fall back to a fixed value                             |
+| `VESTRY_PLAUSIBLE_API_KEY`            | Plausible Stats API key (when [analytics](#analytics) uses Plausible)                                            |
+| `VESTRY_GOOGLE_ANALYTICS_CREDENTIALS` | A Google service account's JSON key, or that base64-encoded (when [analytics](#analytics) uses Google Analytics) |
+| `VESTRY_MODE`                         | `auth` or `github` to turn sign-in on in `astro dev`                                                             |
 
 ```jsonc
 // wrangler.jsonc
@@ -577,6 +578,10 @@ or 30 days, 6 or 12 months, each compared with the period before, a chart
 of visitors or pageviews, and the top pages, sources, countries and
 devices. Every signed-in user sees them.
 
+There are two providers, Plausible and Google Analytics 4.
+
+### Plausible
+
 ```ts
 analytics: {
   provider: "plausible",
@@ -588,16 +593,57 @@ analytics: {
 `host` must be https (plain http only for `localhost`, since the key
 travels with every request).
 
-Plausible is the first provider, read through its
+Plausible is read through its
 [Stats API](https://plausible.io/docs/stats-api) with a Stats API key in
 the `VESTRY_PLAUSIBLE_API_KEY` secret (`pnpm wrangler secret put
 VESTRY_PLAUSIBLE_API_KEY`; on plausible.io the Stats API needs a Business
-plan, Community Edition has it). Without the key admins see a note naming
-it. The key stays on the server: the panel asks Vestry, and Vestry asks
-Plausible, caching each period's report for five minutes (a report takes
-eight requests, and Plausible allows 600 an hour per key). Other providers
-can be added as variants of `analytics`, each implementing the report in
-`src/core/analytics/`.
+plan, Community Edition has it). A report takes eight requests, and
+Plausible allows 600 an hour per key.
+
+### Google Analytics
+
+```ts
+analytics: {
+  provider: "google-analytics",
+  propertyId: "123456789", // Admin › Property details; not the G-… measurement ID
+},
+```
+
+Google Analytics 4 is read through the
+[Data API](https://developers.google.com/analytics/devguides/reporting/data/v1)
+as a service account. To set one up:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), pick
+   or create a project and enable the **Google Analytics Data API** for it.
+2. Under **IAM & Admin › Service accounts**, create a service account (it
+   needs no roles in the project). On its **Keys** tab, add a JSON key; the
+   browser downloads it.
+3. In Google Analytics, open **Admin › Property access management** for
+   the property and add the service account's email
+   (`…@….iam.gserviceaccount.com`) with the **Viewer** role.
+4. Copy the **Property ID** from **Admin › Property details** into
+   `propertyId`.
+5. Store the key as a secret:
+   `pnpm wrangler secret put VESTRY_GOOGLE_ANALYTICS_CREDENTIALS < key.json`
+   (for `astro dev`, put it in `.env` on one line, or base64-encoded),
+   then delete the downloaded file.
+
+Vestry signs a JWT with the key (WebCrypto, so it runs in workerd), trades
+it for an access token (kept for its hour), and sends eight requests per
+report. The page and the card show the same things as with Plausible, in
+GA4's terms: visitors are active users, visits are sessions, and the
+bounce rate is the share of sessions that weren't engaged (GA4 counts a
+session as engaged when it lasted ten seconds, saw two pages or converted),
+not of one-page visits. "Right now" covers the last 30 minutes, not five.
+Dates are counted in the property's time zone. The month periods run to
+today instead of the end of the month.
+
+### Both
+
+Without the secret admins see a note naming it. The key stays on the
+server: the panel asks Vestry, and Vestry asks the provider, caching each
+period's report for five minutes. Other providers can be added as variants
+of `analytics`, each implementing the report in `src/core/analytics/`.
 
 ## Caching
 
@@ -768,6 +814,9 @@ FC_RUNS=10000 pnpm test      # property tests with 10,000 cases each (default 20
   database (`node:sqlite`, real migrations).
 - `test/github-source.test.ts`: commit sequencing against a fake Git Data API.
 - `test/github-app.test.ts`: GitHub App JWT and installation token cache.
+- `test/google-analytics.test.ts`: the Google Analytics provider against a fake
+  Google (`test/google-fake.ts`: the token endpoint checks the service
+  account's JWT; the Data API answers with canned numbers).
 - `test/templates.test.ts`: `{field|filter}` placeholders in URL and slug
   templates.
 - `test/config-validate.test.ts`: the mistakes the config check reports at

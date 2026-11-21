@@ -555,11 +555,10 @@ export interface DeploysConfig {
 }
 
 /**
- * Site analytics, shown on the Analytics page and the dashboard. One
- * provider for now; each is a variant of this union, told apart by
- * `provider`.
+ * Site analytics, shown on the Analytics page and the dashboard. Each
+ * provider is a variant of this union, told apart by `provider`.
  */
-export type AnalyticsConfig = PlausibleAnalyticsConfig;
+export type AnalyticsConfig = PlausibleAnalyticsConfig | GoogleAnalyticsConfig;
 
 export interface PlausibleAnalyticsConfig {
   provider: "plausible";
@@ -571,6 +570,18 @@ export interface PlausibleAnalyticsConfig {
    * Vestry reads it with the Stats API key in `VESTRY_PLAUSIBLE_API_KEY`.
    */
   host?: string;
+}
+
+export interface GoogleAnalyticsConfig {
+  provider: "google-analytics";
+  /**
+   * The Google Analytics 4 property's ID, the number under Admin › Property
+   * details (e.g. `123456789`; not the `G-…` measurement ID). Vestry reads
+   * it as the service account whose JSON key is in
+   * `VESTRY_GOOGLE_ANALYTICS_CREDENTIALS`, which needs the Viewer role on
+   * the property.
+   */
+  propertyId: string;
 }
 
 export interface MailConfig {
