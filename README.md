@@ -222,7 +222,13 @@ from the injected Astro endpoint in production. Both call the same
   a `markdown` field) are handled the same way: repository paths while the
   editor holds the document, written back in their `storeAs` form whenever
   it serializes the document. A prop nobody changed is written back as the
-  document had it, while it still names the same file.
+  document had it, while it still names the same file. A value starting
+  with `/` is the URL of a file in `public/` (or a repository path written
+  with a leading slash).
+- The body editor resolves relative references against the file the entry
+  was opened from. A save that moves the entry to another folder rewrites
+  the relative image references in its body and Markdown fields, and the
+  relative imports of an MDX body, for the new file.
 - The body editor parses MDX into a ProseMirror document. JSX components
   become `mdxComponent` nodes with their attributes converted to JSON where
   they are literals (anything else is kept verbatim as an expression).

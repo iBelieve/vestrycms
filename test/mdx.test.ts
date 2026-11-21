@@ -90,6 +90,64 @@ describe("normalization to the canonical style", () => {
     );
   });
 
+  it("writes text with the same marks in any order as one run", () => {
+    // Found by the property test (seed -655181615): written as two text
+    // nodes, the `(` after the escaped `]` was escaped as well, and the
+    // file saved back without that backslash.
+    const link: PMMark = { type: "link", attrs: { href: "a b", title: null } };
+    const once = serializeMdx(
+      doc(
+        paragraph(
+          text("]", link, textClass("lead"), "superscript"),
+          text("(a", link, "superscript", textClass("lead")),
+        ),
+      ),
+    );
+    expect(once).toBe('[<sup><span class="lead">\\](a</span></sup>](<a b>)\n');
+    expect(roundTrip(once)).toBe(once);
+  });
+
+  const link = (attrs: Record<string, unknown>): PMMark => ({
+    type: "link",
+    attrs,
+  });
+  it.each<[string, PMNode[], string]>([
+    [
+      "a mark it does not write",
+      [
+        text("a", "highlight"),
+        text("b", "highlight", "bold"),
+        text("c", "bold"),
+      ],
+      "a**bc**\n",
+    ],
+    [
+      "a link attribute the file cannot hold",
+      [
+        text("a", link({ href: "/x", target: "_blank", title: null })),
+        text("b", link({ href: "/x", target: null, title: null })),
+      ],
+      "[ab](/x)\n",
+    ],
+    [
+      "a missing link title",
+      [
+        text("a", link({ href: "/x" })),
+        text("b", link({ href: "/x", title: "" })),
+      ],
+      "[ab](/x)\n",
+    ],
+    [
+      "empty text",
+      [text("a", "bold"), text("", "italic"), text("b", "bold")],
+      "**ab**\n",
+    ],
+  ])("does not split a run at %s", (_, content, output) => {
+    const once = serializeMdx(doc(paragraph(...content)));
+    expect(once).toBe(output);
+    expect(roundTrip(once)).toBe(once);
+  });
+
   it("gives an empty document one empty paragraph", () => {
     expect(parseMdx("").doc).toEqual({
       type: "doc",

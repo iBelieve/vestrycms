@@ -136,13 +136,34 @@ function isHeavy(field: Field | undefined, value: unknown): boolean {
 export type AssetField = Extract<Field, { type: "image" | "file" }>;
 export type AssetLike = { directory: string; storeAs?: AssetField["storeAs"] };
 
+/** `public/` itself, or a folder in it (a normalized path). */
+const isPublicDir = (dir: string) =>
+  dir === "public" || dir.startsWith("public/");
+
+/** A URL of another site, protocol-relative (`//cdn…`) included. */
+export const isRemoteUrl = (value: string) => /^(?:https?:)?\/\//.test(value);
+
 export function defaultStorage(
   field: AssetLike,
 ): NonNullable<AssetField["storeAs"]> {
   if (field.storeAs) return field.storeAs;
-  return normalizePath(field.directory).startsWith("public/")
-    ? "public"
-    : "relative";
+  return isPublicDir(normalizePath(field.directory)) ? "public" : "relative";
+}
+
+/**
+ * A value that starts with `/`: the URL of a file in `public/`, whichever
+ * folder it is in, or (outside a `public/` directory) a repository path
+ * written with a leading slash.
+ */
+function rootedToRepoPath(dir: string, value: string): string {
+  const rel = normalizePath(value);
+  if (rel.startsWith(`${dir}/`)) return rel;
+  if (
+    !isPublicDir(dir) &&
+    (rel.startsWith("src/") || rel.startsWith("public/"))
+  )
+    return rel;
+  return `public/${rel}`;
 }
 
 /** Stored reference (relative path, bare filename, public URL) → repository path. */
@@ -152,17 +173,8 @@ export function assetToRepoPath(
   filePath: string,
 ): string {
   const dir = normalizePath(field.directory);
-  if (/^https?:\/\//.test(value)) return value;
-  if (value.startsWith("/")) {
-    if (dir.startsWith("public/")) {
-      const publicRoot = dir.slice("public/".length);
-      const rel = value.replace(/^\//, "");
-      return rel.startsWith(publicRoot)
-        ? `public/${rel}`
-        : joinPath(dir, basename(rel));
-    }
-    return normalizePath(value);
-  }
+  if (isRemoteUrl(value)) return value;
+  if (value.startsWith("/")) return rootedToRepoPath(dir, value);
   if (value.startsWith(".")) return resolveRelative(dirname(filePath), value);
   if (value.startsWith(dir)) return normalizePath(value);
   if (
@@ -180,15 +192,21 @@ export function repoPathToAsset(
   repoPath: string,
   filePath: string,
 ): string {
-  if (/^https?:\/\//.test(repoPath)) return repoPath;
+  if (isRemoteUrl(repoPath)) return repoPath;
   const n = normalizePath(repoPath);
+  const url = n.startsWith("public/")
+    ? `/${n.slice("public/".length)}`
+    : `/${n}`;
   switch (defaultStorage(field)) {
-    case "filename":
-      return basename(n);
+    case "filename": {
+      // A file name names a file in the field's directory; any other file
+      // (a URL read from the file, say) keeps a form that still names it.
+      const dir = normalizePath(field.directory);
+      if (!dir || n.startsWith(`${dir}/`)) return basename(n);
+      return n.startsWith("public/") ? url : n;
+    }
     case "public":
-      return n.startsWith("public/")
-        ? `/${n.slice("public/".length)}`
-        : `/${n}`;
+      return url;
     case "repo":
       return n;
     case "relative":
