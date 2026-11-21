@@ -22,7 +22,6 @@ while Vestry is below 1.0, a minor version may change behaviour.
   phone browsers can tuck their address bar away), and on phones a link
   above the title leads back to the breadcrumb's page, such as an entry's
   collection, including one not in the sidebar.
-
 - `recent` must be true, false or a number: anything else (a string in a
   `.js` config, say) is an error at startup instead of quietly falling
   back to the default.
