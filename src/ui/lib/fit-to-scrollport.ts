@@ -60,8 +60,8 @@ export function useFitToScrollport(ref: RefObject<HTMLElement | null>) {
         moved = false;
         watch(scrollParent(el) ?? scroller);
       }
-      // Only on a change: the property is inherited, so setting it restyles
-      // the whole sidebar, and once stuck every scroll gives the same value.
+      // Only on a change: setting it restyles the element, and once stuck
+      // every scroll gives the same value.
       const value = scroller ? fittedValue(el, scroller) : "";
       if (value === fitted) return;
       fitted = value;

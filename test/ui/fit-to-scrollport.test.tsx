@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { useRef } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import {
   FIT_HEIGHT_PROPERTY,
   useFitToScrollport,
@@ -10,21 +10,25 @@ import {
 
 /** jsdom has no ResizeObserver; this one reports a resize when `resize()` runs. */
 const resizeCallbacks = new Set<() => void>();
-globalThis.ResizeObserver = class {
-  constructor(private readonly callback: () => void) {}
-  observe() {
-    resizeCallbacks.add(this.callback);
-  }
-  unobserve() {}
-  disconnect() {
-    resizeCallbacks.delete(this.callback);
-  }
-} as never;
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    constructor(private readonly callback: () => void) {}
+    observe() {
+      resizeCallbacks.add(this.callback);
+    }
+    unobserve() {}
+    disconnect() {
+      resizeCallbacks.delete(this.callback);
+    }
+  },
+);
 const resize = () => {
   for (const callback of resizeCallbacks) callback();
 };
 
 afterEach(cleanup);
+afterAll(() => vi.unstubAllGlobals());
 
 function Rail({ sticky }: { sticky: boolean }) {
   const ref = useRef<HTMLElement>(null);

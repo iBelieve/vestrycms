@@ -1564,18 +1564,27 @@ button.v-table__toggle:hover {
   gap: 24px;
   align-items: start;
 }
+/* Set on the rail by useFitToScrollport. Not inherited, so a new value
+   restyles only the rail, not every field inside it. */
+@property --v-fit-height {
+  syntax: "*";
+  inherits: false;
+}
 .v-editor-sidebar {
   /* Sticky, but capped to the visible part of the panel and scrollable on
      its own, so a rail taller than the screen can still be scrolled to its
      bottom. useFitToScrollport sets --v-fit-height as the page scrolls,
      because until the rail sticks, the heading above it pushes it down; the
-     fallback is the height once stuck. The 240px floor matters only when
+     fallback is the height once stuck (the panel's inset and 1px top border,
+     and 24px above and below the rail). The 240px floor matters only when
      something tall above the rail (a long error list) leaves it less room
      and the rail is taller than the main column: the page can then scroll
      until the rail has at least that much. Scrolling past either end of the
      rail carries on to the page. The padding and negative margin keep card
      shadows from being clipped. */
-  --v-stuck-height: calc(100vh - var(--v-chrome-height) - 56px);
+  --v-stuck-height: calc(
+    100vh - var(--v-chrome-height) - var(--v-frame-inset) - 49px
+  );
   position: sticky;
   top: 24px;
   max-height: max(
