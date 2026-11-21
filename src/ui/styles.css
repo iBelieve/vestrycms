@@ -1706,6 +1706,30 @@ button.v-table__toggle:hover {
   color: var(--v-text-faint);
 }
 
+/* The page's address under the title, as a permalink: wraps anywhere,
+   since a long slug has no spaces to break at. */
+.v-page-address {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+.v-page-address svg {
+  flex: none;
+  position: relative;
+  top: 2px;
+}
+.v-page-address a {
+  color: var(--v-primary);
+  text-decoration: none;
+}
+.v-page-address a:hover {
+  text-decoration: underline;
+}
+
 .v-unsaved {
   font-size: 12.5px;
   color: var(--v-warning);

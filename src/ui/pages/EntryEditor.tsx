@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ExternalLink,
+  Link as LinkIcon,
   Save,
   Trash,
   TriangleExclamationPoint,
@@ -78,6 +79,7 @@ import {
   slugError,
   slugFixed,
   slugHint,
+  type Saved,
   type SlugHint,
 } from "./entry-editing.js";
 
@@ -379,12 +381,14 @@ function useEntryForm(props: EntryFormProps) {
     readOnly,
   });
   const remove = useRemove(collectionKey, slug);
+  const saved = savedEntry(isNew, slug, doc.savedData);
   const display = entryDisplay({
     kind,
     col,
     data: doc.state.data,
     isNew,
     slug: slugs.finalSlug,
+    saved,
     siteUrl: config.siteUrl,
   });
   return {
@@ -403,6 +407,7 @@ function useEntryForm(props: EntryFormProps) {
     openedFile,
     saving,
     remove,
+    saved,
     display,
     placement: fieldPlacement(col, display.editable),
     uploadCount: Object.keys(doc.uploads).length,
@@ -410,6 +415,13 @@ function useEntryForm(props: EntryFormProps) {
 }
 
 type EntryFormModel = ReturnType<typeof useEntryForm>;
+
+/** The entry as saved, which its live page shows; null for a new one. */
+const savedEntry = (
+  isNew: boolean,
+  slug: string | null,
+  data: Record<string, unknown>,
+): Saved | null => (isNew ? null : { slug: slug ?? "", data });
 
 function EntryTopBar({ form }: { form: EntryFormModel }) {
   const { collection, display, isNew, saving, slugs, unsaved } = form;
@@ -470,6 +482,7 @@ function EntryMain({ form }: { form: EntryFormModel }) {
           }
           autoFocus={form.isNew}
           error={form.errors.find((e) => e.path === titleKey)?.message}
+          address={display.address}
         />
       )}
       {placement.sections.map((section, i) =>
@@ -518,8 +531,7 @@ function EntrySidebar({ form }: { form: EntryFormModel }) {
                 pattern: form.pattern,
                 slug: slugs.finalSlug,
                 data: doc.state.data,
-                dateKey: slugs.dateKey,
-                isNew: form.isNew,
+                saved: form.saved,
                 renaming: slugs.renaming,
               })}
             />
@@ -734,6 +746,8 @@ function useDocument(
   };
   return {
     state: form.state,
+    /** The data as last saved. */
+    savedData: initial.data,
     dirty: !deepEqual(form.state, initial),
     uploads: form.uploads,
     sha,
@@ -1185,12 +1199,15 @@ function TitleCard({
   onChange,
   autoFocus,
   error,
+  address,
 }: {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
   autoFocus: boolean;
   error?: string;
+  /** The page's address on the site, linked once it is there. */
+  address: { text: string; href: string | null } | null;
 }) {
   return (
     <div className="v-card">
@@ -1202,7 +1219,24 @@ function TitleCard({
           autoFocus={autoFocus}
         />
         {error && <div className="v-field__error">{error}</div>}
+        {address && <PageAddress {...address} />}
       </div>
+    </div>
+  );
+}
+
+/** The page's address, like a permalink under the title. */
+function PageAddress({ text, href }: { text: string; href: string | null }) {
+  return (
+    <div className="v-page-address">
+      <LinkIcon size={13} aria-hidden />
+      {href ? (
+        <a href={href} target="_blank" rel="noreferrer" title="Open the page">
+          {text}
+        </a>
+      ) : (
+        <span title="The page's address once it is created">{text}</span>
+      )}
     </div>
   );
 }

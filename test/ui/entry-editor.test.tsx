@@ -152,6 +152,8 @@ const titleInput = () =>
 const slugInput = () => screen.getByPlaceholderText<HTMLInputElement>("auto");
 /** The address or file named under the slug box. */
 const slugHintText = () => document.getElementById("v-slug-hint")?.textContent;
+/** The page's address under the title. */
+const pageAddress = () => document.querySelector(".v-page-address")!;
 const summaryInput = () =>
   document.querySelector<HTMLTextAreaElement>("textarea:not(.v-title-input)")!;
 
@@ -165,7 +167,10 @@ describe("a new entry", () => {
     await screen.findByText("New post");
     await user.type(titleInput(), "My First Post");
     expect(slugInput().value).toBe("my-first-post");
-    expect(slugHintText()).toBe("/posts/my-first-post");
+    // Its address is under the title, not yet a link; the slug box has no note.
+    expect(pageAddress().textContent).toBe("example.org/posts/my-first-post");
+    expect(pageAddress().querySelector("a")).toBeNull();
+    expect(slugHintText()).toBeUndefined();
     await user.click(saveButton());
     await screen.findByText("Saved to disk");
     expect(await read(root, "src/content/posts/my-first-post.md")).toContain(
@@ -340,6 +345,21 @@ describe("the title", () => {
 });
 
 describe("an existing entry", () => {
+  it("links its page under the title, and says where an edit moves it", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    const link = screen.getByRole("link", { name: "example.org/posts/hello" });
+    expect(link.getAttribute("href")).toBe("https://example.org/posts/hello");
+    expect(slugHintText()).toBeUndefined();
+    fireEvent.change(slugInput(), { target: { value: "hi" } });
+    expect(slugHintText()).toBe("Moves to /posts/hi");
+    // The page stays where it is until the rename is saved.
+    expect(link.getAttribute("href")).toBe("https://example.org/posts/hello");
+    expect(screen.getByTitle("View on the site").getAttribute("href")).toBe(
+      "https://example.org/posts/hello",
+    );
+  });
+
   it("is edited and saved", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {

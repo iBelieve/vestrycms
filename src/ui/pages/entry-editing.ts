@@ -496,13 +496,17 @@ export function entryDisplay({
   data,
   isNew,
   slug,
+  saved,
   siteUrl,
 }: {
   kind: Kind;
   col: CollectionConfig | SingletonConfig;
   data: Record<string, unknown>;
   isNew: boolean;
+  /** The slug the entry will be saved under. */
   slug: string;
+  /** The entry as saved, which its live page shows; null for a new one. */
+  saved: Saved | null;
   siteUrl: string | undefined;
 }) {
   const collection = kind === "collection" ? (col as CollectionConfig) : null;
@@ -511,6 +515,10 @@ export function entryDisplay({
     titleField && col.schema[titleField]?.type === "text" ? titleField : null;
   const statusField = collection?.status?.field ?? null;
   const publishedWhen = collection?.status?.publishedWhen ?? true;
+  // The page as it is on the site: an unsaved edit hasn't moved it yet.
+  const livePath =
+    saved && !isNew ? pagePath(col, saved.slug, saved.data) : null;
+  const base = (siteUrl ?? "").replace(/\/$/, "");
   return {
     titleInput,
     titleValue: titleField ? String(data[titleField] ?? "") : col.label,
@@ -519,13 +527,28 @@ export function entryDisplay({
     isPublished: statusField
       ? Boolean(data[statusField]) === publishedWhen
       : null,
-    previewHref:
-      col.previewUrl && !isNew
-        ? `${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...data, slug })}`
-        : null,
+    previewHref: livePath === null ? null : `${base}${livePath}`,
+    address: collection
+      ? entryAddress(base, livePath, pagePath(collection, slug, data))
+      : null,
     /** The title and status have controls of their own. */
     editable: (key: string) => key !== statusField && key !== titleInput,
   };
+}
+
+/**
+ * The page's address under the title: where the saved entry is on the site,
+ * linked, or where a new one will be. Null without a `previewUrl`.
+ */
+function entryAddress(
+  base: string,
+  livePath: string | null,
+  newPath: string | null,
+): { text: string; href: string | null } | null {
+  const site = base.replace(/^https?:\/\//, "");
+  if (livePath !== null)
+    return { text: `${site}${livePath}`, href: `${base}${livePath}` };
+  return newPath === null ? null : { text: `${site}${newPath}`, href: null };
 }
 
 /** Publishes or unpublishes the entry; null without a status field. */
@@ -542,50 +565,60 @@ export function publishToggle(
     setData({ ...data, [statusField]: on ? publishedWhen : !publishedWhen });
 }
 
+/** An entry's slug and data as last saved. */
+export type Saved = { slug: string; data: Record<string, unknown> };
+
 /**
- * The line under the slug box: the page's address when the collection has
- * a `previewUrl`, else its file. It follows the slug and the date field as
- * they change. The file is named only where it says something the File row
- * doesn't: for a new or renamed entry, or where a date in its name is set
- * by the date field.
+ * The path of an entry's page on the site, from its collection's
+ * `previewUrl`, or null without one. Until the slug has a name (after its
+ * date, or in a folder), an ellipsis stands in for it.
+ */
+export function pagePath(
+  col: CollectionConfig | SingletonConfig,
+  slug: string,
+  data: Record<string, unknown>,
+): string | null {
+  if (!col.previewUrl) return null;
+  const named = /(^|[/-])$/.test(slug) ? `${slug}…` : slug;
+  return fillTemplate(col.previewUrl, { ...data, slug: named });
+}
+
+/**
+ * The line under the slug box, shown only where it says what saving will
+ * do: the page's new address when an edit (to the slug, or a date it
+ * holds) moves it, else the file a rename moves it to. A new entry in a
+ * collection without a `previewUrl` names its file, which nothing else
+ * shows yet.
  */
 export function slugHint({
   collection,
   pattern,
   slug,
   data,
-  dateKey,
-  isNew,
+  saved,
   renaming,
 }: {
   collection: CollectionConfig;
   pattern: PathPattern;
   slug: string;
   data: Record<string, unknown>;
-  /** The field whose date the file name starts with, if any. */
-  dateKey: string | null;
-  isNew: boolean;
+  /** The entry as saved; null for a new one. */
+  saved: Saved | null;
   renaming: boolean;
 }): SlugHint | null {
   if (pattern.single) return null;
-  // Until there is a name (after the date, or a folder), an ellipsis
-  // stands in for it.
-  const named = /(^|[/-])$/.test(slug) ? `${slug}…` : slug;
-  if (collection.previewUrl) {
-    const address = fillTemplate(collection.previewUrl, {
-      ...data,
-      slug: named,
-    });
-    return { lead: renaming ? "Moves to" : null, path: address };
-  }
-  if (!(isNew || renaming || dateKey)) return null;
-  return {
-    lead: renaming ? "Renames the file to" : null,
-    path: entryPath(pattern, named),
-  };
+  if (!saved)
+    return collection.previewUrl
+      ? null
+      : { lead: null, path: entryPath(pattern, slug || "…") };
+  const path = pagePath(collection, slug, data);
+  if (path !== null && path !== pagePath(collection, saved.slug, saved.data))
+    return { lead: "Moves to", path };
+  if (!renaming) return null;
+  return { lead: "Renames the file to", path: entryPath(pattern, slug) };
 }
 
-/** The line under the slug box: a page address or file, after what saving does to it. */
+/** The line under the slug box: what saving moves, and to where. */
 export type SlugHint = { lead: string | null; path: string };
 
 /**
