@@ -177,14 +177,37 @@ describe("expressions", () => {
     "<Box pattern={/a+/g} />\n",
     // A key named `__proto__` is a key, not the object's prototype.
     '<Box\n  style={{\n    __proto__: { color: "red" },\n  }}\n/>\n',
+    // Source kept as written keeps its indentation, a template literal's
+    // included (MDX takes two spaces off each later line as it reads).
+    "<Box\n  handler={() => {\n    run();\n  }}\n/>\n",
+    "<Box\n  text={`${a}\n    indented`}\n/>\n",
   ])("keeps %j", (source) => {
     expect(roundTrip(source)).toBe(source);
+  });
+
+  it("writes a string holding a character reference as an expression", () => {
+    const source = '<Box title={"Tom &amp; Jerry"} url={"?a=1&copy=2"} />\n';
+    expect(roundTrip(source)).toBe(
+      '<Box title={"Tom &amp; Jerry"} url="?a=1&copy=2" />\n',
+    );
+    const { doc } = parseMdx(roundTrip(source));
+    expect(doc.content?.[0].attrs?.props).toEqual({
+      title: "Tom &amp; Jerry",
+      url: "?a=1&copy=2",
+    });
   });
 
   it("reads a template literal without placeholders as a string", () => {
     expect(roundTrip("<Box label={`Hello`} />\n")).toBe(
       '<Box label="Hello" />\n',
     );
+  });
+});
+
+describe("fragments", () => {
+  it("keeps a block fragment around its children", () => {
+    const source = "<>\n\nInside a _fragment_.\n\n</>\n";
+    expect(roundTrip(source)).toBe(source);
   });
 });
 

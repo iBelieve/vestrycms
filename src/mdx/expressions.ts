@@ -88,9 +88,12 @@ const PRINT_WIDTH = 80;
 /**
  * Serialize a JSON value (or RawExpression) to JS source for a JSX attribute,
  * in the shape Prettier produces: multi-line objects and arrays with trailing
- * commas, bare identifier keys, double-quoted strings.
+ * commas, bare identifier keys, double-quoted strings. Lines after the first
+ * start with `indent`; `column` is how much further in the writer puts them
+ * (a block component's attributes are indented two spaces, which
+ * mdast-util-mdx-jsx adds), counted towards what fits on one line.
  */
-export function valueToSource(value: unknown, indent = ""): string {
+export function valueToSource(value: unknown, indent = "", column = 0): string {
   if (isRawExpression(value)) return value.$raw.trim();
   if (value === undefined) return "undefined";
   if (value === null) return "null";
@@ -98,24 +101,29 @@ export function valueToSource(value: unknown, indent = ""): string {
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
   if (value instanceof Date) return JSON.stringify(value.toISOString());
-  if (Array.isArray(value)) return arraySource(value, indent);
+  if (Array.isArray(value)) return arraySource(value, indent, column);
   if (typeof value === "object")
-    return objectSource(value as Record<string, unknown>, indent);
+    return objectSource(value as Record<string, unknown>, indent, column);
   return JSON.stringify(value) ?? "null";
 }
 
-function arraySource(value: unknown[], indent: string): string {
+function arraySource(value: unknown[], indent: string, column: number): string {
   if (!value.length) return "[]";
   const inner = `${indent}  `;
-  const items = value.map((v) => valueToSource(v, inner));
+  const items = value.map((v) => valueToSource(v, inner, column));
   if (value.every(isScalar)) {
     const oneLine = `[${items.join(", ")}]`;
-    if (oneLine.length + indent.length <= PRINT_WIDTH - 8) return oneLine;
+    if (oneLine.length + indent.length + column <= PRINT_WIDTH - 8)
+      return oneLine;
   }
   return `[\n${items.map((i) => `${inner}${i},`).join("\n")}\n${indent}]`;
 }
 
-function objectSource(value: Record<string, unknown>, indent: string): string {
+function objectSource(
+  value: Record<string, unknown>,
+  indent: string,
+  column: number,
+): string {
   const entries = Object.entries(value).filter(([, v]) => v !== undefined);
   if (!entries.length) return "{}";
   const inner = `${indent}  `;
@@ -123,10 +131,11 @@ function objectSource(value: Record<string, unknown>, indent: string): string {
   // Like Prettier: a flat object that fits on one line stays on one line.
   if (entries.every(([, v]) => isScalar(v))) {
     const oneLine = `{ ${entries.map(([k, v]) => `${keyOf(k)}: ${valueToSource(v)}`).join(", ")} }`;
-    if (oneLine.length + indent.length <= PRINT_WIDTH - 2) return oneLine;
+    if (oneLine.length + indent.length + column <= PRINT_WIDTH - 2)
+      return oneLine;
   }
   const lines = entries.map(
-    ([k, v]) => `${inner}${keyOf(k)}: ${valueToSource(v, inner)},`,
+    ([k, v]) => `${inner}${keyOf(k)}: ${valueToSource(v, inner, column)},`,
   );
   return `{\n${lines.join("\n")}\n${indent}}`;
 }
@@ -135,7 +144,18 @@ function isScalar(v: unknown): boolean {
   return v === null || ["string", "number", "boolean"].includes(typeof v);
 }
 
-/** Whether a value can be written as a plain string attribute (`a="b"`) rather than an expression. */
+/** What could read as a character reference: `&amp;`, `&#38;`, `&#x26;`. */
+const CHARACTER_REFERENCE = /&(?:#\d+|#x[\da-f]+|[a-z][a-z\d]*);/i;
+
+/**
+ * Whether a value can be written as a plain string attribute (`a="b"`) rather
+ * than an expression. MDX decodes character references in one (`&amp;` reads
+ * back as `&`), so a string that holds one is written as an expression.
+ */
 export function isPlainString(value: unknown): value is string {
-  return typeof value === "string" && !value.includes("\n");
+  return (
+    typeof value === "string" &&
+    !value.includes("\n") &&
+    !CHARACTER_REFERENCE.test(value)
+  );
 }
