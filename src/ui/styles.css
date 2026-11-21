@@ -3819,8 +3819,8 @@ button.v-tree__toggle:hover {
 }
 
 /* iOS zooms the page into any field set in less than 16px when it gets
-   focus, and doesn't zoom back out; touch screens get 16px fields. Fields
-   already set larger (the title, the sign-in code) are left alone. */
+   focus, and doesn't zoom back out; touch screens get 16px fields. A field
+   already set larger (the sign-in code) is left alone. */
 @media (pointer: coarse) {
   :is(#vestry-root, .v-portal)
     :is(input, select, textarea):not(

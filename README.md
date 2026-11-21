@@ -405,10 +405,11 @@ sections: [
 ```
 
 Sections render in order; `sidebar: true` puts a card in the rail. Fields
-not named by any section still fall into a "Details" card or the rail,
+not named by any section still fall into the fields card or the rail,
 and the content editor renders after the sections unless `"body"` places
-it. When a section of the main column comes first, the title gets a card
-of its own above it.
+it. When a section of the main column (or the placed body) comes first,
+the title gets a card of its own above it, and the fields card after the
+sections is headed "Details"; otherwise the title heads the fields card.
 
 ## Text styles
 

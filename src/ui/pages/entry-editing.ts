@@ -104,6 +104,34 @@ function derivedSlug(
 }
 
 /**
+ * The slug a page's address is filled with: the one the entry will be
+ * saved under, except for a new list entry, which has none until the
+ * server gives it the id its form holds (or, holding none, one derived
+ * from its fields), as `slugError` reads it.
+ */
+export function addressSlug({
+  collection,
+  pattern,
+  finalSlug,
+  isNew,
+  data,
+}: {
+  collection: CollectionConfig | null;
+  pattern: PathPattern;
+  finalSlug: string;
+  isNew: boolean;
+  data: Record<string, unknown>;
+}): string {
+  if (!collection || !pattern.single || !isNew) return finalSlug;
+  return (
+    listId(collection, data) ||
+    (data[collection.idField ?? "id"] == null
+      ? derivedSlug(collection, data)
+      : "")
+  );
+}
+
+/**
  * What the slug box shows: the slug, less a date held by the date field
  * (the address under the box shows where that date goes).
  */
@@ -504,7 +532,7 @@ export function entryDisplay({
   col: CollectionConfig | SingletonConfig;
   data: Record<string, unknown>;
   isNew: boolean;
-  /** The slug the entry will be saved under. */
+  /** The slug the entry will be saved under (see `addressSlug`). */
   slug: string;
   /** The entry as saved, which its live page shows; null for a new one. */
   saved: Saved | null;
@@ -587,23 +615,28 @@ function sitePath(
 
 /**
  * The path an unsaved slug gives the entry's page (see `sitePath`). Until
- * the slug has a name (after its date, or in a folder), an ellipsis stands
- * in for it; a saved slug is used as it is, whatever it ends with.
+ * the slug has a name (it is empty, only a date, or ends in a folder), an
+ * ellipsis stands in for it; a slug that has one is used as it is,
+ * whatever it ends with.
  */
 export function pagePath(
   col: CollectionConfig | SingletonConfig,
   slug: string,
   data: Record<string, unknown>,
 ): string | null {
-  return sitePath(col, /(^|[/-])$/.test(slug) ? `${slug}…` : slug, data);
+  return sitePath(col, NAMELESS_SLUG.test(slug) ? `${slug}…` : slug, data);
 }
+
+/** A slug whose file name is empty or only its date (`2026-11-21-`). */
+const NAMELESS_SLUG = /(^|\/)(\d{4}-\d{2}-\d{2}-)?$/;
 
 /**
  * The line under the slug box, shown only where it says what saving will
  * do: the page's new address when an edit (to the slug, a date it holds,
  * or another field the `previewUrl` names) moves it, else the file a
  * rename moves it to. A new entry names its file, unless its address
- * shows under its title.
+ * shows under its title. A list's entries share its one file, so a list
+ * entry gets only the address its id moves it to.
  */
 export function slugHint({
   collection,
@@ -624,9 +657,8 @@ export function slugHint({
   /** The page's address shows under the title (a text field's). */
   addressShown: boolean;
 }): SlugHint | null {
-  if (pattern.single) return null;
   if (!saved)
-    return collection.previewUrl && addressShown
+    return pattern.single || (collection.previewUrl && addressShown)
       ? null
       : { lead: null, path: entryPath(pattern, slug || "…") };
   const moved =
@@ -634,7 +666,7 @@ export function slugHint({
     sitePath(collection, saved.slug, saved.data);
   const path = pagePath(collection, slug, data);
   if (moved && path !== null) return { lead: "Moves to", path };
-  if (!renaming) return null;
+  if (!renaming || pattern.single) return null;
   return { lead: "Renames the file to", path: entryPath(pattern, slug) };
 }
 

@@ -316,6 +316,58 @@ describe("the title", () => {
     expect(screen.getByRole("heading", { name: "Summary" })).toBeTruthy();
   });
 
+  it("heads the fields card when a main section shows nothing", async () => {
+    const authors = config.collections!.authors;
+    await openPanel(
+      defineConfig({
+        ...config,
+        collections: {
+          authors: {
+            ...authors,
+            sections: [{ label: "Hidden", fields: ["secret"] }],
+            schema: {
+              ...authors.schema,
+              secret: fields.text({ hidden: true }),
+            },
+          },
+        },
+      }),
+      { url: "/collections/authors/ann", files },
+    );
+    await screen.findByDisplayValue("Ann");
+    expect(titleInput().closest(".v-card")!.textContent).toContain("Mentor");
+    expect(screen.queryByRole("heading", { name: "Details" })).toBeNull();
+  });
+
+  it("takes its field's settings like any field", async () => {
+    const authors = config.collections!.authors;
+    await openPanel(
+      defineConfig({
+        ...config,
+        collections: {
+          authors: {
+            ...authors,
+            schema: {
+              ...authors.schema,
+              title: fields.text({
+                readOnly: true,
+                description: "Set by the directory.",
+                placeholder: "Full name",
+                maxLength: 40,
+              }),
+            },
+          },
+        },
+      }),
+      { url: "/collections/authors/ann", files },
+    );
+    const title = await screen.findByDisplayValue<HTMLTextAreaElement>("Ann");
+    expect(title.readOnly).toBe(true);
+    expect(title.placeholder).toBe("Full name");
+    expect(title.maxLength).toBe(40);
+    expect(screen.getByText("Set by the directory.")).toBeTruthy();
+  });
+
   it("wraps rather than taking line breaks", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {
@@ -377,6 +429,16 @@ describe("an existing entry", () => {
     expect(screen.getByTitle("View on the site").getAttribute("href")).toBe(
       "https://example.org/posts/hello",
     );
+  });
+
+  it("doesn't say where a slug it can't be saved under moves it", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    fireEvent.change(screen.getByLabelText("Slug"), {
+      target: { value: "a b" },
+    });
+    expect(screen.getByText(/^Use letters, numbers/)).toBeTruthy();
+    expect(slugHintText()).toBeUndefined();
   });
 
   it("is edited and saved", async () => {

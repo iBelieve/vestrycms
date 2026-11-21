@@ -49,7 +49,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
   other fields (the page heading shows it large) and the first field of
   the fields card, which then needs no "Details" heading. When a section
   of the main column comes first, the title keeps a card of its own above
-  it. A read-only entry's title shows as plain text.
+  it. A read-only entry's title shows as plain text, and the title takes
+  its field's `readOnly`, `description`, `placeholder` and `maxLength`.
 - **The page's address under the title.** With a `previewUrl`, the
   editor shows the entry's address on the site under its title, the way
   a permalink is shown, linked to the live page (a new entry's address

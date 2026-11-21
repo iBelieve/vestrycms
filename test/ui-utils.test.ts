@@ -325,4 +325,11 @@ describe("siteHref", () => {
       "https://other.org/a",
     );
   });
+
+  it("keeps any other path on the site, a colon in it or not", () => {
+    expect(siteHref("https://example.org", "note:a")).toBe(
+      "https://example.org/note:a",
+    );
+    expect(siteHref(undefined, "mailto:a@b.org")).toBe("/mailto:a@b.org");
+  });
 });

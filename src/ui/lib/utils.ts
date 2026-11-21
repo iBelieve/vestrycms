@@ -20,10 +20,11 @@ export const entryHref = (collection: string, slug: string) =>
 /**
  * A page's link on the site: `path` (a filled `previewUrl`) after `siteUrl`,
  * with one slash between them whether or not either has its own. A `path`
- * that names its own site (`https://…`) is the link as it is.
+ * that names its own site (`https://…`) is the link as it is; anything
+ * else (`mailto:`, a field's text with a colon in it) stays on the site.
  */
 export function siteHref(siteUrl: string | undefined, path: string): string {
-  if (/^[a-z][a-z\d+.-]*:/i.test(path)) return path;
+  if (/^https?:\/\//i.test(path)) return path;
   const base = (siteUrl ?? "").replace(/\/+$/, "");
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 }

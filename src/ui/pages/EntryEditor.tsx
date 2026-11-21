@@ -22,6 +22,7 @@ import type {
   EditorSection,
   Field,
   SingletonConfig,
+  TextField,
   VestryConfig,
 } from "../../config/types.js";
 import {
@@ -63,6 +64,7 @@ import {
   type ValidationError,
 } from "../lib/utils.js";
 import {
+  addressSlug,
   bodyEnv,
   rebaseDraft,
   effectiveSlug,
@@ -388,7 +390,13 @@ function useEntryForm(props: EntryFormProps) {
     col,
     data: doc.state.data,
     isNew,
-    slug: slugs.finalSlug,
+    slug: addressSlug({
+      collection,
+      pattern,
+      finalSlug: slugs.finalSlug,
+      isNew,
+      data: doc.state.data,
+    }),
     saved,
     siteUrl: config.siteUrl,
   });
@@ -473,9 +481,7 @@ function EntryMain({ form }: { form: EntryFormModel }) {
   const { placement } = form;
   // The title is the fields card's first field when that card comes first;
   // after a section of the main column, it keeps a card of its own above.
-  const titleFirst = !placement.sections.some(
-    (s) => s === "body" || !s.sidebar,
-  );
+  const titleFirst = !placement.sections.some((s) => showsInMain(form, s));
   return (
     <div className="v-stack" style={{ gap: 20 }}>
       {!titleFirst && <MainFieldsCard form={form} withFields={false} />}
@@ -491,6 +497,23 @@ function EntryMain({ form }: { form: EntryFormModel }) {
     </div>
   );
 }
+
+/**
+ * Whether a section shows in the main column: the body where entries have
+ * one, or a card with at least one of its fields to show.
+ */
+function showsInMain(form: EntryFormModel, section: EditorSection): boolean {
+  if (section === "body") return bodyFormat(form.col) !== null;
+  return (
+    !section.sidebar && form.placement.hasVisible(inSection(form, section))
+  );
+}
+
+/** Whether a field is one of `section`'s that its card shows. */
+const inSection =
+  (form: EntryFormModel, section: Exclude<EditorSection, "body">) =>
+  (key: string) =>
+    section.fields.includes(key) && form.display.editable(key);
 
 /**
  * The card of the main column's fields, headed "Details", or headed by the
@@ -532,18 +555,24 @@ function EntryTitle({
   titleKey: string;
 }) {
   const { col, display, doc } = form;
+  // `titleInput` names a text field only.
+  const field = col.schema[titleKey] as TextField;
+  const label = fieldLabel(titleKey, field);
   return (
     <TitleField
       value={display.titleValue}
-      label={fieldLabel(titleKey, col.schema[titleKey])}
-      required={!!col.schema[titleKey]?.required}
+      label={label}
+      required={!!field.required}
       onChange={(title) =>
         doc.setData((data) => ({ ...data, [titleKey]: title }))
       }
       autoFocus={form.isNew}
       error={form.errors.find((e) => e.path === titleKey)?.message}
       address={display.address}
-      readOnly={form.readOnly}
+      readOnly={form.readOnly || !!field.readOnly}
+      description={field.description}
+      placeholder={field.placeholder ?? `${label}…`}
+      maxLength={field.maxLength}
     />
   );
 }
@@ -611,16 +640,15 @@ function SectionCard({
   form: EntryFormModel;
   section: Exclude<EditorSection, "body">;
 }) {
-  const inSection = (key: string) =>
-    section.fields.includes(key) && form.display.editable(key);
-  if (!form.placement.hasVisible(inSection)) return null;
+  const filter = inSection(form, section);
+  if (!form.placement.hasVisible(filter)) return null;
   const { schema, hideLabels } = sectionFields(form.col, section, fieldLabel);
   return (
     <Card title={section.label} note={section.description}>
       <EntryFields
         form={form}
         schema={schema}
-        filter={inSection}
+        filter={filter}
         hideLabels={hideLabels}
       />
     </Card>
@@ -1245,6 +1273,9 @@ function TitleField({
   error,
   address,
   readOnly,
+  description,
+  placeholder,
+  maxLength,
 }: {
   value: string;
   /** The title field's label, shown above it like any field's. */
@@ -1256,6 +1287,10 @@ function TitleField({
   readOnly: boolean;
   /** The page's address on the site, linked once it is there. */
   address: { text: string; href: string | null } | null;
+  /** The field's help text, shown under it like any field's. */
+  description?: string;
+  placeholder: string;
+  maxLength?: number;
 }) {
   const id = useId();
   return (
@@ -1267,11 +1302,13 @@ function TitleField({
       <TitleInput
         id={id}
         value={value}
-        placeholder={`${label}…`}
+        placeholder={placeholder}
+        maxLength={maxLength}
         onChange={onChange}
         autoFocus={autoFocus}
         readOnly={readOnly}
       />
+      {description && <div className="v-field__hint">{description}</div>}
       {error && <div className="v-field__error">{error}</div>}
       {address && <PageAddress {...address} />}
     </div>
@@ -1303,6 +1340,7 @@ function TitleInput({
   id,
   value,
   placeholder,
+  maxLength,
   onChange,
   autoFocus,
   readOnly,
@@ -1310,6 +1348,7 @@ function TitleInput({
   id: string;
   value: string;
   placeholder: string;
+  maxLength?: number;
   onChange: (value: string) => void;
   autoFocus: boolean;
   /** Shown as plain text, not a box, in a read-only collection. */
@@ -1344,6 +1383,7 @@ function TitleInput({
       rows={1}
       value={value}
       placeholder={placeholder}
+      maxLength={maxLength}
       onChange={(e) => onChange(oneLine(e.target))}
       onKeyDown={(e) => {
         // An Enter that ends an input method's composition is left to it.
@@ -1434,15 +1474,22 @@ function SlugField({
   error: string | null;
   hint: SlugHint | null;
 }) {
+  const id = useId();
+  // Where a save would move the entry, while the slug keeps it from saving
+  // (a fixed slug its date tries to change, say), would contradict the error.
+  const shownHint = error && hint?.lead ? null : hint;
   // The error and the reason the slug is fixed never show together.
   const note = error || fixed ? "v-slug-note" : null;
   const describedBy =
-    [note, hint && "v-slug-hint"].filter(Boolean).join(" ") || undefined;
+    [note, shownHint && "v-slug-hint"].filter(Boolean).join(" ") || undefined;
   return (
     <div>
-      <label className="v-field__label">Slug</label>
+      <label className="v-field__label" htmlFor={id}>
+        Slug
+      </label>
       {pattern.single || fixed ? (
         <input
+          id={id}
           className="v-input v-input--mono"
           readOnly
           value={slug}
@@ -1450,6 +1497,7 @@ function SlugField({
         />
       ) : (
         <input
+          id={id}
           className="v-input v-input--mono"
           value={box}
           onChange={(e) => onChange(e.target.value)}
@@ -1458,7 +1506,7 @@ function SlugField({
           aria-describedby={describedBy}
         />
       )}
-      <SlugNotes error={error} fixed={fixed} hint={hint} />
+      <SlugNotes error={error} fixed={fixed} hint={shownHint} />
     </div>
   );
 }

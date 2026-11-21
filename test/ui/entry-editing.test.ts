@@ -7,6 +7,7 @@ import {
 } from "../../src/config/index.js";
 import { parsePathPattern } from "../../src/core/paths.js";
 import {
+  addressSlug,
   bodyEnv,
   entryDisplay,
   entryFile,
@@ -225,6 +226,79 @@ describe("the entry's file", () => {
     );
     expect(pagePath(articles, "2026-11-21-", {})).toBe("/articles/2026/11/…");
     expect(pagePath(posts, "a", {})).toBeNull();
+    const notes = collection({
+      label: "Notes",
+      path: "src/content/notes/**.md",
+      previewUrl: "/notes/{slug}",
+      schema: {},
+    });
+    expect(pagePath(notes, "", {})).toBe("/notes/…");
+    expect(pagePath(notes, "a/", {})).toBe("/notes/a/…");
+    expect(pagePath(notes, "a/2026-11-21-", {})).toBe("/notes/a/2026-11-21-…");
+    // A name ending in a hyphen is saved as it is.
+    expect(pagePath(notes, "hi-", {})).toBe("/notes/hi-");
+  });
+
+  it("says where a list entry's new id moves its page", () => {
+    const people = collection({
+      label: "People",
+      path: "src/data/people.json",
+      previewUrl: "/people/{slug}",
+      schema: { id: fields.text(), title: fields.text() },
+    });
+    const pattern = parsePathPattern(people.path);
+    const hint = (slug: string, renaming: boolean) =>
+      slugHint({
+        collection: people,
+        pattern,
+        slug,
+        data: { id: slug },
+        saved: { slug: "ann", data: { id: "ann" } },
+        renaming,
+        addressShown: true,
+      });
+    expect(hint("ann", false)).toBeNull();
+    expect(hint("anna", true)).toEqual({
+      lead: "Moves to",
+      path: "/people/anna",
+    });
+    // Without a `previewUrl` a new id renames no file: the list keeps it.
+    expect(
+      slugHint({
+        collection: pages,
+        pattern: parsePathPattern(pages.path),
+        slug: "b",
+        data: {},
+        saved: { slug: "a", data: {} },
+        renaming: true,
+        addressShown: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("fills a new list entry's address with the id its form holds", () => {
+    const people = collection({
+      label: "People",
+      path: "src/data/people.json",
+      schema: { id: fields.text(), title: fields.text() },
+    });
+    const pattern = parsePathPattern(people.path);
+    const slug = (isNew: boolean, data: Record<string, unknown>) =>
+      addressSlug({ collection: people, pattern, finalSlug: "", isNew, data });
+    expect(slug(true, { id: "ann" })).toBe("ann");
+    // With no id, the one the server derives from its title.
+    expect(slug(true, { title: "Bob Smith" })).toBe("bob-smith");
+    expect(slug(true, { id: "", title: "Bob" })).toBe("");
+    expect(slug(false, { id: "ann" })).toBe("");
+    expect(
+      addressSlug({
+        collection: posts,
+        pattern: parsePathPattern(posts.path),
+        finalSlug: "a",
+        isNew: true,
+        data: { id: "b" },
+      }),
+    ).toBe("a");
   });
 
   it("holds the slug without a date set by the date field", () => {
