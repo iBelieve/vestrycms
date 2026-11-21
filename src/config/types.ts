@@ -395,7 +395,11 @@ export interface CollectionConfig {
    * (`/{date|year}/{slug}`).
    */
   previewUrl?: string;
-  /** Lucide icon name used in navigation. */
+  /**
+   * The icon beside it in the sidebar and on the dashboard: a Lucide name
+   * from the panel's set (`ICON_NAMES`). Any other name is an error at
+   * startup.
+   */
   icon?: string;
   /** Commit message template. Supports `{action}`, `{collection}`, `{slug}`, `{title}`. */
   commitMessage?: string;
@@ -465,6 +469,7 @@ export interface SingletonConfig {
   /** Group fields into titled cards in the editor. */
   sections?: EditorSection[];
   previewUrl?: string;
+  /** The icon beside it in the sidebar, as for a collection's `icon`. */
   icon?: string;
   commitMessage?: string;
 }
@@ -473,7 +478,7 @@ export interface ComponentConfig {
   /** Label shown in the insert menu. Defaults to the component name. */
   label?: string;
   description?: string;
-  /** Lucide icon name. */
+  /** The icon in the insert menu and on the block, as for a collection's `icon`. */
   icon?: string;
   /**
    * Import specifier written at the top of the MDX file when the component
@@ -515,6 +520,7 @@ export interface AssetContainerConfig {
   directory: string;
   /** Accepted extensions (without the dot). Defaults to common image types. */
   accept?: string[];
+  /** The icon beside it in the sidebar, as for a collection's `icon`. */
   icon?: string;
 }
 

@@ -112,8 +112,12 @@ export function validateConfig(config: VestryConfig) {
   for (const [key, col] of Object.entries(config.collections ?? {}))
     checkCollection(config, `collection "${key}"`, col);
 
+  for (const [key, container] of Object.entries(config.assets ?? {}))
+    checkIcon(`asset container "${key}" icon`, container.icon);
+
   for (const [key, singleton] of Object.entries(config.singletons ?? {})) {
     const what = `singleton "${key}"`;
+    checkIcon(`${what} icon`, singleton.icon);
     checkFilenameDates(what, singleton.schema, false);
     checkDateDefaults(what, singleton.schema);
     checkTemplate(`${what} previewUrl`, singleton.previewUrl);
@@ -198,6 +202,7 @@ function checkCollection(
   col: CollectionConfig,
 ) {
   if (!col.path) fail(`${what} needs a path`);
+  checkIcon(`${what} icon`, col.icon);
   for (const name of col.body ? (col.body.components ?? []) : []) {
     if (!config.components?.[name]) {
       fail(`${what} references unknown component "${name}"`);
@@ -308,6 +313,7 @@ function checkIcon(what: string, icon: unknown) {
 }
 
 function checkComponent(name: string, component: ComponentConfig) {
+  checkIcon(`component "${name}" icon`, component.icon);
   const props = component.props ?? {};
   const dated = [...Object.entries(props), ...nestedFields(props)].find(
     ([, field]) => isFilenameDate(field),
