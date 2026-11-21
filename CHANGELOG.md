@@ -7,6 +7,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **Analytics.** `analytics: { provider: "plausible", siteId, host? }`
+  adds a visitors card to the dashboard and an Analytics page (totals
+  compared with the period before, a chart, top pages, sources, countries
+  and devices), read from Plausible's Stats API, including self-hosted
+  Plausible, with the key in the `VESTRY_PLAUSIBLE_API_KEY` secret. Built
+  so other providers can be added.
 - **New entry from the dashboard.** Each "Recent …" list on the dashboard
   has a **New …** button for its collection (not for `fixedEntries` or
   `readOnly` collections).
