@@ -90,6 +90,31 @@ describe("normalization to the canonical style", () => {
     );
   });
 
+  it("writes text with the same marks in any order as one run", () => {
+    // Found by the property test (seed -655181615): written as two text
+    // nodes, the `(` after the escaped `]` was escaped as well, and the
+    // file saved back without that backslash.
+    const marks = (...m: PMMark[]) => m;
+    const link = { type: "link", attrs: { href: "a b", title: null } };
+    const lead = { type: "textClass", attrs: { class: "lead" } };
+    const sup = { type: "superscript" };
+    const doc: PMNode = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "]", marks: marks(link, lead, sup) },
+            { type: "text", text: "(a", marks: marks(link, sup, lead) },
+          ],
+        },
+      ],
+    };
+    const once = serializeMdx(doc);
+    expect(once).toBe('[<sup><span class="lead">\\](a</span></sup>](<a b>)\n');
+    expect(roundTrip(once)).toBe(once);
+  });
+
   it("gives an empty document one empty paragraph", () => {
     expect(parseMdx("").doc).toEqual({
       type: "doc",

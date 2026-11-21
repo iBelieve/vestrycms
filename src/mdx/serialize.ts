@@ -708,6 +708,25 @@ function group(nodes: PMNode[], used: Uses): AnyNode[] {
     out.push(...wrap(best!, children, used));
     i += bestLen;
   }
+  return joinTexts(out);
+}
+
+/**
+ * Adjacent text nodes as one, as a parse reads them back: written apart,
+ * mdast-util-to-markdown escapes each against an unknown neighbour (the
+ * `(` after an escaped `]` too), so the file would not save back the same.
+ */
+function joinTexts(nodes: AnyNode[]): AnyNode[] {
+  const out: AnyNode[] = [];
+  for (const node of nodes) {
+    const last = out.at(-1);
+    if (node.type === "text" && last?.type === "text")
+      out[out.length - 1] = {
+        ...last,
+        value: last.value + node.value,
+      };
+    else out.push(node);
+  }
   return out;
 }
 
