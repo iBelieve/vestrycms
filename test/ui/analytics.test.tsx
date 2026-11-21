@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished } from "vitest";
 import { openPanel } from "./harness.js";
 import { defineConfig } from "../../src/config/index.js";
 import type { VestryConfig } from "../../src/config/types.js";
@@ -87,6 +87,9 @@ describe("the dashboard's visitors card", () => {
 });
 
 describe("the Analytics page", () => {
+  // Start each test on 30 days, whatever an earlier one chose.
+  beforeEach(() => localStorage.clear());
+
   it("shows the totals, the chart and the breakdowns", async () => {
     await open(config, { url: "/analytics" });
     expect(await screen.findByText("Top sources")).toBeTruthy();
@@ -122,12 +125,11 @@ describe("the Analytics page", () => {
   });
 
   it("keeps the page in place while a new period loads", async () => {
-    // Start on 30 days, whatever an earlier test chose.
-    localStorage.clear();
     const plausible = fakePlausible();
-    // Hold the 7-day queries until the test lets them through.
+    // Hold the 7-day queries until the test lets them through (or ends).
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
+    onTestFinished(() => release());
     const fetch: typeof plausible.fetch = async (input, init) => {
       if (typeof init?.body === "string" && init.body.includes('"7d"')) {
         await held;
@@ -160,6 +162,26 @@ describe("the Analytics page", () => {
     expect(
       document.querySelector(".v-analytics__body")?.getAttribute("aria-busy"),
     ).toBe("false");
+  });
+
+  it("keeps the period buttons, and their focus, when a period fails", async () => {
+    const plausible = fakePlausible();
+    const fetch: typeof plausible.fetch = async (input, init) =>
+      typeof init?.body === "string" && init.body.includes('"7d"')
+        ? new Response("", { status: 500 })
+        : plausible.fetch(input, init);
+    await open(config, {
+      url: "/analytics",
+      plausible: { ...plausible, fetch },
+    });
+    await screen.findByText("Top sources");
+    const week = screen.getByRole("button", { name: "7 days" });
+    week.focus();
+    fireEvent.click(week);
+    expect(await screen.findByText("Analytics couldn't load")).toBeTruthy();
+    expect(screen.queryByText("Top sources")).toBeNull();
+    expect(document.activeElement).toBe(week);
+    expect(week.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("goes back to the dashboard without analytics in the config", async () => {

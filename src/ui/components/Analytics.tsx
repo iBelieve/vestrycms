@@ -22,8 +22,9 @@ import { Alert } from "./ui.js";
 
 /**
  * The report for a period; refreshed every five minutes while open. While a
- * newly chosen period loads, the last period's report stays as placeholder
- * data (`isPlaceholderData`), so the page can keep its layout.
+ * newly chosen period loads, the report shown before (usually the last
+ * period's) stays as placeholder data (`isPlaceholderData`), so the page can
+ * keep its layout.
  */
 export function useAnalytics(period: AnalyticsPeriod, enabled = true) {
   const { api } = useVestry();

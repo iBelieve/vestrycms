@@ -1,5 +1,5 @@
 import { ExternalLink } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Navigate } from "react-router";
 import {
   ANALYTICS_PERIODS,
@@ -56,8 +56,8 @@ export function AnalyticsPage() {
     }
   };
   const report = query.data?.available ? query.data : null;
-  const picker = <PeriodPicker period={period} onChange={choose} />;
-  // The last period's report, kept on screen while the chosen one loads.
+  // The report shown before (usually the last period's), kept on screen
+  // while the chosen period loads.
   const loading = query.isPlaceholderData;
 
   return (
@@ -79,17 +79,19 @@ export function AnalyticsPage() {
         }
       />
       <div className="v-page">
-        {!report && <div className="v-analytics__toolbar">{picker}</div>}
+        {/* One toolbar whatever shows below it, so the period buttons (and
+            the focus on one) stay put when a report comes or goes. */}
+        <div className="v-analytics__toolbar">
+          {report && (
+            <AnalyticsMeta report={report} period={period} loading={loading} />
+          )}
+          <PeriodPicker period={period} onChange={choose} />
+        </div>
         {/* A report already shown stays when a later refresh fails. */}
         {query.isLoading ? (
           <Loading label="Loading analytics…" />
         ) : report ? (
-          <AnalyticsReportView
-            report={report}
-            period={period}
-            loading={loading}
-            toolbar={picker}
-          />
+          <AnalyticsReportView report={report} loading={loading} />
         ) : query.error ? (
           <ErrorState
             title="Analytics couldn't load"
@@ -141,73 +143,79 @@ const PAGE_STATS: TotalKey[] = [
   "visitDuration",
 ];
 
-function AnalyticsReportView({
+/** The chosen period and its dates (or "Loading…"), and who's on now. */
+function AnalyticsMeta({
   report,
   period,
   loading,
-  toolbar,
 }: {
   report: AnalyticsReport;
   /** The chosen period, which `report` is for unless it is `loading`. */
   period: AnalyticsPeriod;
   loading: boolean;
-  toolbar: ReactNode;
+}) {
+  const range = loading ? "Loading…" : rangeLabel(report.range);
+  return (
+    <p className="v-analytics__meta">
+      <span role="status">
+        {PERIOD_LABELS[period]}
+        {range && ` · ${range}`}
+      </span>
+      {report.current !== null && (
+        <span className="v-analytics__live">
+          <span className="v-analytics__pulse" />
+          {formatExact(report.current)}{" "}
+          {report.current === 1 ? "visitor" : "visitors"} right now
+        </span>
+      )}
+    </p>
+  );
+}
+
+function AnalyticsReportView({
+  report,
+  loading,
+}: {
+  report: AnalyticsReport;
+  /** `report` is another period's, shown dimmed until the chosen one loads. */
+  loading: boolean;
 }) {
   const { config } = useVestry();
   const [metric, setMetric] = useState<ChartMetric>("visitors");
-  const range = loading ? "Loading…" : rangeLabel(report.range);
   return (
-    <>
-      <div className="v-analytics__toolbar">
-        <p className="v-analytics__meta">
-          <span role="status">
-            {PERIOD_LABELS[period]}
-            {range && ` · ${range}`}
-          </span>
-          {report.current !== null && (
-            <span className="v-analytics__live">
-              <span className="v-analytics__pulse" />
-              {formatExact(report.current)}{" "}
-              {report.current === 1 ? "visitor" : "visitors"} right now
-            </span>
-          )}
-        </p>
-        {toolbar}
-      </div>
-      <div className="v-analytics__body" aria-busy={loading}>
-        <section className="v-card v-analytics__overview">
-          <div className="v-astats">
-            {PAGE_STATS.map((stat) => (
-              <AnalyticsStat
-                key={stat}
-                report={report}
-                stat={stat}
-                active={stat === metric}
-                onSelect={
-                  stat === "visitors" || stat === "pageviews"
-                    ? () => setMetric(stat)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-          <AnalyticsChart report={report} metric={metric} height={260} />
-        </section>
-        <div className="v-analytics__grid">
-          <Breakdown
-            title="Top pages"
-            rows={report.pages}
-            href={(row) => sitePageUrl(config.siteUrl, row.name)}
-          />
-          <Breakdown
-            title="Top sources"
-            rows={report.sources}
-            empty="No visits from other sites yet."
-          />
-          <Breakdown title="Countries" rows={report.countries} />
-          <Breakdown title="Devices" rows={report.devices} />
+    <div className="v-analytics__body" aria-busy={loading}>
+      <section className="v-card v-analytics__overview">
+        <div className="v-astats">
+          {PAGE_STATS.map((stat) => (
+            <AnalyticsStat
+              key={stat}
+              report={report}
+              stat={stat}
+              active={stat === metric}
+              onSelect={
+                stat === "visitors" || stat === "pageviews"
+                  ? () => setMetric(stat)
+                  : undefined
+              }
+            />
+          ))}
         </div>
+        <AnalyticsChart report={report} metric={metric} height={260} />
+      </section>
+      <div className="v-analytics__grid">
+        <Breakdown
+          title="Top pages"
+          rows={report.pages}
+          href={(row) => sitePageUrl(config.siteUrl, row.name)}
+        />
+        <Breakdown
+          title="Top sources"
+          rows={report.sources}
+          empty="No visits from other sites yet."
+        />
+        <Breakdown title="Countries" rows={report.countries} />
+        <Breakdown title="Devices" rows={report.devices} />
       </div>
-    </>
+    </div>
   );
 }
