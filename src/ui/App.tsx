@@ -17,6 +17,7 @@ import { createVestryAuthClient } from "./auth-client.js";
 import { Shell } from "./components/Layout.js";
 import { ErrorState, Loading, ToastProvider } from "./components/ui.js";
 import { VestryContext } from "./context.js";
+import { AnalyticsPage } from "./pages/Analytics.js";
 import { AssetsPage } from "./pages/Assets.js";
 import { CollectionListPage } from "./pages/CollectionList.js";
 import { DashboardPage } from "./pages/Dashboard.js";
@@ -155,6 +156,7 @@ function Root({ basePath, name }: { basePath: string; name: string }) {
                   element={<SingletonPage />}
                 />
                 <Route path="assets/:container" element={<AssetsPage />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

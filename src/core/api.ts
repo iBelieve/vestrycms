@@ -12,7 +12,12 @@ import {
   type AuthDatabase,
   type VestryAuth,
 } from "./auth.js";
-import type { Cache } from "./cache.js";
+import {
+  AnalyticsError,
+  analyticsReport,
+  isAnalyticsPeriod,
+} from "./analytics/index.js";
+import { sharedMemoryCache, type Cache } from "./cache.js";
 import { buildDashboard } from "./dashboard.js";
 import {
   DEPLOY_HISTORY,
@@ -58,6 +63,8 @@ export interface ApiOptions {
   /** Name of the binding holding the D1 database for users and sessions. */
   databaseBinding?: string;
   cache?: Cache;
+  /** Fetch for outside services such as analytics (defaults to the global one). */
+  fetch?: typeof fetch;
   /** Hook that lets hosts supply the remote source (defaults to GitHub via a GitHub App). */
   createSource?: () => ContentSource;
 }
@@ -346,9 +353,23 @@ export function createApi(options: ApiOptions) {
       );
     }
 
+    return signedInRoute(request, route, user, signIn);
+  }
+
+  /** Everything past sign-in: users, analytics, deploys and content. */
+  async function signedInRoute(
+    request: Request,
+    route: Route,
+    user: PublicUser,
+    signIn: SignIn,
+  ): Promise<Response> {
+    const { url, segments, method } = route;
     if (segments[0] === "users") {
       return usersRoute(request, route, user, signIn);
     }
+
+    // Analytics come from the provider, not the repository.
+    if (segments[0] === "analytics" && method === "GET") return analytics(url);
 
     const baseSource = resolveSource();
     if ("error" in baseSource) return error(baseSource.error, 500, "setup");
@@ -362,6 +383,21 @@ export function createApi(options: ApiOptions) {
       route,
       source,
       new ContentService(config, source, options.index),
+    );
+  }
+
+  async function analytics(url: URL): Promise<Response> {
+    const period = url.searchParams.get("period") ?? "7d";
+    if (!isAnalyticsPeriod(period))
+      return error(`Unknown period: ${period}`, 400, "bad_request");
+    return json(
+      await analyticsReport(config, period, {
+        env: options.env,
+        // Called bare: a detached `fetch` throws "Illegal invocation" in
+        // some runtimes.
+        fetch: (input, init) => (options.fetch ?? fetch)(input, init),
+        cache: options.cache ?? sharedMemoryCache(),
+      }),
     );
   }
 
@@ -518,6 +554,8 @@ function errorResponse(e: unknown): Response {
   }
   if (e instanceof SourceError) return error(e.message, e.status, e.code);
   if (e instanceof MailError) return error(e.message, 502, "mail");
+  if (e instanceof AnalyticsError)
+    return error(e.message, e.status, "analytics");
   console.error("[vestry] API error", e);
   return error(
     e instanceof Error ? e.message : "Unexpected error",
