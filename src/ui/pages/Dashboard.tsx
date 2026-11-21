@@ -37,7 +37,7 @@ function recentDateField(col: CollectionConfig): string | null {
 
 function recentCount(col: CollectionConfig): number {
   if (col.recent === false) return 0;
-  if (typeof col.recent === "number") return col.recent;
+  if (typeof col.recent === "number") return Math.max(0, col.recent);
   if (col.recent === true) return DEFAULT_RECENT;
   return sortDateField(col) ? DEFAULT_RECENT : 0;
 }
@@ -45,6 +45,9 @@ function recentCount(col: CollectionConfig): number {
 export function DashboardPage() {
   const { config, api, client } = useVestry();
   const collections = Object.entries(config.collections ?? {});
+  const creatable = collections.filter(
+    ([, col]) => recentCount(col) > 0 && isEditable(col),
+  );
   const queries = useQueries({
     queries: collections.map(([key]) => ({
       queryKey: ["entries", key],
@@ -55,7 +58,12 @@ export function DashboardPage() {
 
   return (
     <>
-      <TopBar title="Dashboard" actions={<NewEntryButtons />} />
+      <TopBar
+        title="Dashboard"
+        actions={
+          creatable.length > 0 && <NewEntryButtons collections={creatable} />
+        }
+      />
       <div className="v-page">
         <AnalyticsWidget />
         {collections.length > 0 && (
@@ -121,22 +129,27 @@ export function DashboardPage() {
 
 /**
  * A New button for each collection with a recent list that takes new
- * entries, for the dashboard's top bar.
+ * entries, for the dashboard's top bar. A collection without a `singular`
+ * is named by its label, so its button can be told from the others.
  */
-function NewEntryButtons() {
-  const { config } = useVestry();
-  const buttons = Object.entries(config.collections ?? {})
-    .filter(([, col]) => recentCount(col) > 0 && isEditable(col))
-    .map(([key, col]) => (
-      <Link
-        key={key}
-        to={`/collections/${key}/new`}
-        className="v-btn v-btn--primary"
-      >
-        <Plus /> New {col.singular ?? "entry"}
-      </Link>
-    ));
-  return buttons.length ? buttons : null;
+function NewEntryButtons({
+  collections,
+}: {
+  collections: [string, CollectionConfig][];
+}) {
+  return (
+    <>
+      {collections.map(([key, col]) => (
+        <Link
+          key={key}
+          to={`/collections/${key}/new`}
+          className="v-btn v-btn--primary"
+        >
+          <Plus /> New {col.singular ?? col.label}
+        </Link>
+      ))}
+    </>
+  );
 }
 
 /** A collection's latest entries. */
@@ -166,15 +179,7 @@ function RecentSection({
                     <span className="v-table__sub">{e.excerpt}</span>
                   )}
                 </td>
-                {dateField && (
-                  <td className="v-muted" style={{ whiteSpace: "nowrap" }}>
-                    <Clock
-                      size={13}
-                      style={{ verticalAlign: -2, marginRight: 6 }}
-                    />
-                    {formatDate(e.data[dateField])}
-                  </td>
-                )}
+                {dateField && <RecentDate value={e.data[dateField]} />}
                 <td style={{ width: 1 }}>
                   {e.status && <Badge status={e.status} />}
                 </td>
@@ -194,5 +199,18 @@ function RecentSection({
         </table>
       </div>
     </section>
+  );
+}
+
+/** A recent entry's date cell, empty (no clock) for an entry without one. */
+function RecentDate({ value }: { value: unknown }) {
+  const date = formatDate(value);
+  return (
+    <td className="v-muted" style={{ whiteSpace: "nowrap" }}>
+      {date && (
+        <Clock size={13} style={{ verticalAlign: -2, marginRight: 6 }} />
+      )}
+      {date}
+    </td>
   );
 }
