@@ -24,6 +24,7 @@ import {
   reservedSlugProblem,
   isSafeSlug,
   normalizePath,
+  previewPath,
   relativePath,
   resolveRelative,
   slugify,
@@ -526,7 +527,7 @@ export function entryDisplay({
       : null,
     previewHref:
       col.previewUrl && !isNew
-        ? `${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...data, slug })}`
+        ? `${siteUrl ?? ""}${previewPath(col.previewUrl, { ...data, slug })}`
         : null,
     /** The title and status have controls of their own. */
     editable: (key: string) => key !== statusField && key !== titleInput,

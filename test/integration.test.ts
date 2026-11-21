@@ -187,7 +187,7 @@ describe("buildIndex", () => {
     ]);
     expect(index.files["src/content/posts/first.md"]).toMatchObject({
       data: { title: "First" },
-      excerpt: "Hello Some text here .",
+      excerpt: "Some text here.",
       hasBody: true,
     });
     expect(index.files["src/content/posts/2026/second.md"]).toMatchObject({

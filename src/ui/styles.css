@@ -3678,6 +3678,10 @@ button.v-tree__toggle:hover {
   color: var(--v-primary);
 }
 .v-tree__label {
+  /* The name keeps its width ahead of a long link beside it, which takes
+     the ellipsis instead ("Donate https://www.paypal.com/…", not "Do…"). */
+  flex-shrink: 0;
+  max-width: 70%;
   font-weight: 600;
   font-size: 13.5px;
   white-space: nowrap;
@@ -3725,6 +3729,9 @@ button.v-tree__toggle:hover {
     flex-direction: column;
     align-items: stretch;
     gap: 0;
+  }
+  .v-tree__label {
+    max-width: none;
   }
   /* The hidden children's count stays a pill, not a full-width bar. */
   .v-tree__count {
