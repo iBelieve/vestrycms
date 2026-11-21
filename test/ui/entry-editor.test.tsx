@@ -18,6 +18,11 @@ import {
   singleton,
 } from "../../src/config/index.js";
 
+// Local files are `astro dev`: the page links go to its server, not to
+// `siteUrl`.
+const SITE = window.location.origin;
+const HOST = window.location.host;
+
 const config = defineConfig({
   name: "Test Site",
   siteUrl: "https://example.org",
@@ -172,7 +177,7 @@ describe("a new entry", () => {
     await user.type(titleInput(), "My First Post");
     expect(slugInput().value).toBe("my-first-post");
     // Its address is under the title, not yet a link; the slug box has no note.
-    expect(pageAddress().textContent).toBe("example.org/posts/my-first-post");
+    expect(pageAddress().textContent).toBe(`${HOST}/posts/my-first-post`);
     expect(pageAddress().querySelector("a")).toBeNull();
     expect(slugHintText()).toBeUndefined();
     await user.click(saveButton());
@@ -423,15 +428,15 @@ describe("an existing entry", () => {
   it("links its page under the title, and says where an edit moves it", async () => {
     await openPanel(config, { url: "/collections/posts/hello", files });
     await screen.findByDisplayValue("Hello");
-    const link = screen.getByRole("link", { name: "example.org/posts/hello" });
-    expect(link.getAttribute("href")).toBe("https://example.org/posts/hello");
+    const link = screen.getByRole("link", { name: `${HOST}/posts/hello` });
+    expect(link.getAttribute("href")).toBe(`${SITE}/posts/hello`);
     expect(slugHintText()).toBeUndefined();
     fireEvent.change(slugInput(), { target: { value: "hi" } });
     expect(slugHintText()).toBe("Moves to /posts/hi");
     // The page stays where it is until the rename is saved.
-    expect(link.getAttribute("href")).toBe("https://example.org/posts/hello");
+    expect(link.getAttribute("href")).toBe(`${SITE}/posts/hello`);
     expect(screen.getByTitle("View on the site").getAttribute("href")).toBe(
-      "https://example.org/posts/hello",
+      `${SITE}/posts/hello`,
     );
   });
 
@@ -458,7 +463,7 @@ describe("an existing entry", () => {
     expect(screen.getByDisplayValue("Set on save")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: /^View$/ }).getAttribute("href"),
-    ).toBe("https://example.org/posts/hello");
+    ).toBe(`${SITE}/posts/hello`);
     // A section of one field named like it shows no second label.
     expect(screen.queryByLabelText("Summary")).toBeNull();
     await user.type(summaryInput(), "Short.");

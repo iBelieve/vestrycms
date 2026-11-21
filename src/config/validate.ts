@@ -252,6 +252,14 @@ function isServerUrl(value: unknown): boolean {
   }
 }
 
+function checkPreview(what: string, preview: unknown) {
+  if (preview === undefined) return;
+  if (typeof preview !== "string" || !preview.trim())
+    fail(
+      `${what} preview must be the import specifier of an Astro component, e.g. "@/components/vestry/PagePreview.astro"`,
+    );
+}
+
 function checkCollection(
   config: VestryConfig,
   what: string,
@@ -268,6 +276,7 @@ function checkCollection(
   checkDateDefaults(what, col.schema);
   checkEntryFields(what, col);
   checkTemplate(`${what} previewUrl`, col.previewUrl);
+  checkPreview(what, col.preview);
   checkTemplate(`${what} slug.template`, col.slug?.template);
   // A `*` path lists only the files directly in its directory, so entries
   // created in subfolders would never show up again.
@@ -371,6 +380,8 @@ function checkIcon(what: string, icon: unknown) {
 
 function checkComponent(name: string, component: ComponentConfig) {
   checkIcon(`component "${name}" icon`, component.icon);
+  if (component.preview !== undefined && typeof component.preview !== "boolean")
+    fail(`component "${name}" preview must be true or false`);
   const props = component.props ?? {};
   const dated = [...Object.entries(props), ...nestedFields(props)].find(
     ([, field]) => isFilenameDate(field),

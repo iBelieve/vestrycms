@@ -7,6 +7,7 @@ import { memoryAdapter } from "better-auth/adapters/memory";
 import { describe, expect, it } from "vitest";
 import { createApi } from "../src/core/api.js";
 import { memoryMailer } from "../src/core/mail.js";
+import { verifyPreviewToken } from "../src/core/preview.js";
 import { LocalSource } from "../src/core/sources/local.js";
 import type { VestryConfig } from "../src/config/types.js";
 
@@ -291,6 +292,24 @@ describe("user management", () => {
     });
     expect(r.status).toBe(404);
     expect((await currentUser(owner))!.role).toBe("admin");
+  });
+});
+
+describe("preview tokens", () => {
+  it("are given to signed-in users, signed with the sign-in secret", async () => {
+    const { status, data } = await owner.call<{
+      token: string;
+      expires: number;
+    }>("POST", "/preview/token");
+    expect(status).toBe(200);
+    expect(data.expires).toBeGreaterThan(Date.now());
+    expect(
+      await verifyPreviewToken(
+        data.token,
+        "test-secret-test-secret-test-secret-1234",
+      ),
+    ).toBe(true);
+    expect((await browser().call("POST", "/preview/token")).status).toBe(401);
   });
 });
 

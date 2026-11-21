@@ -6,11 +6,16 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { loadEnv } from "vite";
 import type { VestryConfig } from "./config/types.js";
-import { createApi } from "./core/api.js";
+import { createApi, DEV_SECRET } from "./core/api.js";
 import type { BuildIndex } from "./core/index-types.js";
 import { buildIndex } from "./integration/build-index.js";
 import { formatterModule } from "./integration/formatter.js";
 import { logoModule } from "./integration/logo.js";
+import {
+  hasPreview,
+  previewModule,
+  type PreviewAuth,
+} from "./integration/preview.js";
 import { nodeToFetchHandler } from "./integration/dev-middleware.js";
 import { LocalSource } from "./core/sources/local.js";
 import { consoleMailer } from "./core/mail.js";
@@ -47,6 +52,7 @@ const VIRTUAL = {
   runtime: "virtual:vestry/runtime",
   formatter: "virtual:vestry/formatter",
   logo: "virtual:vestry/logo",
+  preview: "virtual:vestry/preview",
 } as const;
 
 export default function vestry(
@@ -100,6 +106,16 @@ export default function vestry(
           },
           load(id) {
             if (!id.startsWith("\0")) return null;
+            if (id.slice(1) === VIRTUAL.preview)
+              return previewModule(config, {
+                // Resolved as the site's own files would be, so `@/…`
+                // aliases work.
+                resolve: async (specifier) =>
+                  (await this.resolve(specifier, path.join(root, "index.ts")))
+                    ?.id ?? null,
+                warn: (message) => logger.warn(message),
+                auth: previewAuth(isDev, mode, readEnv),
+              });
             return virtualModule(id.slice(1), {
               config,
               basePath,
@@ -150,6 +166,12 @@ export default function vestry(
           entrypoint: "vestrycms/pages/api",
           prerender: false,
         });
+        if (hasPreview(config))
+          injectRoute({
+            pattern: `${basePath}/preview/render`,
+            entrypoint: "vestrycms/pages/preview.astro",
+            prerender: false,
+          });
         injectRoute({
           pattern: `${basePath}/[...path]`,
           entrypoint: "vestrycms/pages/admin.astro",
@@ -181,6 +203,22 @@ function modeDescription(
   if (mode === "local") return "editing local files, no sign-in";
   if (mode === "auth") return "editing local files, sign-in required";
   return `GitHub ${config.repo.owner}/${config.repo.name}`;
+}
+
+/**
+ * How the preview route checks requests, matching the API's sign-in: none
+ * in plain local dev, dev's secret (or `VESTRY_SECRET`) in dev with sign-in,
+ * and `VESTRY_SECRET` read at run time in a build, so it never lands in the
+ * bundle.
+ */
+function previewAuth(
+  isDev: boolean,
+  mode: "local" | "auth" | "github",
+  readEnv: (key: string) => string | undefined,
+): PreviewAuth {
+  if (!isDev) return { mode: "env" };
+  if (mode === "local") return { mode: "none" };
+  return { mode: "secret", secret: readEnv("VESTRY_SECRET") ?? DEV_SECRET };
 }
 
 /** The source of one of the integration's virtual modules, by its id. */

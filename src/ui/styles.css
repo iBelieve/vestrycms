@@ -3915,3 +3915,85 @@ button.v-tree__toggle:hover {
     font-size: 16px;
   }
 }
+
+/* ------------------------------------------------------- Live preview */
+
+.v-preview {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--v-bg);
+}
+.v-preview__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  background: var(--v-surface);
+  border-bottom: 1px solid var(--v-border);
+}
+.v-preview__entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+.v-preview__entry strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v-preview__path {
+  color: var(--v-text-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v-preview__status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 110px;
+  color: var(--v-text-muted);
+  font-size: 13px;
+}
+.v-preview__status.is-error {
+  color: var(--v-danger);
+  min-width: 0;
+}
+.v-preview__stage {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  overflow: auto;
+}
+.v-preview__stage > .v-empty {
+  align-self: center;
+}
+.v-preview__viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  transition: width 0.2s ease;
+}
+.v-preview__viewport[style] {
+  box-shadow: 0 0 0 1px var(--v-border-strong);
+}
+.v-preview__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  visibility: hidden;
+}
+.v-preview__frame[data-front] {
+  visibility: visible;
+}

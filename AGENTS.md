@@ -17,8 +17,11 @@ main consumer; keep it free of site-specific code.
 
 - `pnpm build` – `scripts/build.mjs`: `tsc -p tsconfig.build.json` into
   `dist/`, copy `pages/admin.astro` (client script rewritten to
-  `../ui/main.js`), `ui/styles.css` and `env.d.ts`, then check
-  `src/integration/client-deps.ts` against the compiled UI's bare imports.
+  `../ui/main.js`), the preview route's `pages/preview.astro` and
+  `pages/PreviewParts.astro` (they import compiled modules by their `.js`
+  names, so they only run from `dist/`), `ui/styles.css` and `env.d.ts`,
+  then check `src/integration/client-deps.ts` against the compiled UI's
+  bare imports.
 - `pnpm dev` – build, then `tsc --watch` (for a site linked with
   `pnpm link`).
 - `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `pnpm lint`,
@@ -55,7 +58,10 @@ main consumer; keep it free of site-specific code.
   sizes, and CodeMirror is mocked where a test types code.
   `virtual:vestry/formatter` resolves to `test/ui/formatter-stub.ts` and
   `virtual:vestry/logo` to `test/ui/logo-stub.ts` (no bundled logo, so the
-  panel loads it through the API) (`vitest.config.ts`).
+  panel loads it through the API) and `virtual:vestry/preview` to
+  `test/preview-stub.ts` (a `pages` preview, whose `auth` tests change in
+  place) (`vitest.config.ts`). `openPanel`'s `site` answers requests
+  outside the API, such as the preview route's.
 - `test/fixtures/mdx` files must round-trip byte for byte, so Prettier skips
   them; write them in the serializer's canonical style.
 - The fixtures also pass through the editor schema
@@ -76,9 +82,10 @@ main consumer; keep it free of site-specific code.
 
 - Only `dist/` is published. Exports: `.`, `./config`, `./core`, `./mdx`
   (the MDX ⇄ editor document converter, for migration scripts),
-  `./pages/admin.astro`, `./pages/api`. The integration injects its routes
-  by package specifier (`vestrycms/pages/...`), so the package name and
-  these exports must stay in step.
+  `./pages/admin.astro`, `./pages/api`, `./pages/preview.astro`. The
+  integration injects its routes by package specifier
+  (`vestrycms/pages/...`), so the package name and these exports must stay
+  in step.
 - Relative imports use `.js` extensions so tsc output runs as-is.
 - When the control panel gains or drops a browser dependency, update
   `src/integration/client-deps.ts`; the build fails until it matches. The

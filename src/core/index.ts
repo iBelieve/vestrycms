@@ -11,3 +11,4 @@ export * from "./index-types.js";
 export * from "./values.js";
 export { GitHubSource } from "./sources/github.js";
 export * from "./sources/github-app.js";
+export type { PreviewEntry } from "./preview.js";

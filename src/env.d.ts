@@ -25,3 +25,11 @@ declare module "virtual:vestry/logo" {
   const url: string | null;
   export default url;
 }
+
+declare module "virtual:vestry/preview" {
+  /** The site's components, by their name in `config.components`. */
+  export const components: Record<string, unknown>;
+  /** Each previewable collection's preview component, by collection key. */
+  export const previews: Record<string, unknown>;
+  export const auth: import("./integration/preview.js").PreviewAuth;
+}

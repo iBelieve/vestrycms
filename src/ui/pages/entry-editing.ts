@@ -604,7 +604,7 @@ export type Saved = { slug: string; data: Record<string, unknown> };
  * The path of an entry's page on the site, from its collection's
  * `previewUrl` (an `index` entry's is its folder's), or null without one.
  */
-function sitePath(
+export function sitePath(
   col: CollectionConfig | SingletonConfig,
   slug: string,
   data: Record<string, unknown>,

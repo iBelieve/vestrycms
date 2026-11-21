@@ -402,6 +402,17 @@ export interface CollectionConfig {
    */
   previewUrl?: string;
   /**
+   * The Astro component that draws an entry's live preview, as an import
+   * specifier (`@/components/vestry/PagePreview.astro`), which adds a
+   * Preview button to the editor. It is rendered on request with the
+   * unsaved entry as its `entry` prop (`{ collection, slug, path, data }`,
+   * `data` as the file would hold it: dates as strings, images and files as
+   * their fields store them) and the body, drawn with the site's
+   * components, in its default slot. Usually it passes them to the layout
+   * the entry's page uses.
+   */
+  preview?: string;
+  /**
    * The icon beside it in the sidebar and on the dashboard: a Lucide name
    * from the panel's set (`ICON_NAMES`). Any other name is an error at
    * startup.
@@ -504,6 +515,13 @@ export interface ComponentConfig {
   children?: boolean | "text";
   /** Render inline (within a paragraph) rather than as a block. */
   inline?: boolean;
+  /**
+   * `false` leaves the component out of the live preview, which shows a
+   * placeholder in its place. For a component that reads what only the
+   * build has, such as a list of the site's entries from `astro:content`:
+   * importing it would put all of that into the Worker.
+   */
+  preview?: boolean;
 }
 
 /** A named inline style for rich text: a class on a `<span>`. */

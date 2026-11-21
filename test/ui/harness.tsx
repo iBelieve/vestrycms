@@ -122,10 +122,13 @@ export async function openPanel(
     url = "/",
     files = {},
     api: apiOptions = {},
+    site,
   }: {
     url?: string;
     files?: Record<string, string>;
     api?: Partial<ApiOptions>;
+    /** Answers requests outside the API, such as the preview route's. */
+    site?: (request: Request) => Promise<Response> | Response;
   } = {},
 ) {
   const root = await project(files);
@@ -161,7 +164,10 @@ export async function openPanel(
         url: request.url.slice(ORIGIN.length),
         body: text ? JSON.parse(text) : undefined,
       });
-      const response = await api.handle(request);
+      const response =
+        site && !new URL(request.url).pathname.startsWith("/admin/api/")
+          ? await site(request)
+          : await api.handle(request);
       for (const cookie of response.headers.getSetCookie()) {
         const [pair, ...attrs] = cookie.split(";");
         // A value may hold "=" itself (base64 padding).
