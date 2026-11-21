@@ -43,7 +43,7 @@ export function recentDateField(col: CollectionConfig): string | null {
 /** How many entries the collection's "Recent …" list shows (0: none). */
 export function recentCount(col: CollectionConfig): number {
   if (col.recent === false) return 0;
-  if (typeof col.recent === "number") return col.recent;
+  if (typeof col.recent === "number") return Math.max(0, col.recent);
   if (col.recent === true) return DEFAULT_RECENT;
   return sortDateField(col) ? DEFAULT_RECENT : 0;
 }

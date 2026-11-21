@@ -296,4 +296,11 @@ describe("inSentence", () => {
     expect(inSentence("PDF Downloads")).toBe("PDF downloads");
     expect(inSentence("A")).toBe("a");
   });
+
+  it("judges each part of a hyphenated word, and non-ASCII capitals", () => {
+    expect(inSentence("Pre-Service Notes")).toBe("pre-service notes");
+    expect(inSentence("COVID-19 Updates")).toBe("COVID-19 updates");
+    expect(inSentence("ÉTÉ Notes")).toBe("ÉTÉ notes");
+    expect(inSentence("Événements")).toBe("événements");
+  });
 });

@@ -32,6 +32,7 @@ import {
   cx,
   defaultValues,
   fieldLabel,
+  inSentence,
   type ValidationError,
 } from "../../lib/utils.js";
 import { Button } from "../ui.js";
@@ -188,7 +189,7 @@ export function TreeInput({
       </DndContext>
       <Button size="sm" className="v-list__add" onClick={() => add(null)}>
         <Plus />{" "}
-        {field.addLabel ?? `Add ${fieldLabel("item", field).toLowerCase()}`}
+        {field.addLabel ?? `Add ${inSentence(fieldLabel("item", field))}`}
       </Button>
     </div>
   );

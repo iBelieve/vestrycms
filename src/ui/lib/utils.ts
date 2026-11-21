@@ -60,10 +60,11 @@ export function splitLinks(text: string): { text: string; url?: string }[] {
 /**
  * A label lowercased to sit mid-sentence ("Recent articles"), keeping
  * acronyms and names with capitals past their first letter ("FAQs", "iPad").
+ * Each part of a hyphenated word is judged on its own ("pre-service").
  */
 export function inSentence(label: string): string {
-  return label.replace(/\S+/g, (word) =>
-    /[A-Z]/.test(word.slice(1)) ? word : word.toLowerCase(),
+  return label.replace(/[^\s-]+/g, (word) =>
+    /\p{Lu}/u.test(word.slice(1)) ? word : word.toLowerCase(),
   );
 }
 

@@ -60,6 +60,12 @@ describe("the dashboard", () => {
           date: fields.date(),
         },
       }),
+      events: collection({
+        label: "Events",
+        path: "src/content/events/*.md",
+        sort: { field: "date", direction: "desc" },
+        schema: { title: fields.text(), date: fields.date() },
+      }),
       days: collection({
         label: "Days",
         path: "src/content/days/*.md",
@@ -93,6 +99,8 @@ describe("the dashboard", () => {
     ).toEqual([
       ["New Post", "/admin/collections/posts/new"],
       ["New FAQ", "/admin/collections/faqs/new"],
+      // No `singular`: named by its label, not "New entry".
+      ["New Events", "/admin/collections/events/new"],
     ]);
   });
 

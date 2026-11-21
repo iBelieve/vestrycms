@@ -116,6 +116,7 @@ describe("recent lists", () => {
     expect(recentCount(pages)).toBe(0);
     expect(recentCount({ ...posts, recent: false })).toBe(0);
     expect(recentCount({ ...pages, recent: true })).toBe(5);
+    expect(recentCount({ ...pages, recent: -3 })).toBe(0);
   });
 
   it("show the sort date, else the first date column", () => {
