@@ -68,6 +68,7 @@ type IconComponent = React.ComponentType<LucideProps>;
 const ICONS: Record<IconName, IconComponent> = {
   "app-window": AppWindow,
   "book-down": BookDown,
+  // Lucide's old name for `book-bookmark`, which site configs already use.
   "book-marked": BookMarked,
   "book-open": BookOpen,
   box: Box,
@@ -100,6 +101,7 @@ const ICONS: Record<IconName, IconComponent> = {
   "map-pin": MapPin,
   menu: Menu,
   "mouse-pointer-click": MousePointerClick,
+  // Lucide's old name for `eighth-notes`, which site configs already use.
   music: Music,
   newspaper: Newspaper,
   "notebook-pen": NotebookPen,
