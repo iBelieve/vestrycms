@@ -62,6 +62,11 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Whether a (normalized) string looks like an email address. */
+export function isEmailAddress(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 /** Display name fallback: the part before the `@`, title-cased a little. */
 export function nameFromEmail(email: string): string {
   const local = email.split("@")[0] ?? email;
@@ -168,26 +173,7 @@ export function createVestryAuth(opts: VestryAuthOptions) {
         if (ctx.path !== "/email-otp/send-verification-otp") return;
         const email = normalizeEmail(String(ctx.body?.email ?? ""));
         if (!isConfigAdmin(email)) return;
-        const existing =
-          await ctx.context.internalAdapter.findUserByEmail(email);
-        if (existing) {
-          const role = (existing.user as { role?: string }).role;
-          if (role !== "admin") {
-            await ctx.context.internalAdapter.updateUser(existing.user.id, {
-              role: "admin",
-            });
-          }
-          return;
-        }
-        await ctx.context.internalAdapter.createUser(
-          {
-            email,
-            name: nameFromEmail(email),
-            emailVerified: false,
-            role: "admin",
-          },
-          { method: "email-otp" },
-        );
+        await ensureConfigAdmin(ctx.context.internalAdapter, email);
       }),
     },
     plugins: [
@@ -276,10 +262,61 @@ export function createVestryAuth(opts: VestryAuthOptions) {
       ...inviteEmail(opts.siteName, opts.adminUrl, by.name, user),
     });
 
-  return { auth, ensureMigrated, toPublicUser, isConfigAdmin, sendInvite };
+  /**
+   * Gives every config admin an account, as their first sign-in would, so
+   * the Users page lists them (to rename or invite) before they sign in.
+   * An entry that isn't an address (empty, or a typo without a domain) gets
+   * none: nobody could sign in to it, and it couldn't be removed.
+   */
+  const ensureConfigAdmins = async () => {
+    const { internalAdapter } = await auth.$context;
+    const emails = [...new Set(admins)].filter(isEmailAddress);
+    await Promise.all(
+      emails.map((email) => ensureConfigAdmin(internalAdapter, email)),
+    );
+  };
+
+  return {
+    auth,
+    ensureMigrated,
+    toPublicUser,
+    isConfigAdmin,
+    ensureConfigAdmins,
+    sendInvite,
+  };
 }
 
 export type VestryAuth = ReturnType<typeof createVestryAuth>;
+
+type InternalAdapter = Awaited<
+  ReturnType<typeof betterAuth>["$context"]
+>["internalAdapter"];
+
+/** A config admin's account, created as an admin, or made one again. */
+async function ensureConfigAdmin(adapter: InternalAdapter, email: string) {
+  const existing = await adapter.findUserByEmail(email);
+  if (existing) {
+    const role = (existing.user as { role?: string }).role;
+    if (role !== "admin")
+      await adapter.updateUser(existing.user.id, { role: "admin" });
+    return;
+  }
+  try {
+    await adapter.createUser(
+      {
+        email,
+        name: nameFromEmail(email),
+        emailVerified: false,
+        role: "admin",
+      },
+      { method: "email-otp" },
+    );
+  } catch (e) {
+    // Another request created it a moment earlier (the Users page opening
+    // while the address asks for a code, say); the email is unique.
+    if (!(await adapter.findUserByEmail(email))) throw e;
+  }
+}
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value);

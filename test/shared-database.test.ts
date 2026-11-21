@@ -2,12 +2,13 @@
  * Several sites sharing one database through `auth.tablePrefix`: each gets
  * its own tables from the migrator, and a user of one site is a stranger to
  * the others. Runs on a real `node:sqlite` database so the migrator and the
- * prefixed table names are exercised for real.
+ * prefixed table names are exercised for real, as is the unique email that
+ * config admins' accounts are created against.
  */
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createApi } from "../src/core/api.js";
-import { AUTH_TABLES } from "../src/core/auth.js";
+import { AUTH_TABLES, createVestryAuth } from "../src/core/auth.js";
 import { memoryMailer } from "../src/core/mail.js";
 import { LocalSource } from "../src/core/sources/local.js";
 import type { VestryConfig } from "../src/config/types.js";
@@ -124,5 +125,36 @@ describe("auth.tablePrefix", () => {
     expect(((await res2.json()) as { setupError?: string }).setupError).toMatch(
       /lowercase/,
     );
+  });
+});
+
+describe("config admins' accounts", () => {
+  it("are created once, however many requests ask at the same time", async () => {
+    const db = new DatabaseSync(":memory:");
+    const vestryAuth = createVestryAuth({
+      database: db,
+      mailer: memoryMailer(),
+      secret: "test-secret-test-secret-test-secret-1234",
+      baseURL: "http://vestry.test",
+      basePath: "/admin/api/auth",
+      siteName: "Test Site",
+      adminUrl: "http://vestry.test/admin",
+      admins: ["a@example.org", "A@Example.org", "b@example.org", "", "owner"],
+      dev: true,
+    });
+    await vestryAuth.ensureMigrated();
+    // Two Users pages opening together, as two admins (or tabs) might.
+    await Promise.all([
+      vestryAuth.ensureConfigAdmins(),
+      vestryAuth.ensureConfigAdmins(),
+    ]);
+    const rows = db
+      .prepare("SELECT email, role FROM user ORDER BY email")
+      .all() as { email: string; role: string }[];
+    // Entries that aren't addresses get no account nobody could sign in to.
+    expect(rows.map((r) => ({ ...r }))).toEqual([
+      { email: "a@example.org", role: "admin" },
+      { email: "b@example.org", role: "admin" },
+    ]);
   });
 });

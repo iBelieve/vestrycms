@@ -104,8 +104,12 @@ Sign-in runs on [Better Auth](https://www.better-auth.com) with its email OTP
 and admin plugins. Editors sign in with a six-digit code emailed to them;
 there are no passwords. `auth.admins` lists the addresses that are always
 admins (they can sign in before anyone has invited them, which bootstraps the
-user list). Admins invite everyone else from the **Users** page and choose a
-role:
+user list). The **Users** page lists them before their first sign-in too,
+named from their address, so an admin can rename them or send them an
+invitation. That listing gives each address its account, so taking an
+address out of `auth.admins` later leaves it an ordinary admin: remove it on
+the **Users** page as well. Admins invite everyone else from the **Users**
+page and choose a role:
 
 | Role     | Can                                                          |
 | -------- | ------------------------------------------------------------ |

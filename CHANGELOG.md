@@ -42,6 +42,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Changed
 
+- **Config admins are listed before they sign in.** Each address in
+  `auth.admins` gets its account when an admin opens the Users page, as
+  their first sign-in would, so they can be renamed or sent an invitation
+  before then. Taking an address out of `auth.admins` afterwards leaves its
+  account as an ordinary admin, to remove on the Users page. Entries that
+  aren't addresses get no account.
 - **Unknown icons are an error at startup** on collections, singletons,
   asset containers and components, as they already were on pinned entries,
   instead of quietly showing a file icon. The message lists the names the
