@@ -13,16 +13,16 @@ while Vestry is below 1.0, a minor version may change behaviour.
   and devices), read from Plausible's Stats API, including self-hosted
   Plausible, with the key in the `VESTRY_PLAUSIBLE_API_KEY` secret. Built
   so other providers can be added.
-- **New entry from the dashboard.** Each "Recent …" list on the dashboard
-  has a **New …** button for its collection (not for `fixedEntries` or
-  `readOnly` collections).
+- **New entry from the dashboard.** The dashboard's top bar has a
+  **New …** button for each collection with a "Recent …" list (not for
+  `fixedEntries` or `readOnly` collections).
 - A "Recent …" list for a collection not sorted by a date
   (`recent: true`) shows the first date field in its `columns`.
 
 ### Fixed
 
-- Labels set mid-sentence ("All FAQs", "Search FAQs…", "New FAQ") keep
-  their acronyms instead of becoming "faqs".
+- Labels set mid-sentence ("All FAQs", "Search FAQs…", "Create the first
+  FAQ") keep their acronyms instead of becoming "faqs".
 
 ## 0.6.0
 

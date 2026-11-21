@@ -546,8 +546,9 @@ to hide it, `recent: true` to show it for other collections, or a number to
 change how many entries appear. The list follows the collection's sort, so
 `recent: true` on a collection sorted by a number (`number`, descending)
 shows the highest numbers. It shows the sort field's date, or else the first
-date field in `columns`. Each list has a **New …** button for the
-collection, unless it is `fixedEntries` or `readOnly`.
+date field in `columns`. The dashboard's top bar has a **New …** button
+for each collection with a recent list, unless it is `fixedEntries` or
+`readOnly`.
 
 ## Analytics
 
