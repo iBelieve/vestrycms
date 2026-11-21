@@ -151,13 +151,19 @@ export function tickIndexes(length: number, count: number): number[] {
   return out;
 }
 
-/** A round axis maximum at or above `max`, and its gridline values. */
+/**
+ * A round axis maximum at or above `max`, and its gridline values. The
+ * values are counts, so steps are whole numbers: a 0.25 or 2.5 step would
+ * label its gridlines with rounded, repeated numbers ("0, 0, 1, 1, 1").
+ */
 export function niceScale(max: number, lines = 4): number[] {
   if (max <= 0) return [0, 1];
   const raw = max / lines;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   const step =
-    [1, 2, 2.5, 5, 10].find((m) => m * magnitude >= raw)! * magnitude;
+    [1, 2, 2.5, 5, 10]
+      .map((m) => m * magnitude)
+      .find((s) => s >= raw && Number.isInteger(s)) ?? Math.ceil(raw);
   const top = Math.ceil(max / step) * step;
   const out: number[] = [];
   for (let v = 0; v <= top + step / 2; v += step) out.push(v);

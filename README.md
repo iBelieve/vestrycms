@@ -564,6 +564,9 @@ analytics: {
 },
 ```
 
+`host` must be https (plain http only for `localhost`, since the key
+travels with every request).
+
 Plausible is the first provider, read through its
 [Stats API](https://plausible.io/docs/stats-api) with a Stats API key in
 the `VESTRY_PLAUSIBLE_API_KEY` secret (`pnpm wrangler secret put

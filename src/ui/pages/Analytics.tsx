@@ -78,8 +78,11 @@ export function AnalyticsPage() {
       />
       <div className="v-page">
         {!report && <div className="v-analytics__toolbar">{picker}</div>}
+        {/* A report already shown stays when a later refresh fails. */}
         {query.isLoading ? (
           <Loading label="Loading analytics…" />
+        ) : report ? (
+          <AnalyticsReportView report={report} toolbar={picker} />
         ) : query.error ? (
           <ErrorState
             title="Analytics couldn't load"
@@ -87,8 +90,6 @@ export function AnalyticsPage() {
             onRetry={() => void query.refetch()}
             retrying={query.isFetching}
           />
-        ) : report ? (
-          <AnalyticsReportView report={report} toolbar={picker} />
         ) : (
           query.data && <AnalyticsUnavailableNote status={query.data} />
         )}

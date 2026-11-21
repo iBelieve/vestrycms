@@ -157,6 +157,20 @@ describe("the Plausible provider", () => {
     );
   });
 
+  it("says when the server answers something other than a report", async () => {
+    const html: typeof fetch = async () =>
+      new Response("<!DOCTYPE html><title>Sign in</title>", { status: 200 });
+    await expect(
+      analyticsReport(config, "7d", {
+        env,
+        fetch: html,
+        cache: new MemoryCache(),
+      }),
+    ).rejects.toThrow(
+      "Plausible at https://analytics.example.net didn't answer with a Stats API report.",
+    );
+  });
+
   it("passes other errors along", async () => {
     await expect(
       report("7d", fakePlausible({ fail: { status: 400, body: "nope" } })),
@@ -237,6 +251,13 @@ describe("date ranges", () => {
     expect(siteHour(["2026-11-21T00:00:00Z", "x"], now)).toBe("2026-11-21 02");
     expect(siteHour(["2026-11-21", "2026-11-21"], now)).toBeNull();
     expect(siteHour(undefined, now)).toBeNull();
+    // The day the clocks go back: from 2 AM the end's offset is the one.
+    expect(
+      siteHour(
+        ["2026-11-01T00:00:00-05:00", "2026-11-01T23:59:59-06:00"],
+        new Date("2026-11-01T18:00:00Z"),
+      ),
+    ).toBe("2026-11-01 12");
   });
 
   it("compares with as many days just before", () => {
@@ -251,6 +272,53 @@ describe("date ranges", () => {
     ).toEqual(["2026-12-27", "2027-01-02"]);
     expect(previousRange("day", range)).toBeNull();
     expect(previousRange("7d", null)).toBeNull();
+  });
+
+  it("compares the month periods month for month, up to today", () => {
+    const sixMonths = { start: "2026-06-01", end: "2026-11-30" };
+    // Plausible's range runs to the end of this month; only Nov 1–20 have
+    // numbers, so the comparison stops at May 20.
+    expect(previousRange("6mo", sixMonths, "2026-11-20")).toEqual([
+      "2025-12-01",
+      "2026-05-20",
+    ]);
+    expect(previousRange("6mo", sixMonths)).toEqual([
+      "2025-12-01",
+      "2026-05-31",
+    ]);
+    expect(previousRange("6mo", sixMonths, "2026-11-30")).toEqual([
+      "2025-12-01",
+      "2026-05-31",
+    ]);
+    expect(
+      previousRange(
+        "12mo",
+        { start: "2025-09-01", end: "2026-08-31" },
+        "2026-08-30",
+      ),
+    ).toEqual(["2024-09-01", "2025-08-30"]);
+    // Feb 2026 has no 31st: the day the months land on is clamped.
+    expect(
+      previousRange(
+        "6mo",
+        { start: "2026-03-01", end: "2026-08-31" },
+        "2026-08-30",
+      ),
+    ).toEqual(["2025-09-01", "2026-02-28"]);
+    // A day range that runs past today is compared over its days so far.
+    expect(
+      previousRange(
+        "7d",
+        { start: "2026-11-14", end: "2026-11-20" },
+        "2026-11-17",
+      ),
+    ).toEqual(["2026-11-10", "2026-11-13"]);
+    // A range that already ended is compared whole.
+    const thirty = { start: "2026-10-21", end: "2026-11-19" };
+    expect(previousRange("30d", thirty, "2026-11-20")).toEqual([
+      "2026-09-21",
+      "2026-10-20",
+    ]);
   });
 });
 
@@ -344,5 +412,16 @@ describe("analytics config", () => {
       check({ provider: "plausible", siteId: "x", host: "analytics.example" }),
     ).toThrow("analytics.host must be the Plausible server's URL");
     expect(check("plausible")).toThrow("analytics must be an object");
+  });
+
+  it("keeps the API key off plain http, except on this machine", () => {
+    const host = (h: string) =>
+      check({ provider: "plausible", siteId: "x", host: h });
+    expect(host("http://analytics.example.org")).toThrow("analytics.host");
+    expect(host("https://analytics.example.org/?site=x")).toThrow(
+      "analytics.host",
+    );
+    expect(host("http://localhost:8000")).not.toThrow();
+    expect(host("http://127.0.0.1:8000")).not.toThrow();
   });
 });

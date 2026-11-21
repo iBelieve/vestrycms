@@ -33,16 +33,17 @@ export function AnalyticsWidget() {
           Analytics <ArrowRight size={12} />
         </Link>
       </h2>
+      {/* A report already shown stays when a later refresh fails. */}
       {query.isLoading ? (
         <div className="v-card v-analytics-widget__loading">
           <Spinner /> Loading visitors…
         </div>
+      ) : query.data?.available ? (
+        <WidgetReport report={query.data} />
       ) : query.error ? (
         <Alert kind="warning">
           {`Couldn't load analytics: ${describeError(query.error).message}`}
         </Alert>
-      ) : query.data?.available ? (
-        <WidgetReport report={query.data} />
       ) : (
         query.data && <AnalyticsUnavailableNote status={query.data} />
       )}

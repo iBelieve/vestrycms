@@ -22,6 +22,9 @@ const PLAUSIBLE_HOST = "https://plausible.io";
 /** How many rows each breakdown lists. */
 const BREAKDOWN_LIMIT = 10;
 
+/** How long a request may take before the server counts as unreachable. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 const TOTAL_METRICS = [
   "visitors",
   "visits",
@@ -65,7 +68,7 @@ export function plausibleProvider(
       error: `Missing environment variable: ${PLAUSIBLE_API_KEY} (a Plausible Stats API key).`,
     };
   const host = (config.host ?? PLAUSIBLE_HOST).replace(/\/+$/, "");
-  const siteId = config.siteId;
+  const siteId = config.siteId.trim();
   const headers = { Authorization: `Bearer ${apiKey}` };
 
   async function query(q: PlausibleQuery): Promise<PlausibleResponse> {
@@ -74,13 +77,22 @@ export function plausibleProvider(
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({ site_id: siteId, ...q }),
     });
-    return (await res.json()) as PlausibleResponse;
+    const body = await readReport(res);
+    // A proxy or sign-in page in front of the server answers 200 with HTML.
+    if (!body)
+      throw new AnalyticsError(
+        `Plausible at ${host} didn't answer with a Stats API report. Check that analytics.host is the Plausible server.`,
+      );
+    return body;
   }
 
   async function send(url: string, init: RequestInit): Promise<Response> {
     let res: Response;
     try {
-      res = await fetch(url, init);
+      res = await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
     } catch (e) {
       throw new AnalyticsError(
         `Couldn't reach Plausible at ${host}: ${e instanceof Error ? e.message : String(e)}`,
@@ -120,13 +132,14 @@ export function plausibleProvider(
   const devices = breakdown("visit:device");
 
   async function totalsWithPrevious(period: AnalyticsPeriod) {
-    const now = await query({ metrics: TOTAL_METRICS, date_range: period });
-    const range = resolvedRange(now.query?.date_range);
-    const before = previousRange(period, range);
+    const res = await query({ metrics: TOTAL_METRICS, date_range: period });
+    const range = resolvedRange(res.query?.date_range);
+    const today = siteNow(res.query?.date_range, now())?.slice(0, 10);
+    const before = previousRange(period, range, today);
     const previous = before
       ? totals(await query({ metrics: TOTAL_METRICS, date_range: before }))
       : null;
-    return { totals: totals(now), previous, range };
+    return { totals: totals(res), previous, range };
   }
 
   async function series(period: AnalyticsPeriod) {
@@ -141,9 +154,11 @@ export function plausibleProvider(
     // Today's hours that haven't come yet would chart as a drop to zero.
     const until =
       period === "day" ? siteHour(res.query?.date_range, now()) : null;
+    // Labels are `2026-11-20 14:00:00`; compare an ISO `T` form the same way.
+    const hour = (time: string) => time.slice(0, 13).replace("T", " ");
     return {
       interval,
-      series: until ? all.filter((p) => p.time.slice(0, 13) <= until) : all,
+      series: until ? all.filter((p) => hour(p.time) <= until) : all,
     };
   }
 
@@ -192,6 +207,18 @@ async function refusal(res: Response, siteId: string): Promise<string> {
   return `Plausible answered HTTP ${res.status}${detail ? `: ${detail}` : "."}`;
 }
 
+/** A query's answer, or null when it isn't JSON with a `results` list. */
+async function readReport(res: Response): Promise<PlausibleResponse | null> {
+  try {
+    const body = (await res.json()) as Partial<PlausibleResponse> | null;
+    return body && Array.isArray(body.results)
+      ? (body as PlausibleResponse)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 const num = (value: number | null | undefined): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
@@ -238,21 +265,34 @@ function points(res: PlausibleResponse): AnalyticsPoint[] {
   }));
 }
 
-/**
- * The current hour on the site's clock (`2026-11-20 14`), from the UTC
- * offset of the resolved range Plausible echoes; null without one.
- */
-export function siteHour(range: unknown, now: Date): string | null {
-  const start = Array.isArray(range) ? range[0] : undefined;
-  const offset =
-    typeof start === "string" ? /(Z|([+-])(\d{2}):(\d{2}))$/.exec(start) : null;
+const UTC_OFFSET = /(Z|([+-])(\d{2}):(\d{2}))$/;
+
+/** The UTC offset at the end of an ISO time, in minutes; null without one. */
+function offsetMinutes(time: unknown): number | null {
+  const offset = typeof time === "string" ? UTC_OFFSET.exec(time) : null;
   if (!offset) return null;
-  const minutes = offset[2]
-    ? (offset[2] === "-" ? -1 : 1) *
-      (Number(offset[3]) * 60 + Number(offset[4]))
-    : 0;
-  const local = new Date(now.getTime() + minutes * 60_000).toISOString();
-  return `${local.slice(0, 10)} ${local.slice(11, 13)}`;
+  if (!offset[2]) return 0;
+  const minutes = Number(offset[3]) * 60 + Number(offset[4]);
+  return offset[2] === "-" ? -minutes : minutes;
+}
+
+/**
+ * Now on the site's clock (`2026-11-20T14:05:00.000Z`, the `Z` meaningless),
+ * from the UTC offsets of the resolved range Plausible echoes; null without
+ * one. The end's offset comes first: a day that changes the clocks does so
+ * in its first hours, so the end has the offset for the rest of it.
+ */
+function siteNow(range: unknown, now: Date): string | null {
+  if (!Array.isArray(range)) return null;
+  const minutes = offsetMinutes(range[1]) ?? offsetMinutes(range[0]);
+  if (minutes === null) return null;
+  return new Date(now.getTime() + minutes * 60_000).toISOString();
+}
+
+/** The current hour on the site's clock (`2026-11-20 14`), or null. */
+export function siteHour(range: unknown, now: Date): string | null {
+  const local = siteNow(range, now);
+  return local && `${local.slice(0, 10)} ${local.slice(11, 13)}`;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
@@ -272,20 +312,48 @@ export function resolvedRange(
   return start && end && start <= end ? { start, end } : null;
 }
 
+/** The periods counted in calendar months, and how many. */
+const PERIOD_MONTHS: Partial<Record<AnalyticsPeriod, number>> = {
+  "6mo": 6,
+  "12mo": 12,
+};
+
+const DAY_MS = 86_400_000;
+const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+/** An ISO date `months` months away, on the same day or the month's last. */
+function shiftMonths(date: string, months: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const first = Date.UTC(y, m - 1 + months, 1);
+  const length = new Date(Date.UTC(y, m + months, 0)).getUTCDate();
+  return isoDay(first + (Math.min(d, length) - 1) * DAY_MS);
+}
+
 /**
- * The days just before `range`, as many as it has, to compare with. None for
- * today, which is still under way: a whole yesterday would always look
- * better.
+ * The stretch just before `range` to compare with: as many days, or for
+ * the month periods as many calendar months. None for today, which is
+ * still under way: a whole yesterday would always look better. Plausible's
+ * months run to the end of this one, so a range that ends after `today`
+ * (the site's date) is compared only up to the same point: the days still
+ * to come would otherwise count against it.
  */
 export function previousRange(
   period: AnalyticsPeriod,
   range: { start: string; end: string } | null,
+  today?: string | null,
 ): [string, string] | null {
   if (period === "day" || !range) return null;
-  const day = 86_400_000;
+  // The last day with numbers so far, when the range runs past it.
+  const sofar =
+    today && today >= range.start && today < range.end ? today : null;
   const start = Date.parse(`${range.start}T00:00:00Z`);
-  const end = Date.parse(`${range.end}T00:00:00Z`);
-  const days = Math.round((end - start) / day) + 1;
-  const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
-  return [iso(start - days * day), iso(start - day)];
+  const months = PERIOD_MONTHS[period];
+  if (months)
+    return [
+      shiftMonths(range.start, -months),
+      sofar ? shiftMonths(sofar, -months) : isoDay(start - DAY_MS),
+    ];
+  const end = Date.parse(`${sofar ?? range.end}T00:00:00Z`);
+  const days = Math.round((end - start) / DAY_MS) + 1;
+  return [isoDay(start - days * DAY_MS), isoDay(start - DAY_MS)];
 }

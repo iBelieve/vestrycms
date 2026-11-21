@@ -149,17 +149,27 @@ function checkAnalytics(analytics: VestryConfig["analytics"]) {
     );
   if (typeof analytics.siteId !== "string" || !analytics.siteId.trim())
     fail("analytics.siteId must be the site's domain in Plausible");
-  if (analytics.host !== undefined && !isHttpUrl(analytics.host))
+  if (analytics.host !== undefined && !isServerUrl(analytics.host))
     fail(
-      `analytics.host must be the Plausible server's URL, e.g. https://plausible.io (got ${JSON.stringify(analytics.host)})`,
+      `analytics.host must be the Plausible server's URL, e.g. https://plausible.io, with no query or #fragment; plain http only for localhost (got ${JSON.stringify(analytics.host)})`,
     );
 }
 
-function isHttpUrl(value: unknown): boolean {
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * An https URL that paths can be added to. Plain http would send the API
+ * key in the clear, so it is only for a server on this machine.
+ */
+function isServerUrl(value: unknown): boolean {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
+    if (url.search || url.hash || url.username || url.password) return false;
+    return (
+      url.protocol === "https:" ||
+      (url.protocol === "http:" && LOOPBACK.has(url.hostname))
+    );
   } catch {
     return false;
   }

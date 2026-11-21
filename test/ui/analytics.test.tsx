@@ -176,6 +176,10 @@ describe("analytics formatting", () => {
     expect(niceScale(0)).toEqual([0, 1]);
     expect(niceScale(37)).toEqual([0, 10, 20, 30, 40]);
     expect(niceScale(180)).toEqual([0, 50, 100, 150, 200]);
+    // Counts: whole-number gridlines, never 0.25 or 2.5 apart.
+    expect(niceScale(1)).toEqual([0, 1]);
+    expect(niceScale(2)).toEqual([0, 1, 2]);
+    expect(niceScale(9)).toEqual([0, 5, 10]);
     expect(tickIndexes(3, 5)).toEqual([0, 1, 2]);
     expect(tickIndexes(30, 4)).toEqual([0, 10, 20]);
     expect(tickIndexes(7, 6)).toEqual([0, 2, 4, 6]);
