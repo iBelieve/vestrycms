@@ -2,7 +2,7 @@ import type { ComponentConfig } from "../../../config/types.js";
 import { dirname, relativePath, resolveRelative } from "../../../core/paths.js";
 import { walkValues } from "../../../core/values.js";
 import { parseMdx, serializeMdx } from "../../../mdx/index.js";
-import type { PMNode } from "../../../mdx/types.js";
+import type { ImportSpec, PMNode } from "../../../mdx/types.js";
 import { componentRegistry, mapComponentProps } from "./component-props.js";
 
 export interface RebaseOptions {
@@ -12,15 +12,21 @@ export interface RebaseOptions {
   to: string;
   /** The components the document may use, whose image and file props move too. */
   components: Record<string, ComponentConfig>;
+  /**
+   * Every component configured, which a Markdown prop takes the components
+   * it names from, as the editor does (`components` when not given).
+   */
+  allComponents?: Record<string, ComponentConfig>;
 }
 
 /**
  * `source` (Markdown or MDX) moved from one file to another: each relative
  * reference to an image (a Markdown image, or a component's image or file
- * prop, Markdown props included) is made relative to the new file's
- * folder, so it still names the same file. Anything else in the document,
- * and the document itself when nothing needs to change or it doesn't
- * parse, is kept as it was.
+ * prop, Markdown props included) and each relative import is made relative
+ * to the new file's folder, so it still names the same file. Anything else
+ * in the document, and the document itself when nothing needs to change or
+ * it doesn't parse, is kept as it was. (An import kept verbatim, such as
+ * `import "./x.css"`, is not moved.)
  */
 export function rebaseMarkdown(source: string, options: RebaseOptions): string {
   const fromDir = dirname(options.from);
@@ -59,18 +65,35 @@ export function rebaseMarkdown(source: string, options: RebaseOptions): string {
         const moved = rebaseMarkdown(value, {
           ...options,
           format: "mdx",
-          components: pick(options.components, field.components),
+          components: pick(
+            options.allComponents ?? options.components,
+            field.components,
+          ),
         });
         if (moved !== value) changed = true;
         return moved;
       }),
   );
+  const imports = rebaseImports(parsed.imports, rebase);
   if (!changed) return source;
   return serializeMdx(doc, {
     format: options.format,
     components: componentRegistry(options.components),
-    existingImports: parsed.imports,
+    existingImports: imports,
   });
+}
+
+/** The imports with their module specifiers passed through `rebase`. */
+function rebaseImports(
+  imports: Record<string, ImportSpec>,
+  rebase: (from: string) => string,
+): Record<string, ImportSpec> {
+  return Object.fromEntries(
+    Object.entries(imports).map(([name, spec]) => [
+      name,
+      { ...spec, from: rebase(spec.from) },
+    ]),
+  );
 }
 
 /** The components named, of those configured. */

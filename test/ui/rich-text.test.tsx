@@ -697,4 +697,57 @@ describe("component image props", () => {
       encodeURIComponent("src/assets/shots/a.png"),
     );
   });
+
+  it("moves a Markdown field's image props once with an entry moved to another folder", async () => {
+    const config = defineConfig({
+      name: "Test Site",
+      repo: { owner: "o", name: "r", branch: "main" },
+      components: {
+        Shot: {
+          props: { src: fields.image({ directory: "src/assets/shots" }) },
+        },
+      },
+      collections: {
+        docs: collection({
+          label: "Docs",
+          path: "src/content/docs/**.mdx",
+          body: false,
+          schema: {
+            title: fields.text(),
+            intro: fields.markdown({ components: ["Shot"] }),
+          },
+        }),
+      },
+    });
+    const { root } = await openPanel(config, {
+      url: "/collections/docs/guides/intro",
+      files: {
+        "src/content/docs/guides/intro.mdx":
+          '---\ntitle: Intro\nintro: <Shot src="../../../assets/shots/a.png" />\n---\n',
+        "src/assets/shots/a.png": "a",
+      },
+    });
+    await screen.findByText("Shot", { selector: ".v-block__name" });
+    fireEvent.change(screen.getByPlaceholderText("auto"), {
+      target: { value: "intro" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Save/ }));
+    await screen.findByText("Saved to disk");
+    expect(
+      await readFile(path.join(root, "src/content/docs/intro.mdx"), "utf8"),
+    ).toContain('<Shot src="../../assets/shots/a.png" />');
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/admin/collections/docs/intro"),
+    );
+    // The editor it moves to holds the saved data, not data moved again.
+    const thumb = await waitFor(() => {
+      const img = document.querySelector("img.v-thumb");
+      expect(img).not.toBeNull();
+      return img!;
+    });
+    expect(thumb.getAttribute("src")).toContain(
+      encodeURIComponent("src/assets/shots/a.png"),
+    );
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
+  });
 });

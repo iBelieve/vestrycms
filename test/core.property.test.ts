@@ -17,7 +17,11 @@ import {
   slugWithDate,
   slugWithoutDate,
 } from "../src/core/paths.js";
-import { assetToRepoPath, repoPathToAsset } from "../src/core/values.js";
+import {
+  assetToRepoPath,
+  defaultStorage,
+  repoPathToAsset,
+} from "../src/core/values.js";
 
 fc.configureGlobal({ numRuns: Number(process.env.FC_RUNS) || 200 });
 
@@ -145,6 +149,36 @@ describe("public URLs", () => {
     expect(
       assetToRepoPath({ directory: "public/shots" }, "/public/shots/a.png", ""),
     ).toBe("public/shots/a.png");
+  });
+
+  it("writes a file outside a filename field's directory so it still names it", () => {
+    const field = {
+      directory: "src/assets/images",
+      storeAs: "filename" as const,
+    };
+    for (const value of ["/images/a.png", "src/assets/other/b.png"]) {
+      const repoPath = assetToRepoPath(field, value, "src/content/x.md");
+      expect(repoPathToAsset(field, repoPath, "src/content/x.md")).toBe(value);
+    }
+    expect(
+      repoPathToAsset(field, "src/assets/images/c.png", "src/content/x.md"),
+    ).toBe("c.png");
+  });
+
+  it("keeps a protocol-relative URL", () => {
+    const field = { directory: "public/shots" };
+    const url = "//cdn.example.com/a.png";
+    expect(assetToRepoPath(field, url, "")).toBe(url);
+    expect(repoPathToAsset(field, url, "")).toBe(url);
+  });
+
+  it("stores URLs by default in public/ itself", () => {
+    const field = { directory: "public" };
+    expect(defaultStorage(field)).toBe("public");
+    expect(assetToRepoPath(field, "/src/a.pdf", "")).toBe("public/src/a.pdf");
+    expect(repoPathToAsset(field, "public/a.pdf", "src/content/x.md")).toBe(
+      "/a.pdf",
+    );
   });
 });
 

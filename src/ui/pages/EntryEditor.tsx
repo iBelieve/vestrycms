@@ -939,7 +939,8 @@ function useSave({
             slug!,
             res.slug,
           ) ?? draft.data;
-      // What changed while it saved was written for the file it opened.
+      // What changed while it saved was written for the file it opened;
+      // the data as saved (`res.data`) was moved by the save.
       handoff = draft && {
         key: draftKey(kind, collectionKey, res.slug),
         draft: rebaseDraft(
@@ -948,6 +949,7 @@ function useSave({
           config,
           openedFile,
           entryFile(kind, col, pattern, res.slug),
+          res.data,
         ),
       };
       void navigate(entryHref(collectionKey, res.slug), { replace: true });

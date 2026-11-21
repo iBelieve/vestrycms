@@ -227,8 +227,8 @@ from the injected Astro endpoint in production. Both call the same
   with a leading slash).
 - The body editor resolves relative references against the file the entry
   was opened from. A save that moves the entry to another folder rewrites
-  the relative image references in its body and Markdown fields for the
-  new file.
+  the relative image references in its body and Markdown fields, and the
+  relative imports of an MDX body, for the new file.
 - The body editor parses MDX into a ProseMirror document. JSX components
   become `mdxComponent` nodes with their attributes converted to JSON where
   they are literals (anything else is kept verbatim as an expression).

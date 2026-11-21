@@ -21,15 +21,20 @@ while Vestry is below 1.0, a minor version may change behaviour.
   `public/shots` field) was read as the file of that name inside the
   directory, so the preview showed another file and a save rewrote the
   reference to it. It now names `public/images/x.png`, and is written back
-  as it was.
+  as it was (a frontmatter field stored `relative` writes it as a relative
+  path to that file). A `filename` field no longer writes a file outside
+  its directory as a bare name, which named another file; a
+  protocol-relative URL (`//cdn…`) is kept as a URL; and a field whose
+  directory is `public` itself stores URLs by default, like its folders.
 
 - **Moving an entry keeps its body's images.** Relative image references
   in the body (Markdown images, and components' image and file props) and
-  in Markdown fields were written for the folder the entry was in, so a
-  save that moved the entry to another folder (a slug change in a `**`
-  collection) left them pointing at the wrong place. The editor now writes
-  them for the file it opened, and a save that moves the entry rewrites
-  them for the new one; a body with nothing to move is saved as it was.
+  in Markdown fields, and relative imports in an MDX body, were written
+  for the folder the entry was in, so a save that moved the entry to
+  another folder (a slug change in a `**` collection) left them pointing
+  at the wrong place. The editor now writes them for the file it opened,
+  and a save that moves the entry rewrites them for the new one; a body
+  with nothing to move is saved as it was.
 
 - **Image props of components preview with any `storeAs`.** A component's
   image and file props were edited as the MDX stores them, so only a

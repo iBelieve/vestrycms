@@ -32,6 +32,7 @@ import {
 import {
   applyAutoFields,
   assetToRepoPath,
+  isRemoteUrl,
   repoPathToAsset,
   rewriteReferences,
   slugWithDate,
@@ -225,7 +226,7 @@ export function bodyEnv({
   const fileDir = dirname(filePath);
   const assetUrl = (repo: string) => uploads[repo]?.previewUrl ?? fileUrl(repo);
   const toRepoPath = (src: string): string | null => {
-    if (/^https?:\/\//.test(src)) return null;
+    if (isRemoteUrl(src)) return null;
     if (images) return assetToRepoPath(images, src, filePath);
     if (src.startsWith("/")) return `public${src}`;
     if (src.startsWith(".")) return resolveRelative(fileDir, src);
@@ -273,6 +274,7 @@ function rebaseEntry(
           from,
           to,
           components: pick(config.components, bodyConfig?.components),
+          allComponents: config.components,
         })
       : state.body;
   const data = walkValues(col.schema, state.data, (field, value) =>
@@ -282,13 +284,19 @@ function rebaseEntry(
           from,
           to,
           components: pick(config.components, field.components),
+          allComponents: config.components,
         })
       : value,
   );
   return { data, body };
 }
 
-/** The body and data a draft changes, moved like `rebaseEntry`; what it leaves alone stays out. */
+/**
+ * The body and data a draft changes, moved like `rebaseEntry`; what it
+ * leaves alone stays out. Data that is the save's own (`saved`, which the
+ * save moved already) is kept as it is, since moving it twice would point
+ * its references somewhere else.
+ */
 export function rebaseDraft<
   D extends { data?: Record<string, unknown>; body?: string },
 >(
@@ -297,17 +305,19 @@ export function rebaseDraft<
   config: VestryConfig,
   from: string,
   to: string,
+  saved?: Record<string, unknown>,
 ): D {
+  const data = draft.data === saved ? undefined : draft.data;
   const moved = rebaseEntry(
     col,
     config,
-    { data: draft.data ?? {}, body: draft.body ?? "" },
+    { data: data ?? {}, body: draft.body ?? "" },
     from,
     to,
   );
   return {
     ...draft,
-    ...(draft.data && { data: moved.data }),
+    ...(data && { data: moved.data }),
     ...(draft.body !== undefined && { body: moved.body }),
   };
 }
