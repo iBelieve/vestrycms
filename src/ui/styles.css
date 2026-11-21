@@ -3678,15 +3678,19 @@ button.v-tree__toggle:hover {
   color: var(--v-primary);
 }
 .v-tree__label {
-  /* The name keeps its width ahead of a long link beside it, which takes
-     the ellipsis instead ("Donate https://www.paypal.com/…", not "Do…"). */
-  flex-shrink: 0;
-  max-width: 70%;
   font-weight: 600;
   font-size: 13.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* The name keeps its width ahead of a long link beside it, which takes
+   the ellipsis instead ("Donate https://www.paypal.com/…", not "Do…").
+   Without a link (and in the drag ghost, sized to its content) the name
+   has the whole row. */
+.v-tree__label:has(+ .v-tree__detail) {
+  flex-shrink: 0;
+  max-width: 70%;
 }
 .v-tree__detail {
   color: var(--v-text-muted);
@@ -3730,7 +3734,7 @@ button.v-tree__toggle:hover {
     align-items: stretch;
     gap: 0;
   }
-  .v-tree__label {
+  .v-tree__label:has(+ .v-tree__detail) {
     max-width: none;
   }
   /* The hidden children's count stays a pill, not a full-width bar. */

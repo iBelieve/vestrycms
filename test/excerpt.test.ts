@@ -36,7 +36,7 @@ describe("makeExcerpt", () => {
         "Won’t this foster antisemitic\\\nhatred?\n\n> Quoted\n\n- One\n- Two\n1. Three\n\n2\\. Not a list, 50\\% off\n",
       ),
     ).toBe(
-      "Won’t this foster antisemitic hatred? Quoted One Two Three 2. Not a list, 50\\% off",
+      "Won’t this foster antisemitic hatred? Quoted One Two Three 2. Not a list, 50% off",
     );
   });
 
@@ -54,6 +54,53 @@ describe("makeExcerpt", () => {
         '{/* hidden */}\n\n<Download\n  title="Download"\n  links={[\n      { label: "Store" },\n    ]}\n/>\n\nThe app shows notes.\n',
       ),
     ).toBe("The app shows notes.");
+  });
+
+  it("keeps escaped characters as written", () => {
+    expect(
+      makeExcerpt(
+        "Five \\* three, \\_under\\_, \\[note\\], \\<b> and \\&amp;\n",
+      ),
+    ).toBe("Five * three, _under_, [note], <b> and &amp;");
+  });
+
+  it("keeps the text inside a tag written over several lines", () => {
+    expect(
+      makeExcerpt(
+        '<Callout\n  type="note"\n  title="Heads up"\n>\n  Important text.\n</Callout>\n\nMore.\n',
+      ),
+    ).toBe("Important text. More.");
+  });
+
+  it("leaves out quoted, closed and setext headings, and rules", () => {
+    expect(
+      makeExcerpt(
+        "> ## Note ##\n>\n> Quoted text.\n\n---\n\nTitle\n=====\n\nBody.\n",
+      ),
+    ).toBe("Quoted text. Body.");
+    expect(makeExcerpt("# Hello ##\n\nTitle\n-----\n")).toBe("Hello Title");
+  });
+
+  it("leaves out code blocks, ESM over several lines and definitions", () => {
+    expect(
+      makeExcerpt(
+        'import {\n  Figure,\n  Hero,\n} from "@/components";\nexport const meta = {\n  title: "x",\n};\n\n```sh\n# install\nnpm i\n```\n\nText ![logo][l] here[^1].\n\n[l]:./logo.png\n[^1]: A note\n  that goes on.\n',
+      ),
+    ).toBe("Text here.");
+  });
+
+  it("keeps a paragraph line that starts with import or export", () => {
+    expect(makeExcerpt("We\nimport goods.\n")).toBe("We import goods.");
+  });
+
+  it("decodes common named entities and leaves unknown ones", () => {
+    expect(
+      makeExcerpt("A&mdash;B&hellip; it&rsquo;s &constructor; &bogus;"),
+    ).toBe("A—B… it’s &constructor; &bogus;");
+  });
+
+  it("does not cut an emoji in half", () => {
+    expect(makeExcerpt(`${"x".repeat(199)}😀 more`)).toBe("x".repeat(199));
   });
 
   it("is undefined for an empty body and cut at 200 characters", () => {

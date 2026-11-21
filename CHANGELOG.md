@@ -62,7 +62,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - The line under an entry's title in lists reads as text: it starts after
   the headings (which ran into the first paragraph, "A New Translation The
   EHV proclaims…"), links keep their words but not their addresses, and
-  images, footnotes and the backslashes of hard line breaks are left out.
+  images, code blocks, footnotes and the backslashes of hard line breaks
+  are left out.
 - A menu item's name stays whole beside a long link ("Donate
   https://www.paypal.com/…", not "Do…").
 - A file field shows a file icon, not a picture's, beside a PDF or while

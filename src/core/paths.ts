@@ -354,7 +354,8 @@ export function fillTemplate(
 /**
  * An entry's page on the site, from its collection's `previewUrl`. An
  * `index` entry is its folder's page, as in Astro's `src/pages`: `/index`
- * is `/` and `/guides/index` is `/guides`, not a redirect away.
+ * is `/` and `/guides/index` is `/guides`, not a redirect away. A
+ * template ending in `/` keeps it (`/guides/index/` is `/guides/`).
  */
 export function previewPath(
   template: string,
@@ -363,8 +364,11 @@ export function previewPath(
   const url = fillTemplate(template, values);
   const cut = url.search(/[?#]/);
   const path = cut < 0 ? url : url.slice(0, cut);
-  if (!/(^|\/)index$/.test(path)) return url;
-  return (path.replace(/\/?index$/, "") || "/") + url.slice(path.length);
+  const folder = path.replace(/(^|\/)index(\/?)$/, (_, _start, slash) =>
+    slash ? "/" : "",
+  );
+  if (folder === path) return url;
+  return (folder || "/") + url.slice(path.length);
 }
 
 /** Why a template is unusable (it names an unknown filter), or undefined when it is fine. */

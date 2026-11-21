@@ -25,6 +25,15 @@ describe("previewPath", () => {
     );
   });
 
+  it("keeps a template's trailing slash", () => {
+    expect(previewPath("/{slug}/", { slug: "index" })).toBe("/");
+    expect(previewPath("/{slug}/", { slug: "guides/index" })).toBe("/guides/");
+    expect(previewPath("/{slug}/?draft", { slug: "guides/index" })).toBe(
+      "/guides/?draft",
+    );
+    expect(previewPath("/{slug}/", { slug: "about" })).toBe("/about/");
+  });
+
   it("leaves other pages alone", () => {
     expect(previewPath("/{slug}", { slug: "about" })).toBe("/about");
     expect(previewPath("/{slug}", { slug: "reindex" })).toBe("/reindex");
