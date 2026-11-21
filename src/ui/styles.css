@@ -156,7 +156,14 @@ body {
   display: block;
   height: 34px;
   width: auto;
+  /* A plain length: a percentage here would leave the brand link as wide as
+     the uncapped logo, pushing the breadcrumbs away from a wide one. */
   max-width: 320px;
+  min-width: 0;
+  /* Shrinks with the brand on a narrow screen instead of spilling under the
+     breadcrumbs beside it. */
+  object-fit: contain;
+  object-position: left center;
 }
 .v-chrome__name {
   overflow: hidden;
@@ -1457,11 +1464,14 @@ button.v-chrome__chip:hover {
 }
 /* The title column takes whatever width the other columns leave, wrapping
    the title and truncating the line under it. It never gets narrower than
-   min-width: past that the table scrolls sideways instead. */
+   min-width: past that the table scrolls sideways instead. A word too long
+   for it (in a deep tree row, the indent takes some) breaks rather than
+   running over the next column. */
 .v-table td.v-table__main {
   width: 100%;
   max-width: 0;
   min-width: 260px;
+  overflow-wrap: break-word;
 }
 /* Other columns stay on one line, and a long value is cut short rather
    than squeezing the title. */
@@ -2892,6 +2902,18 @@ button.v-table__toggle:hover {
   .v-page {
     padding: 18px 16px;
   }
+  /* Leave room for the date and status beside the title before a table
+     has to scroll sideways. */
+  .v-table th,
+  .v-table td,
+  .v-table td.v-table__more,
+  .v-table__footer {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .v-table td.v-table__main {
+    min-width: 150px;
+  }
   .v-topbar {
     padding: 0 16px;
     /* Buttons drop below the title rather than squeezing it to "Dash…". */
@@ -2901,6 +2923,63 @@ button.v-table__toggle:hover {
   .v-topbar__actions {
     /* Several buttons (the dashboard's New …) wrap instead of overflowing. */
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 600px) {
+  /* The breadcrumbs don't fit beside a logo on a phone; the sidebar,
+     stacked above the page here, has the same links. */
+  .v-chrome__crumb {
+    display: none;
+  }
+  /* The dashboard's recent lists put the date and status under the title
+     rather than in columns beside it. */
+  .v-recent,
+  .v-recent tbody,
+  .v-recent tfoot {
+    display: block;
+  }
+  .v-recent tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  /* The row holds the vertical padding, so an entry without a date or a
+     status has no empty second line, and the hover fills the whole row. */
+  .v-recent tbody tr {
+    padding: 11px 0;
+    row-gap: 4px;
+  }
+  .v-recent tbody tr:hover {
+    background: #faf8f6;
+  }
+  .v-recent tbody tr:not(:last-child) {
+    border-bottom: 1px solid var(--v-border);
+  }
+  .v-recent td {
+    border-bottom: 0;
+  }
+  .v-recent tbody td {
+    padding-top: 0;
+    padding-bottom: 0;
+    /* Overrides the status cell's width: 1px, which in a row of boxes
+       would leave its badge spilling out of it. */
+    width: auto !important;
+  }
+  /* An entry without a date: its status lines up under the title. */
+  .v-recent tbody td:empty {
+    display: none;
+  }
+  .v-recent td.v-table__main {
+    flex: 1 0 100%;
+    max-width: none;
+    min-width: 0;
+  }
+  .v-recent td:not(.v-table__main, .v-table__more) {
+    font-size: 12.5px;
+  }
+  .v-recent td.v-table__more {
+    flex: 1 0 100%;
   }
 }
 

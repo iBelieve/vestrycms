@@ -185,36 +185,41 @@ function RecentSection({
     <section className="v-section">
       <h2 className="v-section-title">Recent {inSentence(col.label)}</h2>
       <div className="v-card">
-        <table className="v-table">
-          <tbody>
-            {entries.map((e) => (
-              <tr key={e.slug}>
-                <td className="v-table__main">
-                  <Link className="v-table__title" to={entryHref(key, e.slug)}>
-                    {e.title}
+        <div className="v-table-wrap">
+          <table className="v-table v-recent">
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.slug}>
+                  <td className="v-table__main">
+                    <Link
+                      className="v-table__title"
+                      to={entryHref(key, e.slug)}
+                    >
+                      {e.title}
+                    </Link>
+                    {e.excerpt && (
+                      <span className="v-table__sub">{e.excerpt}</span>
+                    )}
+                  </td>
+                  {dateField && <RecentDate value={e.data[dateField]} />}
+                  <td style={{ width: 1 }}>
+                    {e.status && <Badge status={e.status} />}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} className="v-table__more">
+                  <Link to={`/collections/${key}`}>
+                    All {inSentence(col.label)}{" "}
+                    <ArrowRight size={12} style={{ verticalAlign: -1 }} />
                   </Link>
-                  {e.excerpt && (
-                    <span className="v-table__sub">{e.excerpt}</span>
-                  )}
-                </td>
-                {dateField && <RecentDate value={e.data[dateField]} />}
-                <td style={{ width: 1 }}>
-                  {e.status && <Badge status={e.status} />}
                 </td>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={3} className="v-table__more">
-                <Link to={`/collections/${key}`}>
-                  All {inSentence(col.label)}{" "}
-                  <ArrowRight size={12} style={{ verticalAlign: -1 }} />
-                </Link>
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+            </tfoot>
+          </table>
+        </div>
       </div>
     </section>
   );
