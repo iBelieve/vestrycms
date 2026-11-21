@@ -632,11 +632,43 @@ const DELIMITER_MARKS = new Set(["bold", "italic", "strike"]);
  * keeps bold outermost.
  */
 function inlines(nodes: PMNode[], used: Uses): AnyNode[] {
-  return group(nodes.map(breakMarks), used);
+  return group(writable(nodes).map(breakMarks), used);
 }
 
+/** The marks this serializer writes. */
+const WRITTEN_MARKS = new Set(MARK_ORDER);
+
+/**
+ * The nodes as they are written. A mark the serializer doesn't know goes
+ * and its text stays: left to take a run of its own, it could split another
+ * mark's run in two (`**a****b**`), which reads back as one. Empty text goes
+ * too, or its marks would be written around nothing (`****`).
+ */
+function writable(nodes: PMNode[]): PMNode[] {
+  return nodes
+    .filter((n) => n.type !== "text" || n.text)
+    .map((n) => {
+      const marks = n.marks?.filter((m) => WRITTEN_MARKS.has(m.type));
+      return marks?.length === n.marks?.length ? n : { ...n, marks };
+    });
+}
+
+/**
+ * What tells two marks apart: what is written of them. Attributes the file
+ * cannot hold (a link's `target`) or that write nothing (an empty or missing
+ * `title`) do not, or two runs that read back as one link would be written
+ * as two.
+ */
 function markKey(m: PMMark): string {
-  return JSON.stringify([m.type, m.attrs ?? {}]);
+  if (m.type === "link")
+    return JSON.stringify([
+      m.type,
+      String(m.attrs?.href ?? ""),
+      m.attrs?.title || null,
+    ]);
+  if (m.type === "textClass")
+    return JSON.stringify([m.type, String(m.attrs?.class ?? "")]);
+  return m.type;
 }
 
 function hasMark(node: PMNode, key: string): boolean {
@@ -756,8 +788,7 @@ function wrap(
       return [{ type: "inlineCode", value: text }];
     }
     default: {
-      // A mark this serializer doesn't know: keep the text.
-      if (!Object.hasOwn(MARK_TAGS, mark.type)) return children;
+      // `writable` has dropped the marks this serializer doesn't know.
       const name = MARK_TAGS[mark.type];
       const className =
         mark.type === "textClass" ? String(mark.attrs?.class ?? "") : null;

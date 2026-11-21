@@ -94,24 +94,57 @@ describe("normalization to the canonical style", () => {
     // Found by the property test (seed -655181615): written as two text
     // nodes, the `(` after the escaped `]` was escaped as well, and the
     // file saved back without that backslash.
-    const marks = (...m: PMMark[]) => m;
-    const link = { type: "link", attrs: { href: "a b", title: null } };
-    const lead = { type: "textClass", attrs: { class: "lead" } };
-    const sup = { type: "superscript" };
-    const doc: PMNode = {
-      type: "doc",
-      content: [
-        {
-          type: "paragraph",
-          content: [
-            { type: "text", text: "]", marks: marks(link, lead, sup) },
-            { type: "text", text: "(a", marks: marks(link, sup, lead) },
-          ],
-        },
-      ],
-    };
-    const once = serializeMdx(doc);
+    const link: PMMark = { type: "link", attrs: { href: "a b", title: null } };
+    const once = serializeMdx(
+      doc(
+        paragraph(
+          text("]", link, textClass("lead"), "superscript"),
+          text("(a", link, "superscript", textClass("lead")),
+        ),
+      ),
+    );
     expect(once).toBe('[<sup><span class="lead">\\](a</span></sup>](<a b>)\n');
+    expect(roundTrip(once)).toBe(once);
+  });
+
+  const link = (attrs: Record<string, unknown>): PMMark => ({
+    type: "link",
+    attrs,
+  });
+  it.each<[string, PMNode[], string]>([
+    [
+      "a mark it does not write",
+      [
+        text("a", "highlight"),
+        text("b", "highlight", "bold"),
+        text("c", "bold"),
+      ],
+      "a**bc**\n",
+    ],
+    [
+      "a link attribute the file cannot hold",
+      [
+        text("a", link({ href: "/x", target: "_blank", title: null })),
+        text("b", link({ href: "/x", target: null, title: null })),
+      ],
+      "[ab](/x)\n",
+    ],
+    [
+      "a missing link title",
+      [
+        text("a", link({ href: "/x" })),
+        text("b", link({ href: "/x", title: "" })),
+      ],
+      "[ab](/x)\n",
+    ],
+    [
+      "empty text",
+      [text("a", "bold"), text("", "italic"), text("b", "bold")],
+      "**ab**\n",
+    ],
+  ])("does not split a run at %s", (_, content, output) => {
+    const once = serializeMdx(doc(paragraph(...content)));
+    expect(once).toBe(output);
     expect(roundTrip(once)).toBe(once);
   });
 

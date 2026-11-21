@@ -39,7 +39,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - **Text with the same marks saves back the same.** Two runs of text with
   the same marks (in a different order) were written as separate pieces,
   which could escape a character the file then lost on the next save
-  (`\]\(` became `\](`). They are now written as one.
+  (`\]\(` became `\](`). They are now written as one, and so are runs of a
+  link whose attributes differ only where the file cannot tell (a
+  `target`), runs that a mark the serializer doesn't write split in two,
+  and runs around empty text, which also left an empty `****` behind.
 
 - **Image props of components preview with any `storeAs`.** A component's
   image and file props were edited as the MDX stores them, so only a
