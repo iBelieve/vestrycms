@@ -8,7 +8,7 @@ import { defineConfig } from "../../src/config/index.js";
 const config = defineConfig({
   name: "Test Site",
   repo: { owner: "o", name: "r", branch: "main" },
-  auth: { admins: ["owner@example.org"] },
+  auth: { admins: ["owner@example.org", "second@example.org"] },
 });
 
 /** Opens the panel with sign-in, and signs in as the config's admin. */
@@ -244,6 +244,32 @@ describe("the users page", () => {
     expect(
       await screen.findByText("Owner", { selector: ".v-table__title" }),
     ).toBeTruthy();
+  });
+
+  it("lists a config admin who hasn't signed in yet, to rename or invite", async () => {
+    const { user, auth } = await signedIn();
+    const second = await screen.findByText("second@example.org", {
+      selector: ".v-table__sub",
+    });
+    const tr = second.closest("tr")!;
+    expect(within(tr).getByText("Second")).toBeTruthy();
+    expect(within(tr).getByText(/config/)).toBeTruthy();
+    expect(within(tr).getByText("Invited")).toBeTruthy();
+    await action(user, "Second", "Re-send invitation");
+    expect(
+      await screen.findByText("Invitation re-sent to second@example.org."),
+    ).toBeTruthy();
+    expect(auth.mailer.sent.at(-1)!.to).toBe("second@example.org");
+    // Listing again doesn't add the address twice.
+    await action(user, "Second", "Edit name and role");
+    const dialog = screen.getByRole("dialog");
+    const name = within(dialog).getByDisplayValue("Second");
+    await user.clear(name);
+    await user.type(name, "Seth");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("User updated.")).toBeTruthy();
+    await waitFor(() => expect(row("Seth")).toBeTruthy());
+    expect(screen.getAllByText("second@example.org")).toHaveLength(1);
   });
 
   it("explains that local mode has no users", async () => {

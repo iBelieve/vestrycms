@@ -168,26 +168,7 @@ export function createVestryAuth(opts: VestryAuthOptions) {
         if (ctx.path !== "/email-otp/send-verification-otp") return;
         const email = normalizeEmail(String(ctx.body?.email ?? ""));
         if (!isConfigAdmin(email)) return;
-        const existing =
-          await ctx.context.internalAdapter.findUserByEmail(email);
-        if (existing) {
-          const role = (existing.user as { role?: string }).role;
-          if (role !== "admin") {
-            await ctx.context.internalAdapter.updateUser(existing.user.id, {
-              role: "admin",
-            });
-          }
-          return;
-        }
-        await ctx.context.internalAdapter.createUser(
-          {
-            email,
-            name: nameFromEmail(email),
-            emailVerified: false,
-            role: "admin",
-          },
-          { method: "email-otp" },
-        );
+        await ensureConfigAdmin(ctx.context.internalAdapter, email);
       }),
     },
     plugins: [
@@ -276,10 +257,45 @@ export function createVestryAuth(opts: VestryAuthOptions) {
       ...inviteEmail(opts.siteName, opts.adminUrl, by.name, user),
     });
 
-  return { auth, ensureMigrated, toPublicUser, isConfigAdmin, sendInvite };
+  /**
+   * Gives every config admin an account, as their first sign-in would, so
+   * the Users page lists them (to rename or invite) before they sign in.
+   */
+  const ensureConfigAdmins = async () => {
+    const { internalAdapter } = await auth.$context;
+    for (const email of admins) await ensureConfigAdmin(internalAdapter, email);
+  };
+
+  return {
+    auth,
+    ensureMigrated,
+    toPublicUser,
+    isConfigAdmin,
+    ensureConfigAdmins,
+    sendInvite,
+  };
 }
 
 export type VestryAuth = ReturnType<typeof createVestryAuth>;
+
+type InternalAdapter = Awaited<
+  ReturnType<typeof betterAuth>["$context"]
+>["internalAdapter"];
+
+/** A config admin's account, created as an admin, or made one again. */
+async function ensureConfigAdmin(adapter: InternalAdapter, email: string) {
+  const existing = await adapter.findUserByEmail(email);
+  if (existing) {
+    const role = (existing.user as { role?: string }).role;
+    if (role !== "admin")
+      await adapter.updateUser(existing.user.id, { role: "admin" });
+    return;
+  }
+  await adapter.createUser(
+    { email, name: nameFromEmail(email), emailVerified: false, role: "admin" },
+    { method: "email-otp" },
+  );
+}
 
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value);

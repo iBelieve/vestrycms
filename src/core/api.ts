@@ -606,6 +606,7 @@ function userAdmin(
 }
 
 async function listUsers({ vestryAuth, headers }: UserAdmin) {
+  await vestryAuth.ensureConfigAdmins();
   const { users } = await vestryAuth.auth.api.listUsers({
     query: { limit: 1000, sortBy: "name", sortDirection: "asc" },
     headers,
