@@ -588,9 +588,9 @@ for each collection with a recent list, unless it is `fixedEntries` or
 `readOnly`. `dashboard: false` on a collection leaves it off the dashboard
 altogether (no tile, list or button, and the dashboard request doesn't list
 it), for collections editors rarely open such as categories, authors or
-generated entries; it stays in the sidebar. Setting `recent` on such a
-collection is an error at startup, as is a `recent` that is not true, false
-or a number.
+generated entries; it stays in the sidebar. Asking such a collection for a
+recent list (`recent: true` or a number above 0) is an error at startup, as
+is a `recent` that is not true, false or a number.
 
 The dashboard loads with one request (`GET /admin/api/dashboard`) that
 returns each collection's counts and recent entries, rather than one full

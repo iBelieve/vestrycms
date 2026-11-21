@@ -36,8 +36,6 @@ while Vestry is below 1.0, a minor version may change behaviour.
   name in the folder shown and every folder inside it, naming the folder
   each match sits in. The assets API takes `all=1` for that recursive
   listing.
-- Hidden folders in an asset folder (`.cache`, say) no longer show up as
-  folders, as hidden files already didn't.
 - **More icons**: `book-down`, `book-marked`, `circle-question-mark`,
   `columns-4`, `diamond`, `download`, `feather`, `grid-3x3`, `library`,
   `list-indent-increase`, `music`, `notebook-pen`, `shopping-cart`,
@@ -124,6 +122,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
   EHV proclaims…"), links keep their words but not their addresses, and
   images, code blocks, footnotes and the backslashes of hard line breaks
   are left out.
+- Hidden folders in an asset folder (`.cache`, say) no longer show up as
+  folders, as hidden files already didn't.
 - A menu item's name stays whole beside a long link ("Donate
   https://www.paypal.com/…", not "Do…").
 - A file field shows a file icon, not a picture's, beside a PDF or while
