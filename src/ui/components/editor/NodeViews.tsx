@@ -22,6 +22,7 @@ import { CodeInput } from "../fields/CodeInput.js";
 // fallow-ignore-next-line circular-dependency
 import { changedValue, FieldRenderer } from "../fields/FieldRenderer.js";
 import { useEditorEnv } from "./EditorContext.js";
+import { assetToRepoPath, type AssetField } from "../../../core/values.js";
 
 /**
  * Keeps a value in local state while also pushing it to the document.
@@ -268,9 +269,13 @@ function Thumbnail({
     ([k, f]) => f.type === "image" && typeof props[k] === "string" && props[k],
   );
   if (!image) return null;
-  // A repository path (see EditorEnv.filePath), or a URL.
-  const value = String(props[image[0]]);
-  const src = /^https?:\/\//.test(value) ? value : env.assetUrl?.(value);
+  const [key, field] = image as [string, AssetField];
+  // A repository path (see EditorEnv.filePath) or a URL; without a file to
+  // resolve against, the value as the document stores it.
+  const value = String(props[key]);
+  const repoPath =
+    env.filePath === undefined ? assetToRepoPath(field, value, "") : value;
+  const src = /^https?:\/\//.test(value) ? value : env.assetUrl?.(repoPath);
   if (!src) return null;
   return (
     <img

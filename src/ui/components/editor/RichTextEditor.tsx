@@ -224,6 +224,9 @@ function useMdxCodec(
 ) {
   const [parseError, setParseError] = useState<string | null>(null);
   const importsRef = useRef<Record<string, ImportSpec>>({});
+  // How the document wrote the image and file props it was loaded with, so
+  // that those nobody changes are written back as they were.
+  const writtenRef = useRef(new Map<string, string>());
   const registry = useMemo<ComponentRegistry>(() => {
     const out: ComponentRegistry = {};
     for (const [name, c] of Object.entries(components)) {
@@ -246,7 +249,7 @@ function useMdxCodec(
         return filePath === undefined
           ? parsed.doc
           : mapComponentProps(parsed.doc, components, (schema, props) =>
-              assetsToRepoPaths(schema, props, filePath),
+              assetsToRepoPaths(schema, props, filePath, writtenRef.current),
             );
       } catch (e) {
         setParseError((e as Error).message);
@@ -262,7 +265,7 @@ function useMdxCodec(
         filePath === undefined
           ? doc
           : mapComponentProps(doc, components, (schema, props) =>
-              assetsToStored(schema, props, filePath),
+              assetsToStored(schema, props, filePath, writtenRef.current),
             ),
         {
           format,

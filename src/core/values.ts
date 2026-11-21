@@ -261,34 +261,54 @@ function isAssetValue(field: Field, value: unknown): value is string {
   );
 }
 
+/** Key of a repository path, as a field reads it, in a `written` map. */
+const writtenKey = (field: AssetLike, repoPath: string) =>
+  JSON.stringify([normalizePath(field.directory), field.storeAs, repoPath]);
+
 /**
  * The image and file values in `data` (which may nest), from the form the
  * content file holds them in to repository paths, the form the editor
- * works with. `filePath` is the file they are written in.
+ * works with. `filePath` is the file they are written in. Given `written`,
+ * each value is remembered there as the file wrote it, for
+ * `assetsToStored`.
  */
 export function assetsToRepoPaths(
   schema: Schema,
   data: Record<string, unknown>,
   filePath: string,
+  written?: Map<string, string>,
 ): Record<string, unknown> {
-  return walkValues(schema, data, (field, value) =>
-    isAssetValue(field, value)
-      ? assetToRepoPath(field as AssetField, value, filePath)
-      : value,
-  );
+  return walkValues(schema, data, (field, value) => {
+    if (!isAssetValue(field, value)) return value;
+    const repoPath = assetToRepoPath(field as AssetField, value, filePath);
+    written?.set(writtenKey(field as AssetField, repoPath), value);
+    return repoPath;
+  });
 }
 
-/** The reverse of `assetsToRepoPaths`: repository paths in each field's `storeAs` form. */
+/**
+ * The reverse of `assetsToRepoPaths`: repository paths in each field's
+ * `storeAs` form. A value `written` remembers is kept as the file wrote it
+ * while it still names the same file, so that saving a document does not
+ * rewrite references nobody changed (`assetToRepoPath` reads some forms,
+ * such as a URL outside the field's directory, in a way that would not
+ * write them back as they were).
+ */
 export function assetsToStored(
   schema: Schema,
   data: Record<string, unknown>,
   filePath: string,
+  written?: Map<string, string>,
 ): Record<string, unknown> {
-  return walkValues(schema, data, (field, value) =>
-    isAssetValue(field, value)
-      ? repoPathToAsset(field as AssetField, value, filePath)
-      : value,
-  );
+  return walkValues(schema, data, (field, value) => {
+    if (!isAssetValue(field, value)) return value;
+    const asset = field as AssetField;
+    const original = written?.get(writtenKey(asset, value));
+    return original !== undefined &&
+      assetToRepoPath(asset, original, filePath) === value
+      ? original
+      : repoPathToAsset(asset, value, filePath);
+  });
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

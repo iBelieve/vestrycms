@@ -23,7 +23,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
   thumbnail), and a newly chosen file was written as a repository path
   whatever `storeAs` said. They now hold repository paths while the editor
   has the document, like frontmatter fields, and are written in their
-  `storeAs` form, so a site can drop a `storeAs: "repo"` workaround.
+  `storeAs` form. A prop nobody changed is written back as the file had
+  it, so editing one part of a page does not rewrite the others' images;
+  a site dropping a `storeAs: "repo"` workaround keeps its existing
+  references in repository form until they are replaced.
 
 - **Editor sidebar reaches its bottom.** The editor's sidebar is sized to
   the visible part of the panel as the page scrolls, so its last fields

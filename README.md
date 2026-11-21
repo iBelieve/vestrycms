@@ -221,7 +221,8 @@ from the injected Astro endpoint in production. Both call the same
   path). Image and file props of a configured component in the body (or in
   a `markdown` field) are handled the same way: repository paths while the
   editor holds the document, written back in their `storeAs` form whenever
-  it serializes the document.
+  it serializes the document. A prop nobody changed is written back as the
+  document had it, while it still names the same file.
 - The body editor parses MDX into a ProseMirror document. JSX components
   become `mdxComponent` nodes with their attributes converted to JSON where
   they are literals (anything else is kept verbatim as an expression).

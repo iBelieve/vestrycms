@@ -558,6 +558,51 @@ describe("component image props", () => {
     expect(saved).toContain('caption="One!"');
   });
 
+  it("writes back the images nobody changed as the file had them", async () => {
+    const user = userEvent.setup();
+    const config = defineConfig({
+      name: "Test Site",
+      repo: { owner: "o", name: "r", branch: "main" },
+      components: {
+        Shot: {
+          props: {
+            src: fields.image({ directory: "public/shots" }),
+            caption: fields.text(),
+          },
+        },
+      },
+      collections: {
+        docs: collection({
+          label: "Docs",
+          path: "src/content/docs/*.mdx",
+          body: { components: ["Shot"] },
+          schema: { title: fields.text() },
+        }),
+      },
+    });
+    const file = "src/content/docs/intro.mdx";
+    const { root } = await openPanel(config, {
+      url: "/collections/docs/intro",
+      files: {
+        // A URL outside the field's directory, which reads as one in it.
+        [file]:
+          '---\ntitle: Intro\n---\n\n<Shot src="/images/elsewhere.png" caption="One" />\n',
+      },
+    });
+    const block = (
+      await screen.findByText("Shot", { selector: ".v-block__name" })
+    ).closest(".v-block") as HTMLElement;
+    await user.type(within(block).getByLabelText("Caption"), "!");
+    await waitFor(() =>
+      expect(screen.getByText("Unsaved changes")).toBeTruthy(),
+    );
+    await user.click(screen.getByRole("button", { name: /^Save/ }));
+    await screen.findByText("Saved to disk");
+    expect(await readFile(path.join(root, file), "utf8")).toContain(
+      '<Shot src="/images/elsewhere.png" caption="One!" />',
+    );
+  });
+
   it("previews images in components inside a Markdown field", async () => {
     const config = defineConfig({
       name: "Test Site",
