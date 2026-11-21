@@ -460,6 +460,15 @@ describe("a collection's list", () => {
     expect(screen.queryByRole("button", { name: "List" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Expand CW" }));
     expect(titles()).toEqual(["CW", "Advent"]);
+    // Each row carries its depth, which indents its facts under the title
+    // on phones.
+    const depth = (title: string) =>
+      screen
+        .getByText(title)
+        .closest("tr")!
+        .style.getPropertyValue("--v-depth");
+    expect(depth("CW")).toBe("0");
+    expect(depth("Advent")).toBe("1");
   });
 
   it.each(["{nope", "{}", "null", '"cw"', "[1]"])(

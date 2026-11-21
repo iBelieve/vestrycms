@@ -3101,6 +3101,112 @@ button.v-table__toggle:hover {
 }
 
 @media (max-width: 600px) {
+  /* Lists (entries, users) as stacked rows: the title and its View link on
+     the first line, the other columns as short facts beneath, instead of a
+     table that scrolls sideways with its columns cut off. The dashboard's
+     recent lists (.v-recent) have their own version below. */
+  .v-toolbar .v-search {
+    flex: 1 0 100%;
+    max-width: none;
+  }
+  .v-table:not(.v-recent),
+  .v-table:not(.v-recent) > :is(thead, tbody) {
+    display: block;
+  }
+  /* The header becomes a row of sort buttons; a header with none goes. */
+  .v-table:not(.v-recent) > thead:not(:has(button)) {
+    display: none;
+  }
+  .v-table:not(.v-recent) > thead > tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+    padding: 9px 12px;
+    background: var(--v-surface-muted);
+    border-bottom: 1px solid var(--v-border);
+  }
+  .v-table:not(.v-recent) th {
+    padding: 0 !important;
+    border: 0;
+    font-size: 11px;
+  }
+  .v-table:not(.v-recent) th:not(:has(button)) {
+    display: none;
+  }
+  .v-table:not(.v-recent) > thead > tr::before {
+    content: "Sort";
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--v-text-faint);
+  }
+  .v-table:not(.v-recent) > tbody > tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--v-border);
+  }
+  .v-table:not(.v-recent) > tbody:last-child > tr:last-child {
+    border-bottom: 0;
+  }
+  .v-table:not(.v-recent) > tbody > tr:hover {
+    background: #faf8f6;
+  }
+  /* A tree row: indented by its depth and the toggle's width, with the
+     toggle pulled back into the indent, so the facts beneath line up with
+     the title. */
+  .v-table:not(.v-recent) > tbody > tr:has(.v-table__node) {
+    padding-left: calc(12px + var(--v-depth, 0) * 22px + 24px);
+  }
+  .v-table:not(.v-recent) .v-table__node {
+    margin-left: -24px;
+    padding-left: 0 !important;
+  }
+  .v-table:not(.v-recent) td,
+  .v-table:not(.v-recent) tbody tr:hover td {
+    padding: 0 !important;
+    border: 0;
+    background: none;
+  }
+  .v-table:not(.v-recent) td.v-table__main {
+    order: -2;
+    flex: 1 0 calc(100% - 46px);
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+  .v-table:not(.v-recent)
+    tr:has(> td.v-table__actions:empty)
+    > td.v-table__main {
+    flex-basis: 100%;
+  }
+  .v-table:not(.v-recent) td.v-table__actions {
+    order: -1;
+    width: auto;
+    margin-left: auto;
+  }
+  .v-table:not(.v-recent) td:not(.v-table__main, .v-table__actions) {
+    font-size: 12.5px;
+    color: var(--v-text-muted);
+  }
+  /* A column with nothing to show (—) would be a stray dash without its
+     header. */
+  .v-table:not(.v-recent) td:empty,
+  .v-table:not(.v-recent) td:has(> .v-table__clip > .v-faint:only-child) {
+    display: none;
+  }
+  /* The gap between pinned pages and the rest. */
+  .v-table:not(.v-recent) > tbody.v-table__divider > tr {
+    padding: 0;
+  }
+  .v-table:not(.v-recent) .v-table__divider td {
+    flex: 1 0 100%;
+    height: 10px;
+  }
   /* The sticky editor heading on one row: a back arrow, the title (shown
      whole in the title card below) and icon-sized buttons. */
   #vestry-root .v-topbar--sticky .v-topbar__back {

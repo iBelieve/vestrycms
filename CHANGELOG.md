@@ -28,6 +28,11 @@ while Vestry is below 1.0, a minor version may change behaviour.
   sticks below it. Side-by-side fields take the full width on phones, the
   title wraps instead of running out of sight, and touch screens get 16px
   fields so iOS no longer zooms in on one.
+- **Lists on a phone.** Entry and user lists show each row stacked (the
+  title and its View link, then the other columns as short facts beneath,
+  empty ones left out) instead of a table that scrolls sideways; the
+  column headers become a row of sort buttons, and the search box takes
+  the full width.
 - `recent` must be true, false or a number: anything else (a string in a
   `.js` config, say) is an error at startup instead of quietly falling
   back to the default.

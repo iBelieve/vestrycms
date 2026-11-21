@@ -7,7 +7,7 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { type CSSProperties, Fragment, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import type {
   CollectionConfig,
@@ -518,12 +518,21 @@ function EntryRow({
         <td key={c.field} />
       ),
     );
+  const inTree = !!onToggle || !!pinned?.inTree;
   return (
-    <tr>
+    <tr
+      // On phones the row's other columns sit under the title, indented to
+      // line up with it (styles.css).
+      style={
+        inTree
+          ? ({ "--v-depth": onToggle ? row.depth : 0 } as CSSProperties)
+          : undefined
+      }
+    >
       {cells(columns.before)}
       <td className="v-table__main">
         <div
-          className={cx((onToggle || pinned?.inTree) && "v-table__node")}
+          className={cx(inTree && "v-table__node")}
           style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
         >
           {pinned?.inTree && <span className="v-table__toggle" />}
