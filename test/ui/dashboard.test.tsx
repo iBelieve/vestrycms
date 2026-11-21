@@ -83,22 +83,17 @@ describe("the dashboard", () => {
       "section",
     ) as HTMLElement;
 
-  it("offers a New button on each recent list it can create in", async () => {
+  it("puts a New button in the top bar for each recent list it can create in", async () => {
     await openPanel(recentConfig, { files: recentFiles });
-    const posts = await recentSection("Recent posts");
+    await recentSection("Recent days");
+    const bar = document.querySelector(".v-topbar") as HTMLElement;
+    const links = within(bar).getAllByRole("link");
     expect(
-      within(posts)
-        .getByRole("link", { name: /New post/ })
-        .getAttribute("href"),
-    ).toBe("/admin/collections/posts/new");
-    const faqs = await recentSection("Recent FAQs");
-    expect(
-      within(faqs)
-        .getByRole("link", { name: /New FAQ/ })
-        .getAttribute("href"),
-    ).toBe("/admin/collections/faqs/new");
-    const days = await recentSection("Recent days");
-    expect(within(days).queryByRole("link", { name: /New/ })).toBeNull();
+      links.map((a) => [a.textContent?.trim(), a.getAttribute("href")]),
+    ).toEqual([
+      ["New Post", "/admin/collections/posts/new"],
+      ["New FAQ", "/admin/collections/faqs/new"],
+    ]);
   });
 
   it("lists a collection sorted by number with its date column", async () => {

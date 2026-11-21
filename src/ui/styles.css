@@ -2356,19 +2356,6 @@ button.v-table__toggle:hover {
   font-weight: 600;
   margin: 0 0 12px;
 }
-.v-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.v-section-head .v-section-title {
-  margin: 0;
-}
-.v-section-head .v-btn {
-  margin-right: -10px;
-}
 
 /* ------------------------------------------------------------ analytics */
 .v-analytics__toolbar {
@@ -2872,6 +2859,9 @@ button.v-table__toggle:hover {
   }
   .v-topbar {
     padding: 0 16px;
+    /* Buttons drop below the title rather than squeezing it to "Dash…". */
+    flex-wrap: wrap;
+    row-gap: 10px;
   }
 }
 

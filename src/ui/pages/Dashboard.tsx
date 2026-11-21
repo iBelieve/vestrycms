@@ -3,6 +3,7 @@ import { ArrowRight, Clock, Plus } from "lucide-react";
 import { Link } from "react-router";
 import type { CollectionConfig } from "../../config/types.js";
 import {
+  recentCount,
   recentDateField,
   type DashboardCollection,
 } from "../../core/dashboard.js";
@@ -27,7 +28,7 @@ export function DashboardPage() {
 
   return (
     <>
-      <TopBar title="Dashboard" />
+      <TopBar title="Dashboard" actions={<NewEntryButtons />} />
       <div className="v-page">
         <AnalyticsWidget />
         {collections.length > 0 && (
@@ -104,7 +105,27 @@ function statError(
   return summary ? undefined : error?.message;
 }
 
-/** A collection's latest entries, with a button to start a new one. */
+/**
+ * A New button for each collection with a recent list that takes new
+ * entries, for the dashboard's top bar.
+ */
+function NewEntryButtons() {
+  const { config } = useVestry();
+  const buttons = Object.entries(config.collections ?? {})
+    .filter(([, col]) => recentCount(col) > 0 && isEditable(col))
+    .map(([key, col]) => (
+      <Link
+        key={key}
+        to={`/collections/${key}/new`}
+        className="v-btn v-btn--primary"
+      >
+        <Plus /> New {col.singular ?? "entry"}
+      </Link>
+    ));
+  return buttons.length ? buttons : null;
+}
+
+/** A collection's latest entries. */
 function RecentSection({
   collectionKey: key,
   col,
@@ -117,17 +138,7 @@ function RecentSection({
   const dateField = recentDateField(col);
   return (
     <section className="v-section">
-      <div className="v-section-head">
-        <h2 className="v-section-title">Recent {inSentence(col.label)}</h2>
-        {isEditable(col) && (
-          <Link
-            to={`/collections/${key}/new`}
-            className="v-btn v-btn--sm v-btn--ghost"
-          >
-            <Plus /> New {inSentence(col.singular ?? "entry")}
-          </Link>
-        )}
-      </div>
+      <h2 className="v-section-title">Recent {inSentence(col.label)}</h2>
       <div className="v-card">
         <table className="v-table">
           <tbody>
