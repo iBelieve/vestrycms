@@ -3,6 +3,15 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Added
+
+- **`dashboard: false`** on a collection leaves it off the dashboard: no
+  tile, "Recent …" list or New button, and the dashboard request no
+  longer lists it. It stays in the sidebar. For collections editors
+  rarely open, such as categories, authors or generated entries.
+
 ## 0.7.0
 
 ### Added

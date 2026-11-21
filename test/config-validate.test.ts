@@ -227,8 +227,8 @@ describe("validateConfig", () => {
     ).toThrow('pinned has ["index","house"], which is not a slug');
   });
 
-  it("accepts fixedEntries and readOnly only as true or false", () => {
-    for (const flag of ["fixedEntries", "readOnly"])
+  it("accepts fixedEntries, readOnly and dashboard only as true or false", () => {
+    for (const flag of ["fixedEntries", "readOnly", "dashboard"])
       expect(() => validateConfig(posts({ [flag]: "true" as never }))).toThrow(
         `${flag} must be true or false`,
       );

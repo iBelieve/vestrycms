@@ -409,6 +409,12 @@ export interface CollectionConfig {
    */
   recent?: boolean | number;
   /**
+   * `false` leaves the collection off the dashboard: no tile, no "Recent …"
+   * list and no New button there. It stays in the sidebar. For collections
+   * editors rarely open, such as categories, authors or generated entries.
+   */
+  dashboard?: boolean;
+  /**
    * `true` keeps the set of entries as the site has it: their fields and
    * bodies can be edited, but entries can't be created, deleted or renamed
    * in the control panel. For entries the site depends on one by one, see

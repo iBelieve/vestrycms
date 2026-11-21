@@ -216,12 +216,15 @@ const REPLACED: Record<string, string> = {
   editable: `${KEEP_ENTRIES} (editable: false), or remove it (editable: true)`,
 };
 
-/** `fixedEntries`, `readOnly` (and the settings they replaced), `reservedSlugs` and `pinned`. */
+/**
+ * `fixedEntries`, `readOnly` (and the settings they replaced), `dashboard`,
+ * `reservedSlugs` and `pinned`.
+ */
 function checkEditing(what: string, col: CollectionConfig) {
   for (const [old, instead] of Object.entries(REPLACED))
     if (old in col)
       fail(`${what} sets ${old}, which Vestry replaced: ${instead}`);
-  for (const flag of ["fixedEntries", "readOnly"] as const)
+  for (const flag of ["fixedEntries", "readOnly", "dashboard"] as const)
     if (col[flag] !== undefined && typeof col[flag] !== "boolean")
       fail(`${what} ${flag} must be true or false`);
   checkSlugList(what, "reservedSlugs", col.reservedSlugs);
