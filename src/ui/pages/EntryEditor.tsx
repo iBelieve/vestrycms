@@ -483,6 +483,7 @@ function EntryMain({ form }: { form: EntryFormModel }) {
           autoFocus={form.isNew}
           error={form.errors.find((e) => e.path === titleKey)?.message}
           address={display.address}
+          readOnly={form.readOnly}
         />
       )}
       {placement.sections.map((section, i) =>
@@ -1201,12 +1202,14 @@ function TitleCard({
   autoFocus,
   error,
   address,
+  readOnly,
 }: {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
   autoFocus: boolean;
   error?: string;
+  readOnly: boolean;
   /** The page's address on the site, linked once it is there. */
   address: { text: string; href: string | null } | null;
 }) {
@@ -1218,6 +1221,7 @@ function TitleCard({
           placeholder={placeholder}
           onChange={onChange}
           autoFocus={autoFocus}
+          readOnly={readOnly}
         />
         {error && <div className="v-field__error">{error}</div>}
         {address && <PageAddress {...address} />}
@@ -1252,11 +1256,14 @@ function TitleInput({
   placeholder,
   onChange,
   autoFocus,
+  readOnly,
 }: {
   value: string;
   placeholder: string;
   onChange: (value: string) => void;
   autoFocus: boolean;
+  /** Shown as plain text, not a box, in a read-only collection. */
+  readOnly: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   // Grows with its text (CSS `field-sizing: content` where supported).
@@ -1292,15 +1299,16 @@ function TitleInput({
         if (e.key === "Enter" && !e.nativeEvent.isComposing) e.preventDefault();
       }}
       autoFocus={autoFocus}
+      readOnly={readOnly}
     />
   );
 }
 
-/** Sets a textarea's height to its text's. */
+/** Sets a textarea's height to its text's, and its border's. */
 function fitHeight(el: HTMLTextAreaElement | null) {
   if (!el) return;
   el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
 }
 
 const LINE_BREAKS = /\s*[\r\n]+\s*/g;
