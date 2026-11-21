@@ -79,6 +79,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 - Labels set mid-sentence ("All FAQs", "Search FAQs…", "Create the first
   FAQ") keep their acronyms instead of becoming "faqs".
+- **Phones.** The top bar's breadcrumbs no longer run under the site's
+  logo: below 600px they are hidden (the sidebar above the page has the
+  same links), and a logo too wide for the bar shrinks. Tables leave the
+  title less room before scrolling, so the date beside it shows, and the
+  dashboard's recent lists put each entry's date and status under its
+  title instead of cutting them off.
 
 ## 0.6.0
 
