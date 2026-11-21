@@ -794,8 +794,15 @@ function ColumnCell({
   column: ListColumn;
   entry: EntrySummary;
 }) {
+  // A yes/no or a number means little without its column's name, which
+  // phones show beside it once the header is gone (styles.css).
+  const type = col.schema[column.field]?.type;
+  const labelled = type === "boolean" || type === "number";
   return (
-    <td className="v-table__cell">
+    <td
+      className={cx("v-table__cell", labelled && "v-table__cell--labelled")}
+      data-label={labelled ? columnLabel(col, column) : undefined}
+    >
       <div className="v-table__clip">
         {column.field === "status" ? (
           <Badge status={entry.status} />

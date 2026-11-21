@@ -317,7 +317,11 @@ function UserRow({
         )}
       </td>
       <td className="v-muted" style={{ whiteSpace: "nowrap" }}>
-        {u.lastLoginAt ? formatDate(u.lastLoginAt) : "—"}
+        {u.lastLoginAt ? (
+          formatDate(u.lastLoginAt)
+        ) : (
+          <span className="v-faint">—</span>
+        )}
       </td>
       <td className="v-table__actions">
         <UserMenu

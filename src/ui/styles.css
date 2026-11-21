@@ -3150,7 +3150,10 @@ button.v-table__toggle:hover {
     padding: 11px 12px;
     border-bottom: 1px solid var(--v-border);
   }
-  .v-table:not(.v-recent) > tbody:last-child > tr:last-child {
+  /* Each body's last row has no line under it, as on a wider screen: the
+     divider band or the footer draws one. (The last body can be empty, when
+     every entry shown is pinned.) */
+  .v-table:not(.v-recent) > tbody > tr:last-child {
     border-bottom: 0;
   }
   .v-table:not(.v-recent) > tbody > tr:hover {
@@ -3189,23 +3192,41 @@ button.v-table__toggle:hover {
     width: auto;
     margin-left: auto;
   }
+  /* min-width: a long value is cut short (.v-table__clip) rather than
+     pushing the row past the screen's edge, as it would in a deep tree
+     row. */
   .v-table:not(.v-recent) td:not(.v-table__main, .v-table__actions) {
+    min-width: 0;
     font-size: 12.5px;
     color: var(--v-text-muted);
   }
-  /* A column with nothing to show (—) would be a stray dash without its
-     header. */
+  .v-table:not(.v-recent) td.v-table__cell--labelled {
+    display: flex;
+    gap: 4px;
+  }
+  .v-table:not(.v-recent) td.v-table__cell--labelled::before {
+    content: attr(data-label) ":";
+    color: var(--v-text-faint);
+  }
+  /* A column with nothing to show (—, or no value at all) would be a stray
+     dash, or a stray gap, without its header. */
   .v-table:not(.v-recent) td:empty,
+  .v-table:not(.v-recent) td:has(> .v-faint:only-child),
+  .v-table:not(.v-recent) td:has(> .v-table__clip:empty),
   .v-table:not(.v-recent) td:has(> .v-table__clip > .v-faint:only-child) {
     display: none;
   }
-  /* The gap between pinned pages and the rest. */
+  /* The band between pinned pages and the rest, as on a wider screen. Its
+     cell is empty, so it must outrank td:empty, and the hover rule's
+     border: 0. */
   .v-table:not(.v-recent) > tbody.v-table__divider > tr {
     padding: 0;
   }
-  .v-table:not(.v-recent) .v-table__divider td {
+  .v-table:not(.v-recent) > tbody.v-table__divider > tr > td {
+    display: block;
     flex: 1 0 100%;
     height: 10px;
+    border-top: 1px solid var(--v-border-strong);
   }
   /* The sticky editor heading on one row: a back arrow, the title (shown
      whole in the title card below) and icon-sized buttons. */
