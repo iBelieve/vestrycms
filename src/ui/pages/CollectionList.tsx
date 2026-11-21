@@ -39,6 +39,7 @@ import {
   fieldLabel,
   formatDate,
   inSentence,
+  siteHref,
   summarize,
   titleCase,
 } from "../lib/utils.js";
@@ -572,7 +573,10 @@ function PreviewLink({
       title="View on site"
       target="_blank"
       rel="noreferrer"
-      href={`${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...entry.data, slug: entry.slug })}`}
+      href={siteHref(
+        siteUrl,
+        fillTemplate(col.previewUrl, { ...entry.data, slug: entry.slug }),
+      )}
     >
       <ExternalLink />
     </a>

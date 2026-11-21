@@ -1682,28 +1682,55 @@ button.v-table__toggle:hover {
   white-space: nowrap;
 }
 
+/* The title is a field like any other, a touch bolder: a textarea that
+   wraps a long title and grows to fit it. The page heading above shows it
+   large already. */
+.v-title-field:not(:last-child) {
+  margin-bottom: 20px;
+}
 .v-title-input {
   display: block;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.3;
-  padding: 2px 0;
-  letter-spacing: -0.01em;
-  color: inherit;
-  /* A textarea that wraps a long title and grows to fit it. */
+  font-size: 15px;
+  font-weight: 600;
   resize: none;
   overflow: hidden;
   field-sizing: content;
 }
-.v-title-input:focus {
-  outline: none;
+.v-title-input:hover:not(:focus, [readonly]) {
+  border-color: var(--v-text-faint);
 }
-.v-title-input::placeholder {
-  color: var(--v-text-faint);
+/* A read-only title is text, not a box to type in. */
+.v-title-input[readonly] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+  color: inherit;
+}
+
+/* The page's address under the title, as a permalink: wraps anywhere,
+   since a long slug has no spaces to break at. */
+.v-page-address {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 0 2px;
+  font-size: 13px;
+  color: var(--v-text-muted);
+  overflow-wrap: anywhere;
+}
+.v-page-address svg {
+  flex: none;
+  position: relative;
+  top: 2px;
+}
+.v-page-address a {
+  color: var(--v-primary);
+  text-decoration: none;
+}
+.v-page-address a:hover {
+  text-decoration: underline;
 }
 
 .v-unsaved {
@@ -3300,9 +3327,6 @@ button.v-table__toggle:hover {
   .v-field--third {
     grid-column: span 6;
   }
-  .v-title-input {
-    font-size: 22px;
-  }
   /* Less padding around the body and nested blocks, which add up. */
   .v-rte--flush .v-prose {
     padding: 16px 16px 24px;
@@ -3732,21 +3756,13 @@ button.v-tree__toggle:hover {
   }
 }
 
-/* Slug box: a date held by the date field is shown, fixed, in front. */
-.v-slug {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+/* The address (or file) under the slug box: wraps anywhere, since a long
+   slug has no spaces to break at. */
+.v-slug__hint {
+  overflow-wrap: anywhere;
 }
-.v-slug__prefix {
-  flex: none;
-  font-size: 12.5px;
-  color: var(--v-text-muted);
-  white-space: nowrap;
-}
-.v-slug .v-input {
-  min-width: 0;
-  flex: 1;
+.v-slug__hint .v-mono {
+  font-size: 11.5px;
 }
 
 /* Entries listed in the rename confirmation. */
@@ -3803,8 +3819,8 @@ button.v-tree__toggle:hover {
 }
 
 /* iOS zooms the page into any field set in less than 16px when it gets
-   focus, and doesn't zoom back out; touch screens get 16px fields. Fields
-   already set larger (the title, the sign-in code) are left alone. */
+   focus, and doesn't zoom back out; touch screens get 16px fields. A field
+   already set larger (the sign-in code) is left alone. */
 @media (pointer: coarse) {
   :is(#vestry-root, .v-portal)
     :is(input, select, textarea):not(
@@ -3813,7 +3829,6 @@ button.v-tree__toggle:hover {
       [type="range"],
       [type="color"],
       [type="file"],
-      .v-title-input,
       .v-login__code
     ) {
     font-size: 16px;

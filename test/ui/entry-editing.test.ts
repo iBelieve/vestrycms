@@ -7,9 +7,11 @@ import {
 } from "../../src/config/index.js";
 import { parsePathPattern } from "../../src/core/paths.js";
 import {
+  addressSlug,
   bodyEnv,
   entryDisplay,
   entryFile,
+  pagePath,
   publishToggle,
   readOnlySchema,
   slugBox,
@@ -115,27 +117,194 @@ describe("the entry's file", () => {
     ).toBe("src/data/pages.json");
   });
 
-  it("is named under the slug box for a new or renamed entry", () => {
+  it("names the file under the slug box for a new or renamed entry", () => {
     const pattern = parsePathPattern(posts.path);
-    expect(slugHint(pattern, "a", true, false)).toBe("src/content/posts/a.md");
-    expect(slugHint(pattern, "", true, false)).toBe("src/content/posts/….md");
-    expect(slugHint(pattern, "b", false, true)).toBe(
-      "Renames the file to src/content/posts/b.md",
-    );
-    expect(slugHint(pattern, "a", false, false)).toBeNull();
-    expect(slugHint(parsePathPattern(pages.path), "a", true, false)).toBeNull();
+    const saved = { slug: "a", data: {} };
+    const hint = (slug: string, isNew: boolean, renaming: boolean) =>
+      slugHint({
+        collection: posts,
+        pattern,
+        slug,
+        data: {},
+        saved: isNew ? null : saved,
+        renaming,
+        addressShown: true,
+      });
+    expect(hint("a", true, false)).toEqual({
+      lead: null,
+      path: "src/content/posts/a.md",
+    });
+    expect(hint("", true, false)?.path).toBe("src/content/posts/….md");
+    expect(hint("b", false, true)).toEqual({
+      lead: "Renames the file to",
+      path: "src/content/posts/b.md",
+    });
+    expect(hint("a", false, false)).toBeNull();
+    expect(
+      slugHint({
+        collection: pages,
+        pattern: parsePathPattern(pages.path),
+        slug: "a",
+        data: {},
+        saved: null,
+        renaming: false,
+        addressShown: true,
+      }),
+    ).toBeNull();
   });
 
-  it("shows a date prefix in front of the slug box", () => {
-    expect(slugBox("2026-11-17-a", "", "date")).toEqual({
-      value: "a",
-      prefix: "2026-11-17-",
+  it("says where the page moves when an edit changes its address", () => {
+    const articles = collection({
+      label: "Articles",
+      path: "src/content/articles/*.mdx",
+      previewUrl: "/articles/{slug|year}/{slug|month}/{slug|nodate}",
+      schema: { date: fields.date({ storeIn: "filename" }) },
     });
-    expect(slugBox("a", "", null)).toEqual({ value: "a", prefix: "" });
-    expect(slugBox("2026-11-17-x/y", "x/y", "date")).toEqual({
-      value: "x/y",
-      prefix: "",
+    const pattern = parsePathPattern(articles.path);
+    const saved = { slug: "2026-10-29-a-title", data: {} };
+    const hint = (slug: string, renaming: boolean) =>
+      slugHint({
+        collection: articles,
+        pattern,
+        slug,
+        data: {},
+        saved,
+        renaming,
+        addressShown: true,
+      });
+    // Nothing to say until an edit moves the page.
+    expect(hint("2026-10-29-a-title", false)).toBeNull();
+    expect(hint("2026-11-02-a-title", true)).toEqual({
+      lead: "Moves to",
+      path: "/articles/2026/11/a-title",
     });
+    // The day isn't in the address, so only the file moves.
+    expect(hint("2026-10-30-a-title", true)).toEqual({
+      lead: "Renames the file to",
+      path: "src/content/articles/2026-10-30-a-title.mdx",
+    });
+    // A new entry's address is under its title instead.
+    const created = (addressShown: boolean) =>
+      slugHint({
+        collection: articles,
+        pattern,
+        slug: "2026-11-21-",
+        data: {},
+        saved: null,
+        renaming: false,
+        addressShown,
+      });
+    expect(created(true)).toBeNull();
+    // Without a title box to show it under, the slug box names its file.
+    expect(created(false)).toEqual({
+      lead: null,
+      path: "src/content/articles/2026-11-21-.mdx",
+    });
+    // A saved slug ending in a hyphen hasn't moved while it is unchanged.
+    expect(
+      slugHint({
+        collection: articles,
+        pattern,
+        slug: "2026-10-29-",
+        data: {},
+        saved: { slug: "2026-10-29-", data: {} },
+        renaming: false,
+        addressShown: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("fills a page's path, with an ellipsis for a name not yet given", () => {
+    const articles = collection({
+      label: "Articles",
+      path: "src/content/articles/*.mdx",
+      previewUrl: "/articles/{slug|year}/{slug|month}/{slug|nodate}",
+      schema: {},
+    });
+    expect(pagePath(articles, "2026-10-29-a-title", {})).toBe(
+      "/articles/2026/10/a-title",
+    );
+    expect(pagePath(articles, "2026-11-21-", {})).toBe("/articles/2026/11/…");
+    expect(pagePath(posts, "a", {})).toBeNull();
+    const notes = collection({
+      label: "Notes",
+      path: "src/content/notes/**.md",
+      previewUrl: "/notes/{slug}",
+      schema: {},
+    });
+    expect(pagePath(notes, "", {})).toBe("/notes/…");
+    expect(pagePath(notes, "a/", {})).toBe("/notes/a/…");
+    expect(pagePath(notes, "a/2026-11-21-", {})).toBe("/notes/a/2026-11-21-…");
+    // A name ending in a hyphen is saved as it is.
+    expect(pagePath(notes, "hi-", {})).toBe("/notes/hi-");
+  });
+
+  it("says where a list entry's new id moves its page", () => {
+    const people = collection({
+      label: "People",
+      path: "src/data/people.json",
+      previewUrl: "/people/{slug}",
+      schema: { id: fields.text(), title: fields.text() },
+    });
+    const pattern = parsePathPattern(people.path);
+    const hint = (slug: string, renaming: boolean) =>
+      slugHint({
+        collection: people,
+        pattern,
+        slug,
+        data: { id: slug },
+        saved: { slug: "ann", data: { id: "ann" } },
+        renaming,
+        addressShown: true,
+      });
+    expect(hint("ann", false)).toBeNull();
+    expect(hint("anna", true)).toEqual({
+      lead: "Moves to",
+      path: "/people/anna",
+    });
+    // Without a `previewUrl` a new id renames no file: the list keeps it.
+    expect(
+      slugHint({
+        collection: pages,
+        pattern: parsePathPattern(pages.path),
+        slug: "b",
+        data: {},
+        saved: { slug: "a", data: {} },
+        renaming: true,
+        addressShown: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("fills a new list entry's address with the id its form holds", () => {
+    const people = collection({
+      label: "People",
+      path: "src/data/people.json",
+      schema: { id: fields.text(), title: fields.text() },
+    });
+    const pattern = parsePathPattern(people.path);
+    const slug = (isNew: boolean, data: Record<string, unknown>) =>
+      addressSlug({ collection: people, pattern, finalSlug: "", isNew, data });
+    expect(slug(true, { id: "ann" })).toBe("ann");
+    // With no id, the one the server derives from its title.
+    expect(slug(true, { title: "Bob Smith" })).toBe("bob-smith");
+    expect(slug(true, { id: "", title: "Bob" })).toBe("");
+    expect(slug(false, { id: "ann" })).toBe("");
+    expect(
+      addressSlug({
+        collection: posts,
+        pattern: parsePathPattern(posts.path),
+        finalSlug: "a",
+        isNew: true,
+        data: { id: "b" },
+      }),
+    ).toBe("a");
+  });
+
+  it("holds the slug without a date set by the date field", () => {
+    expect(slugBox("2026-11-17-a", "", "date")).toBe("a");
+    expect(slugBox("2026-11-17-a", "", null)).toBe("2026-11-17-a");
+    expect(slugBox("2026-11-17-x/y", "x/y", "date")).toBe("x/y");
   });
 });
 
@@ -155,6 +324,7 @@ describe("entryDisplay", () => {
       data: { title: "Hi", draft: true },
       isNew: false,
       slug: "hi",
+      saved: { slug: "hi", data: { title: "Hi", draft: true } },
       siteUrl: "https://example.org",
     });
     expect(display).toMatchObject({
@@ -163,6 +333,10 @@ describe("entryDisplay", () => {
       statusField: "draft",
       isPublished: false,
       previewHref: "https://example.org/posts/hi",
+      address: {
+        text: "example.org/posts/hi",
+        href: "https://example.org/posts/hi",
+      },
     });
     expect(display.editable("title")).toBe(false);
     expect(display.editable("draft")).toBe(false);
@@ -182,9 +356,11 @@ describe("entryDisplay", () => {
       data: {},
       isNew: false,
       slug: "",
+      saved: { slug: "", data: {} },
       siteUrl: undefined,
     });
     expect(display).toMatchObject({
+      address: null,
       titleInput: null,
       titleValue: "Site",
       statusField: null,
@@ -207,11 +383,65 @@ describe("entryDisplay", () => {
       data: {},
       isNew: true,
       slug: "",
+      saved: null,
       siteUrl: undefined,
     });
     expect(display.titleInput).toBeNull();
     expect(display.titleValue).toBe("");
     expect(display.previewHref).toBeNull();
+    // Where it will be, not yet a link.
+    expect(display.address).toEqual({ text: "/…", href: null });
+  });
+
+  it("links the page as saved until an edit to its slug is saved", () => {
+    const display = entryDisplay({
+      kind: "collection",
+      col: posts,
+      data: { title: "Hi" },
+      isNew: false,
+      slug: "hello",
+      saved: { slug: "hi", data: { title: "Hi" } },
+      siteUrl: "https://example.org/",
+    });
+    expect(display.previewHref).toBe("https://example.org/posts/hi");
+    expect(display.address?.text).toBe("example.org/posts/hi");
+  });
+
+  it("links a saved slug as it is, whatever it ends with", () => {
+    const display = entryDisplay({
+      kind: "collection",
+      col: posts,
+      data: {},
+      isNew: false,
+      slug: "hi-",
+      saved: { slug: "hi-", data: {} },
+      siteUrl: "https://example.org",
+    });
+    expect(display.previewHref).toBe("https://example.org/posts/hi-");
+    expect(display.address).toEqual({
+      text: "example.org/posts/hi-",
+      href: "https://example.org/posts/hi-",
+    });
+  });
+
+  it("puts one slash between the site and a page's path", () => {
+    const notes = collection({
+      label: "Notes",
+      path: "src/content/notes/*.md",
+      previewUrl: "notes/{slug}",
+      schema: {},
+    });
+    const display = entryDisplay({
+      kind: "collection",
+      col: notes,
+      data: {},
+      isNew: false,
+      slug: "a",
+      saved: { slug: "a", data: {} },
+      siteUrl: "https://example.org/",
+    });
+    expect(display.previewHref).toBe("https://example.org/notes/a");
+    expect(display.address?.text).toBe("example.org/notes/a");
   });
 });
 
