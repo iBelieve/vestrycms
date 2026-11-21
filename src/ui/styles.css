@@ -2921,6 +2921,11 @@ button.v-table__toggle:hover {
     position: sticky;
     top: 0;
   }
+  /* A field focused from the keyboard (Tab, a phone keyboard's arrows)
+     scrolls into view below the sticky bar, not under it. */
+  :root {
+    scroll-padding-top: var(--v-chrome-height);
+  }
   .v-chrome__menu {
     display: inline-flex;
   }
@@ -2929,6 +2934,11 @@ button.v-table__toggle:hover {
     flex-direction: column;
     flex: 1 0 auto;
     overflow: visible;
+    /* Something too wide for the screen is cut off, as it was when the
+       shell scrolled, rather than letting the whole page pan sideways.
+       Clipping one axis doesn't make a scroll container, so sticky bars
+       inside still stick to the page. */
+    overflow-x: clip;
   }
   .v-main {
     flex: 1 0 auto;
@@ -2983,6 +2993,10 @@ button.v-table__toggle:hover {
   .v-rte__toolbar {
     top: var(--v-chrome-height);
   }
+  /* A dialog's body scrolls on its own, with no top bar over it. */
+  .v-modal .v-rte__toolbar {
+    top: 0;
+  }
   .v-chrome__chip span {
     display: none;
   }
@@ -3014,8 +3028,8 @@ button.v-table__toggle:hover {
 }
 
 @media (max-width: 600px) {
-  /* The breadcrumbs don't fit beside a logo on a phone; the sidebar,
-     stacked above the page here, has the same links. */
+  /* The breadcrumbs don't fit beside a logo on a phone; the back link
+     above the title and the sidebar's drawer lead to the same pages. */
   .v-chrome__crumb {
     display: none;
   }

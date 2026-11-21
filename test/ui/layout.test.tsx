@@ -71,6 +71,58 @@ describe("the sidebar drawer", () => {
     expect(document.querySelector(".v-sidebar-backdrop")).toBeNull();
   });
 
+  it("closes when the page changes from outside it, as from the logo", async () => {
+    await openPanel(config, { url: "/collections/posts", files });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Open menu" }),
+    );
+    await userEvent.click(screen.getByRole("link", { name: /Test Site/ }));
+    await screen.findByRole("heading", { name: "Dashboard" });
+    expect(document.querySelector(".v-sidebar")!.classList).not.toContain(
+      "is-open",
+    );
+    expect(document.documentElement.classList).not.toContain("v-nav-open");
+  });
+
+  it("stays shut on going back to the page it was opened on", async () => {
+    await openPanel(config, { url: "/collections/posts", files });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Open menu" }),
+    );
+    await userEvent.click(screen.getByRole("link", { name: /Dashboard/ }));
+    await screen.findByRole("heading", { name: "Dashboard" });
+    window.history.back();
+    await screen.findByRole("heading", { name: "Posts" });
+    expect(document.querySelector(".v-sidebar")!.classList).not.toContain(
+      "is-open",
+    );
+  });
+
+  it("closes when the current page's link is chosen again", async () => {
+    await openPanel(config, { url: "/collections/posts", files });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Open menu" }),
+    );
+    await userEvent.click(document.activeElement!);
+    await waitFor(() =>
+      expect(document.querySelector(".v-sidebar")!.classList).not.toContain(
+        "is-open",
+      ),
+    );
+  });
+
+  it("keeps the page beneath out of reach while open", async () => {
+    await openPanel(config, { url: "/collections/posts", files });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Open menu" }),
+    );
+    expect(document.querySelector(".v-main")!.hasAttribute("inert")).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Close menu" }));
+    expect(document.querySelector(".v-main")!.hasAttribute("inert")).toBe(
+      false,
+    );
+  });
+
   it("closes when the backdrop is tapped", async () => {
     await openPanel(config, { url: "/collections/posts", files });
     await userEvent.click(
