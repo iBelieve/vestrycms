@@ -7,6 +7,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **Fields for some entries.** `entries: ["index"]` on a collection's
+  top-level field shows it only in those entries' editors, such as fields
+  for the home page alone. Other entries keep any value it has, and don't
+  require it.
 - **Google Analytics.** With `provider: "google-analytics"` and a
   `propertyId`, `analytics` reads a GA4 property through the Data API as a
   service account, with its JSON key in the
@@ -29,9 +33,23 @@ while Vestry is below 1.0, a minor version may change behaviour.
   listing.
 - Hidden folders in an asset folder (`.cache`, say) no longer show up as
   folders, as hidden files already didn't.
+- **More icons**: `book-down`, `book-marked`, `circle-question-mark`,
+  `columns-4`, `diamond`, `download`, `feather`, `grid-3x3`, `library`,
+  `list-indent-increase`, `music`, `notebook-pen`, `shopping-cart`,
+  `square`, `sun`, `tags` and `text-align-center`. `book-marked` and
+  `music` keep Lucide's older names; lucide.dev now lists them as
+  `book-bookmark` and `eighth-notes`.
 
 ### Changed
 
+- **Unknown icons are an error at startup** on collections, singletons,
+  asset containers and components, as they already were on pinned entries,
+  instead of quietly showing a file icon. The message lists the names the
+  panel draws. Lucide's older names aren't in the set (except
+  `triangle-alert`, `book-marked` and `music`): use
+  `circle-question-mark` for `circle-help`, `text-align-center` for
+  `align-center`, `text-align-start` for `align-left` or `text`, and
+  `list-indent-increase` for `indent-increase`.
 - **Phones and narrow screens.** Below 860 px the sidebar is a drawer,
   opened from a menu button in the top bar, instead of a block stacked
   above every page. The page itself scrolls under a sticky top bar (so

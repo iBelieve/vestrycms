@@ -67,7 +67,10 @@ const config = defineConfig({
       path: "src/pages/**.md",
       body: false,
       reservedSlugs: ["index", "404"],
-      schema: { title: fields.text() },
+      schema: {
+        title: fields.text(),
+        tagline: fields.text({ entries: ["index", "welcome"], required: true }),
+      },
     }),
     rules: collection({
       label: "Rules",
@@ -127,6 +130,7 @@ const files = {
     "- id: home\n  title: Home\n- id: about\n  title: About\n  next: home\n",
   "src/content/menus/main.md": "---\ntitle: Main\nfirst: home\n---\n",
   "src/pages/index.md": "---\ntitle: Home\n---\n",
+  "src/pages/about.md": "---\ntitle: About\ntagline: Kept\n---\n",
   "src/content/rules/first.md": "---\ntitle: First\n---\n",
   "src/content/notes/one.md":
     "---\ntitle: One\ndraft: false\ntags:\n  - a\nsee: one\nintro: An intro.\n---\nThe *body*.\n",
@@ -813,6 +817,122 @@ describe("a fixed slug", () => {
       screen.getByText("This collection doesn't allow renaming entries."),
     ).toBeTruthy();
     expect(screen.queryByTitle("Delete")).toBeNull();
+  });
+});
+
+describe("a field for some entries", () => {
+  const tagline = () => screen.queryByText("Tagline");
+
+  it("shows in the entries it names", async () => {
+    await openPanel(config, { url: "/collections/pages/index", files });
+    await screen.findByDisplayValue("Home");
+    expect(tagline()).toBeTruthy();
+  });
+
+  it("hides in the others, which keep its value and don't need one", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/pages/about",
+      files,
+    });
+    const title = await screen.findByDisplayValue("About");
+    expect(tagline()).toBeNull();
+    await user.type(title, " us");
+    await user.click(saveButton());
+    await screen.findByText("Saved to disk");
+    expect(await read(root, "src/pages/about.md")).toBe(
+      "---\ntitle: About us\ntagline: Kept\n---\n",
+    );
+  });
+
+  it("shows once the slug is one it names", async () => {
+    await openPanel(config, { url: "/collections/pages/about", files });
+    await screen.findByDisplayValue("About");
+    fireEvent.change(slugInput(), { target: { value: "welcome" } });
+    expect(tagline()).toBeTruthy();
+    expect(screen.getByDisplayValue("Kept")).toBeTruthy();
+  });
+
+  it("leaves new entries without its value", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(config, {
+      url: "/collections/pages/new",
+      files,
+    });
+    await user.type(await screen.findByPlaceholderText("Title…"), "Faq");
+    expect(tagline()).toBeNull();
+    await user.click(saveButton());
+    await screen.findByText(/Created|Saved/);
+    expect(await read(root, "src/pages/faq.md")).toBe("---\ntitle: Faq\n---\n");
+  });
+
+  const placed = defineConfig({
+    repo: { owner: "o", name: "r", branch: "main" },
+    collections: {
+      pages: collection({
+        label: "Pages",
+        path: "src/pages/**.md",
+        body: false,
+        sections: [{ label: "Hero", fields: ["hero"] }],
+        schema: {
+          title: fields.text(),
+          hero: fields.text({ entries: ["index"] }),
+          motto: fields.text({ entries: ["index"], sidebar: true }),
+          short: fields.text({ entries: ["index"], maxLength: 3 }),
+        },
+      }),
+      links: collection({
+        label: "Links",
+        path: "src/data/links.yaml",
+        schema: {
+          id: fields.text(),
+          title: fields.text(),
+          note: fields.text({ entries: ["home"], required: true }),
+        },
+      }),
+    },
+  });
+  const placedFiles = {
+    "src/pages/index.md": "---\ntitle: Home\n---\n",
+    "src/pages/about.md": "---\ntitle: About\nshort: Longer\n---\n",
+    "src/data/links.yaml": "- id: about\n  title: About\n",
+  };
+
+  it("leaves out the cards whose fields are all for other entries", async () => {
+    await openPanel(placed, {
+      url: "/collections/pages/about",
+      files: placedFiles,
+    });
+    await screen.findByDisplayValue("About");
+    expect(screen.queryByText("Hero")).toBeNull();
+    expect(screen.queryByText("Details")).toBeNull();
+    const cards = [...document.querySelectorAll(".v-card")];
+    expect(cards.filter((c) => !c.textContent)).toEqual([]);
+  });
+
+  it("saves the others without checking the value they keep", async () => {
+    const user = userEvent.setup();
+    const { root } = await openPanel(placed, {
+      url: "/collections/pages/about",
+      files: placedFiles,
+    });
+    await user.type(await screen.findByDisplayValue("About"), " us");
+    await user.click(saveButton());
+    await screen.findByText("Saved to disk");
+    expect(await read(root, "src/pages/about.md")).toBe(
+      "---\ntitle: About us\nshort: Longer\n---\n",
+    );
+  });
+
+  it("goes by the id a new list entry saves under", async () => {
+    await openPanel(placed, {
+      url: "/collections/links/new",
+      files: placedFiles,
+    });
+    fireEvent.change(await screen.findByLabelText("Id"), {
+      target: { value: "home" },
+    });
+    expect(screen.getByText("Note")).toBeTruthy();
   });
 });
 

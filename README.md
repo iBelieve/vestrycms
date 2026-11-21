@@ -555,6 +555,21 @@ when it sits in one (`resources/lectionaries`); one with entries under it
 also stays in the tree, at the head of its folder. A search or filter keeps
 matching pinned entries at the top.
 
+## Icons
+
+Collections, singletons, asset containers and components each take an
+`icon`, shown beside them in the sidebar (collections: also on the
+dashboard; components: in the insert menu and on the block). It is a
+[Lucide](https://lucide.dev) name from the panel's own set, `ICON_NAMES` in
+`src/config/icons.ts`, which is kept small to keep the control panel light.
+Three keep Lucide's older names: `triangle-alert`, `book-marked` and
+`music` (lucide.dev's `triangle-exclamation-point`, `book-bookmark` and
+`eighth-notes`). Any other name, including Lucide's other older names
+(`circle-help` for `circle-question-mark`), is an error at startup that
+lists the set. Give each sidebar item its own icon, so editors can tell
+them apart at a glance. To use one that isn't there yet, add it to
+`ICON_NAMES` and `Icon.tsx`.
+
 ## Dashboard
 
 Each collection gets a tile with its entry count (unless it is
@@ -747,6 +762,21 @@ freshly uploaded images before they are committed.
 `crop`, `focalPoint`, `tree`.
 Fields accept `label`, `description`, `required`, `sidebar`, `hidden`,
 `readOnly` and `width` (`full` | `half` | `third`).
+
+A collection's top-level field can be for some entries only: `entries`
+lists their slugs, and the editor shows the field in those entries alone.
+
+```ts
+tagline: fields.textarea({ entries: ["index"] }), // the home page's
+```
+
+Elsewhere it is hidden and not required, as with `hidden: true`, and any
+value it has stays in the file. The editor goes by the slug the entry will
+be saved under, so renaming an entry to one of them shows the field. New
+entries don't take its `default`, and saving another entry doesn't check
+its value. A nested field, a singleton's or a component prop can't set
+`entries`, and nor can a field every entry has: the title, the status
+field, a date kept in the file name or an `autoUpdate` datetime.
 
 `fields.array` takes the item field and then its options,
 `fields.array(fields.text(), { addLabel: "Add tag" })`, or a single options
