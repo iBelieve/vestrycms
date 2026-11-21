@@ -45,10 +45,11 @@ while Vestry is below 1.0, a minor version may change behaviour.
   and a card's note goes under its title. Touch-screen phones leave out
   the "Drop files here" box, keeping the Upload button (the picker lists
   the accepted file types instead).
-- **The title looks like a field.** It has a label above it and a box
-  like other fields (a stronger border on hover, the focus ring when
-  typing in it) instead of plain text on the card; a read-only entry's
-  title stays plain text.
+- **The title is a field like the others.** It is labelled, the size of
+  other fields (the page heading shows it large) and the first field of
+  the fields card, which then needs no "Details" heading. When a section
+  of the main column comes first, the title keeps a card of its own above
+  it. A read-only entry's title shows as plain text.
 - **The page's address under the title.** With a `previewUrl`, the
   editor shows the entry's address on the site under its title, the way
   a permalink is shown, linked to the live page (a new entry's address

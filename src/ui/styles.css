@@ -1682,37 +1682,22 @@ button.v-table__toggle:hover {
   white-space: nowrap;
 }
 
-/* The title is a field like any other, only larger: a box at rest, a
-   stronger border on hover and the focus ring other fields have. */
+/* The title is a field like any other, a touch bolder: a textarea that
+   wraps a long title and grows to fit it. The page heading above shows it
+   large already. */
+.v-title-field:not(:last-child) {
+  margin-bottom: 20px;
+}
 .v-title-input {
   display: block;
-  width: 100%;
-  border: 1px solid var(--v-border-strong);
-  border-radius: var(--v-radius-sm);
-  background: var(--v-surface);
-  box-shadow: var(--v-shadow-sm);
-  font: inherit;
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.3;
-  padding: 6px 12px;
-  letter-spacing: -0.01em;
-  color: inherit;
-  transition:
-    border-color 0.12s,
-    box-shadow 0.12s;
-  /* A textarea that wraps a long title and grows to fit it. */
+  font-size: 15px;
+  font-weight: 600;
   resize: none;
   overflow: hidden;
   field-sizing: content;
 }
-.v-title-input:hover {
+.v-title-input:hover:not(:focus, [readonly]) {
   border-color: var(--v-text-faint);
-}
-.v-title-input:focus {
-  outline: none;
-  border-color: var(--v-primary);
-  box-shadow: 0 0 0 3px var(--v-primary-ring);
 }
 /* A read-only title is text, not a box to type in. */
 .v-title-input[readonly] {
@@ -1720,9 +1705,7 @@ button.v-table__toggle:hover {
   background: transparent;
   box-shadow: none;
   padding-inline: 0;
-}
-.v-title-input::placeholder {
-  color: var(--v-text-faint);
+  color: inherit;
 }
 
 /* The page's address under the title, as a permalink: wraps anywhere,
@@ -3344,9 +3327,6 @@ button.v-table__toggle:hover {
   .v-field--third {
     grid-column: span 6;
   }
-  .v-title-input {
-    font-size: 22px;
-  }
   /* Less padding around the body and nested blocks, which add up. */
   .v-rte--flush .v-prose {
     padding: 16px 16px 24px;
@@ -3849,7 +3829,6 @@ button.v-tree__toggle:hover {
       [type="range"],
       [type="color"],
       [type="file"],
-      .v-title-input,
       .v-login__code
     ) {
     font-size: 16px;

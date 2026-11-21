@@ -382,8 +382,9 @@ collection, at the top level of the schema, without `time`.
 
 ## Editor sections
 
-By default the editor shows a "Details" card with every field, the content
-editor, and a rail for fields marked `sidebar: true`. `sections` groups
+By default the editor shows a card with every field, the title first
+(with the page's address under it), the content editor, and a rail for
+fields marked `sidebar: true`. `sections` groups
 fields into titled cards instead:
 
 ```ts
@@ -404,8 +405,10 @@ sections: [
 ```
 
 Sections render in order; `sidebar: true` puts a card in the rail. Fields
-not named by any section still fall into "Details" or the rail, and the
-content editor renders after the sections unless `"body"` places it.
+not named by any section still fall into a "Details" card or the rail,
+and the content editor renders after the sections unless `"body"` places
+it. When a section of the main column comes first, the title gets a card
+of its own above it.
 
 ## Text styles
 

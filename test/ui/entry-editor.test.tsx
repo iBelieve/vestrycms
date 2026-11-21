@@ -299,6 +299,23 @@ describe("a new entry", () => {
 });
 
 describe("the title", () => {
+  it("is the first field of the fields card, which then has no heading", async () => {
+    await openPanel(config, { url: "/collections/authors/ann", files });
+    await screen.findByDisplayValue("Ann");
+    const card = titleInput().closest(".v-card")!;
+    expect(card.textContent).toContain("Mentor");
+    expect(screen.queryByRole("heading", { name: "Details" })).toBeNull();
+  });
+
+  it("keeps a card of its own above a section of the main column", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    expect(titleInput().closest(".v-card")!.textContent).not.toContain(
+      "Summary",
+    );
+    expect(screen.getByRole("heading", { name: "Summary" })).toBeTruthy();
+  });
+
   it("wraps rather than taking line breaks", async () => {
     const user = userEvent.setup();
     const { root } = await openPanel(config, {

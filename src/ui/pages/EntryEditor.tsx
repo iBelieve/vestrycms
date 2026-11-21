@@ -470,24 +470,15 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
 
 /** The title, the body and the fields that aren't in the sidebar. */
 function EntryMain({ form }: { form: EntryFormModel }) {
-  const { col, display, placement, doc } = form;
-  const titleKey = display.titleInput;
+  const { placement } = form;
+  // The title is the fields card's first field when that card comes first;
+  // after a section of the main column, it keeps a card of its own above.
+  const titleFirst = !placement.sections.some(
+    (s) => s === "body" || !s.sidebar,
+  );
   return (
     <div className="v-stack" style={{ gap: 20 }}>
-      {titleKey && (
-        <TitleCard
-          value={display.titleValue}
-          label={fieldLabel(titleKey, col.schema[titleKey])}
-          required={!!col.schema[titleKey]?.required}
-          onChange={(title) =>
-            doc.setData((data) => ({ ...data, [titleKey]: title }))
-          }
-          autoFocus={form.isNew}
-          error={form.errors.find((e) => e.path === titleKey)?.message}
-          address={display.address}
-          readOnly={form.readOnly}
-        />
-      )}
+      {!titleFirst && <MainFieldsCard form={form} withFields={false} />}
       {placement.sections.map((section, i) =>
         section === "body" ? (
           <EntryBody key="body" form={form} />
@@ -495,17 +486,65 @@ function EntryMain({ form }: { form: EntryFormModel }) {
           <SectionCard key={`section-${i}`} form={form} section={section} />
         ),
       )}
-      {placement.hasVisible(placement.isMain) && (
-        <Card title="Details">
-          <EntryFields
-            form={form}
-            schema={col.schema}
-            filter={placement.isMain}
-          />
-        </Card>
-      )}
+      <MainFieldsCard form={form} withFields withTitle={titleFirst} />
       {!placement.bodyPlaced && <EntryBody form={form} />}
     </div>
+  );
+}
+
+/**
+ * The card of the main column's fields, headed "Details", or headed by the
+ * title field instead (`withTitle`); null when it would be empty.
+ */
+function MainFieldsCard({
+  form,
+  withFields,
+  withTitle = true,
+}: {
+  form: EntryFormModel;
+  withFields: boolean;
+  withTitle?: boolean;
+}) {
+  const { col, display, placement } = form;
+  const title = withTitle && display.titleInput;
+  const fields = withFields && placement.hasVisible(placement.isMain);
+  if (!title && !fields) return null;
+  return (
+    <Card title={title ? undefined : "Details"}>
+      {title && <EntryTitle form={form} titleKey={title} />}
+      {fields && (
+        <EntryFields
+          form={form}
+          schema={col.schema}
+          filter={placement.isMain}
+        />
+      )}
+    </Card>
+  );
+}
+
+/** The entry's title field, with its page's address under it. */
+function EntryTitle({
+  form,
+  titleKey,
+}: {
+  form: EntryFormModel;
+  titleKey: string;
+}) {
+  const { col, display, doc } = form;
+  return (
+    <TitleField
+      value={display.titleValue}
+      label={fieldLabel(titleKey, col.schema[titleKey])}
+      required={!!col.schema[titleKey]?.required}
+      onChange={(title) =>
+        doc.setData((data) => ({ ...data, [titleKey]: title }))
+      }
+      autoFocus={form.isNew}
+      error={form.errors.find((e) => e.path === titleKey)?.message}
+      address={display.address}
+      readOnly={form.readOnly}
+    />
   );
 }
 
@@ -1197,7 +1236,7 @@ function ErrorList({ errors }: { errors: ValidationError[] }) {
   );
 }
 
-function TitleCard({
+function TitleField({
   value,
   label,
   required,
@@ -1220,23 +1259,21 @@ function TitleCard({
 }) {
   const id = useId();
   return (
-    <div className="v-card">
-      <div className="v-card__body" style={{ padding: "14px 18px" }}>
-        <label className="v-field__label" htmlFor={id}>
-          {label}
-          {required && <span className="v-field__required">*</span>}
-        </label>
-        <TitleInput
-          id={id}
-          value={value}
-          placeholder={`${label}…`}
-          onChange={onChange}
-          autoFocus={autoFocus}
-          readOnly={readOnly}
-        />
-        {error && <div className="v-field__error">{error}</div>}
-        {address && <PageAddress {...address} />}
-      </div>
+    <div className="v-title-field">
+      <label className="v-field__label" htmlFor={id}>
+        {label}
+        {required && <span className="v-field__required">*</span>}
+      </label>
+      <TitleInput
+        id={id}
+        value={value}
+        placeholder={`${label}…`}
+        onChange={onChange}
+        autoFocus={autoFocus}
+        readOnly={readOnly}
+      />
+      {error && <div className="v-field__error">{error}</div>}
+      {address && <PageAddress {...address} />}
     </div>
   );
 }
@@ -1303,7 +1340,7 @@ function TitleInput({
     <textarea
       ref={ref}
       id={id}
-      className="v-title-input"
+      className="v-input v-title-input"
       rows={1}
       value={value}
       placeholder={placeholder}
