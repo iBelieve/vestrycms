@@ -3,7 +3,7 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
-## Unreleased
+## 0.7.0
 
 ### Added
 
@@ -44,6 +44,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
   each could outgrow a Worker isolate's 128 MB.
 - Concurrent requests share one GitHub fetch of the branch head and file
   tree instead of each making their own.
+- Dependencies: better-auth 1.7.23 (its tables are unchanged, so existing
+  databases need no migration), Tiptap 3.34 and other minor and patch
+  updates.
 
 ### Fixed
 
