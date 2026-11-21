@@ -37,10 +37,12 @@ import {
   slugWithDate,
   slugWithoutDate,
   toStoredValues,
+  walkValues,
 } from "../../core/values.js";
 import { ApiError, type SaveEntryInput, type ApiClient } from "../api.js";
 import type { PendingUpload } from "../components/AssetPicker.js";
 import type { EditorEnv } from "../components/editor/EditorContext.js";
+import { pick, rebaseMarkdown } from "../components/editor/rebase.js";
 import { formatEntry } from "../lib/format.js";
 
 export type Kind = "collection" | "singleton";
@@ -229,11 +231,7 @@ export function bodyEnv({
     if (src.startsWith(".")) return resolveRelative(fileDir, src);
     return null;
   };
-  const components = Object.fromEntries(
-    (body?.components ?? [])
-      .map((n) => [n, config.components?.[n]])
-      .filter(([, c]) => c),
-  ) as EditorEnv["components"];
+  const components = pick(config.components, body?.components);
   return {
     components,
     textStyles: config.textStyles,
@@ -253,6 +251,68 @@ export function bodyEnv({
 }
 
 /**
+ * An entry's body, and its Markdown fields, moved from the file they were
+ * written for to another: relative image references are made relative to
+ * the new file (see `rebaseMarkdown`). Frontmatter image fields hold
+ * repository paths, and are written for the new file anyway.
+ */
+function rebaseEntry(
+  col: CollectionConfig | SingletonConfig,
+  config: VestryConfig,
+  state: { data: Record<string, unknown>; body: string },
+  from: string,
+  to: string,
+): { data: Record<string, unknown>; body: string } {
+  if (dirname(from) === dirname(to)) return state;
+  const format = collectionFormat(col);
+  const bodyConfig = col.body === false ? null : col.body;
+  const body =
+    format === "md" || format === "mdx"
+      ? rebaseMarkdown(state.body, {
+          format,
+          from,
+          to,
+          components: pick(config.components, bodyConfig?.components),
+        })
+      : state.body;
+  const data = walkValues(col.schema, state.data, (field, value) =>
+    field.type === "markdown" && typeof value === "string"
+      ? rebaseMarkdown(value, {
+          format: "mdx",
+          from,
+          to,
+          components: pick(config.components, field.components),
+        })
+      : value,
+  );
+  return { data, body };
+}
+
+/** The body and data a draft changes, moved like `rebaseEntry`; what it leaves alone stays out. */
+export function rebaseDraft<
+  D extends { data?: Record<string, unknown>; body?: string },
+>(
+  draft: D,
+  col: CollectionConfig | SingletonConfig,
+  config: VestryConfig,
+  from: string,
+  to: string,
+): D {
+  const moved = rebaseEntry(
+    col,
+    config,
+    { data: draft.data ?? {}, body: draft.body ?? "" },
+    from,
+    to,
+  );
+  return {
+    ...draft,
+    ...(draft.data && { data: moved.data }),
+    ...(draft.body !== undefined && { body: moved.body }),
+  };
+}
+
+/**
  * What a save sends: the data (following its own rename), the body, the
  * version it was opened at and the files to upload with it. Whenever the
  * file holds just this entry, the whole file is composed here and
@@ -265,17 +325,22 @@ export async function saveInput({
   collectionKey,
   pattern,
   filePath,
-  state,
+  openedFile,
+  config,
   sha,
   isNew,
   rename,
   uploads,
+  state: edited,
 }: {
   kind: Kind;
   col: CollectionConfig | SingletonConfig;
   collectionKey: string;
   pattern: PathPattern;
+  /** The file the entry is saved in, and the one its editor opened (see `openedFile`). */
   filePath: string;
+  openedFile: string;
+  config: VestryConfig;
   state: { data: Record<string, unknown>; body: string };
   sha: string | null;
   isNew: boolean;
@@ -283,6 +348,7 @@ export async function saveInput({
   rename: { from: string; to: string } | null;
   uploads: Record<string, PendingUpload>;
 }): Promise<SaveEntryInput & { data: Record<string, unknown> }> {
+  const state = rebaseEntry(col, config, edited, openedFile, filePath);
   const fields = applyAutoFields(col.schema, state.data);
   // An entry that refers to itself follows its own rename.
   const data =

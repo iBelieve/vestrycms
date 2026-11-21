@@ -119,6 +119,35 @@ describe("assets", () => {
   );
 });
 
+describe("public URLs", () => {
+  it("reads a URL as the public file it names, in any field's directory", () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom("public/images", "public/shots", "src/assets/images"),
+        fileArb.filter((f) => !/^(src|public)\//.test(f)),
+        (directory, path) => {
+          const url = `/${path}`;
+          const repoPath = assetToRepoPath({ directory }, url, "src/a.md");
+          expect(repoPath).toBe(`public/${path}`);
+          expect(
+            repoPathToAsset({ directory, storeAs: "public" }, repoPath, ""),
+          ).toBe(url);
+        },
+      ),
+    );
+  });
+
+  it("reads a repository path written with a leading slash", () => {
+    const field = { directory: "src/assets/images" };
+    expect(assetToRepoPath(field, "/src/assets/images/a.png", "x.md")).toBe(
+      "src/assets/images/a.png",
+    );
+    expect(
+      assetToRepoPath({ directory: "public/shots" }, "/public/shots/a.png", ""),
+    ).toBe("public/shots/a.png");
+  });
+});
+
 describe("frontmatter", () => {
   /** Values a YAML 1.1 reader might mistake for another type, and filler. */
   const scalarString = fc.oneof(

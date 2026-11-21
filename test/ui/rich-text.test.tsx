@@ -636,4 +636,65 @@ describe("component image props", () => {
       encodeURIComponent("src/assets/shots/a.png"),
     );
   });
+
+  it("moves relative image references with an entry moved to another folder", async () => {
+    const config = defineConfig({
+      name: "Test Site",
+      repo: { owner: "o", name: "r", branch: "main" },
+      components: {
+        Shot: {
+          props: {
+            src: fields.image({ directory: "src/assets/shots" }),
+            caption: fields.text(),
+          },
+        },
+      },
+      collections: {
+        docs: collection({
+          label: "Docs",
+          path: "src/content/docs/**.mdx",
+          body: {
+            images: { directory: "src/assets/shots" },
+            components: ["Shot"],
+          },
+          schema: { title: fields.text() },
+        }),
+      },
+    });
+    const { root } = await openPanel(config, {
+      url: "/collections/docs/guides/intro",
+      files: {
+        "src/content/docs/guides/intro.mdx":
+          '---\ntitle: Intro\n---\n\n![A](../../../assets/shots/a.png)\n\n<Shot src="../../../assets/shots/a.png" caption="One" />\n\nSee [the page](/elsewhere).\n',
+        "src/assets/shots/a.png": "a",
+      },
+    });
+    await screen.findByText("Shot", { selector: ".v-block__name" });
+    fireEvent.change(screen.getByPlaceholderText("auto"), {
+      target: { value: "intro" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Save/ }));
+    await screen.findByText("Saved to disk");
+    const saved = await readFile(
+      path.join(root, "src/content/docs/intro.mdx"),
+      "utf8",
+    );
+    expect(saved).toContain("![A](../../assets/shots/a.png)");
+    expect(saved).toContain(
+      '<Shot src="../../assets/shots/a.png" caption="One" />',
+    );
+    expect(saved).toContain("See [the page](/elsewhere).");
+    // The editor it moves to previews them.
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/admin/collections/docs/intro"),
+    );
+    const thumb = await waitFor(() => {
+      const img = document.querySelector("img.v-thumb");
+      expect(img).not.toBeNull();
+      return img!;
+    });
+    expect(thumb.getAttribute("src")).toContain(
+      encodeURIComponent("src/assets/shots/a.png"),
+    );
+  });
 });

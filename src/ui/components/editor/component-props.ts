@@ -1,5 +1,5 @@
 import type { ComponentConfig, Schema } from "../../../config/types.js";
-import type { PMNode } from "../../../mdx/types.js";
+import type { ComponentRegistry, PMNode } from "../../../mdx/types.js";
 
 const COMPONENT_NODES = new Set(["mdxComponent", "mdxInlineComponent"]);
 
@@ -32,4 +32,20 @@ export function mapComponentProps(
     return next.content ? { ...next, content: next.content.map(visit) } : next;
   };
   return visit(doc);
+}
+
+/** What the MDX serializer needs to know of each component. */
+export function componentRegistry(
+  components: Record<string, ComponentConfig>,
+): ComponentRegistry {
+  const out: ComponentRegistry = {};
+  for (const [name, c] of Object.entries(components)) {
+    out[name] = {
+      import: c.import,
+      namedImport: c.namedImport,
+      inline: c.inline,
+      children: c.children,
+    };
+  }
+  return out;
 }

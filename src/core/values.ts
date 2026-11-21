@@ -145,6 +145,22 @@ export function defaultStorage(
     : "relative";
 }
 
+/**
+ * A value that starts with `/`: the URL of a file in `public/`, whichever
+ * folder it is in, or (outside a `public/` directory) a repository path
+ * written with a leading slash.
+ */
+function rootedToRepoPath(dir: string, value: string): string {
+  const rel = normalizePath(value);
+  if (rel.startsWith(`${dir}/`)) return rel;
+  if (
+    !dir.startsWith("public/") &&
+    (rel.startsWith("src/") || rel.startsWith("public/"))
+  )
+    return rel;
+  return `public/${rel}`;
+}
+
 /** Stored reference (relative path, bare filename, public URL) → repository path. */
 export function assetToRepoPath(
   field: AssetLike,
@@ -153,16 +169,7 @@ export function assetToRepoPath(
 ): string {
   const dir = normalizePath(field.directory);
   if (/^https?:\/\//.test(value)) return value;
-  if (value.startsWith("/")) {
-    if (dir.startsWith("public/")) {
-      const publicRoot = dir.slice("public/".length);
-      const rel = value.replace(/^\//, "");
-      return rel.startsWith(publicRoot)
-        ? `public/${rel}`
-        : joinPath(dir, basename(rel));
-    }
-    return normalizePath(value);
-  }
+  if (value.startsWith("/")) return rootedToRepoPath(dir, value);
   if (value.startsWith(".")) return resolveRelative(dirname(filePath), value);
   if (value.startsWith(dir)) return normalizePath(value);
   if (
