@@ -875,13 +875,12 @@ describe("component image props", () => {
       expect(window.location.pathname).toBe("/admin/collections/docs/intro"),
     );
     // The editor it moves to holds the saved data, not data moved again.
-    const thumb = await waitFor(() => {
-      const img = document.querySelector("img.v-thumb");
-      expect(img).not.toBeNull();
-      return img!;
-    });
-    expect(thumb.getAttribute("src")).toContain(
-      encodeURIComponent("src/assets/shots/a.png"),
+    // The old editor's thumbnail can still be showing for a moment (the
+    // saved path resolved against the old folder), so wait for it to settle.
+    await waitFor(() =>
+      expect(
+        document.querySelector("img.v-thumb")?.getAttribute("src"),
+      ).toContain(encodeURIComponent("src/assets/shots/a.png")),
     );
     expect(screen.queryByText("Unsaved changes")).toBeNull();
   });

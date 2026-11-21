@@ -20,6 +20,12 @@ while Vestry is below 1.0, a minor version may change behaviour.
   `.js` config, say) is an error at startup instead of quietly falling
   back to the default.
 
+### Fixed
+
+- Choosing another period on the Analytics page keeps the page in place:
+  the title, the period buttons and the last period's numbers (dimmed) stay
+  on screen while the new numbers load.
+
 ## 0.7.0
 
 ### Added
