@@ -102,6 +102,7 @@ export function googleAnalyticsProvider(
   const account = read;
   const propertyId = config.propertyId.trim().replace(/^properties\//, "");
   const property = `${DATA_API}/properties/${propertyId}`;
+  const tokenKey = `${account.client_email}|${account.private_key_id ?? ""}`;
 
   async function send(url: string, init: RequestInit): Promise<unknown> {
     let res: Response;
@@ -116,14 +117,17 @@ export function googleAnalyticsProvider(
       );
     }
     const body = await res.json().catch(() => null);
-    if (!res.ok)
+    if (!res.ok) {
+      // A token Google no longer takes: mint a new one next time instead of
+      // failing until this one's hour is up.
+      if (res.status === 401) tokens.delete(tokenKey);
       throw new AnalyticsError(refusal(res.status, body, account, propertyId));
+    }
     return body;
   }
 
   async function accessToken(): Promise<string> {
-    const key = `${account.client_email}|${account.private_key_id ?? ""}`;
-    const cached = tokens.get(key);
+    const cached = tokens.get(tokenKey);
     if (cached && cached.expiresAt > now().getTime()) return cached.token;
     const issued = Math.floor(now().getTime() / 1000);
     let assertion: string;
@@ -157,7 +161,7 @@ export function googleAnalyticsProvider(
     if (typeof body?.access_token !== "string")
       throw new AnalyticsError("Google didn't answer with an access token.");
     const seconds = typeof body.expires_in === "number" ? body.expires_in : 0;
-    tokens.set(key, {
+    tokens.set(tokenKey, {
       token: body.access_token,
       expiresAt: now().getTime() + (seconds - 60) * 1000,
     });
@@ -177,7 +181,10 @@ export function googleAnalyticsProvider(
       },
       body: JSON.stringify(request),
     });
-    return body && typeof body === "object" ? body : {};
+    // A proxy or sign-in page in between answers 200 with HTML.
+    if (!body || typeof body !== "object")
+      throw new AnalyticsError("Google Analytics didn't answer with a report.");
+    return body;
   }
 
   const report = (request: ReportRequest, token: string) =>
@@ -195,7 +202,9 @@ export function googleAnalyticsProvider(
       },
       token,
     );
-    const zone = validZone(res.metadata?.timeZone) ?? "UTC";
+    const zone = validZone(res.metadata?.timeZone);
+    // Without one, fall back to UTC for now, and ask again next time.
+    if (!zone) return "UTC";
     timeZones.set(propertyId, zone);
     return zone;
   }
@@ -342,7 +351,7 @@ function readServiceAccount(
   if (!text) return { error: missing };
   let parsed: unknown;
   try {
-    parsed = JSON.parse(
+    parsed = parseKey(
       text.startsWith("{")
         ? text
         : new TextDecoder().decode(base64Decode(text)),
@@ -368,6 +377,18 @@ function readServiceAccount(
   };
 }
 
+/**
+ * A JSON key. A double-quoted `.env` value has had the `\n` escapes in its
+ * private key turned into line breaks, which JSON doesn't allow in a string.
+ */
+function parseKey(json: string): unknown {
+  try {
+    return JSON.parse(json);
+  } catch {
+    return JSON.parse(json.replace(/\r?\n/g, "\\n"));
+  }
+}
+
 /** What Google said when it refused a request, as a sentence. */
 function refusal(
   status: number,
@@ -382,7 +403,7 @@ function refusal(
     typeof error === "object" && error !== null
       ? String((error as { message?: unknown }).message ?? "")
       : String(
-          (body as { error_description?: unknown }).error_description ??
+          (body as { error_description?: unknown } | null)?.error_description ??
             error ??
             "",
         )
@@ -482,12 +503,17 @@ export function periodRanges(
   const months = PERIOD_MONTHS[period];
   if (months) {
     const start = `${shiftMonths(today, 1 - months).slice(0, 7)}-01`;
+    // Compared as Plausible's months, which run to the end of this one, are:
+    // up to the same day, or to the month's end on its last day.
+    const monthEnd = addDays(shiftMonths(`${today.slice(0, 7)}-01`, 1), -1);
+    const [startDate, endDate] = previousRange(
+      period,
+      { start, end: monthEnd },
+      today,
+    )!;
     return {
       range: { startDate: start, endDate: today },
-      before: {
-        startDate: shiftMonths(start, -months),
-        endDate: shiftMonths(today, -months),
-      },
+      before: { startDate, endDate },
     };
   }
   if (period === "day")

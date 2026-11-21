@@ -19,7 +19,10 @@ export interface AnalyticsTotals {
   visitors: number | null;
   visits: number | null;
   pageviews: number | null;
-  /** Percentage of visits that saw one page. */
+  /**
+   * Percentage of visits that bounced: saw one page (Plausible), or weren't
+   * engaged (Google Analytics).
+   */
   bounceRate: number | null;
   /** Average visit length, in seconds. */
   visitDuration: number | null;

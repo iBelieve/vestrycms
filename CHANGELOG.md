@@ -13,6 +13,12 @@ propertyId }` reads a GA4 property through the Data API as a service
   secret. The dashboard card and the Analytics page show the same numbers
   as with Plausible (visitors are GA4's active users, visits its sessions).
 
+### Changed
+
+- `importRsaPrivateKey` is no longer exported from `vestrycms/core`: the
+  RS256 key handling moved to an internal module that the GitHub App and
+  Google Analytics sign-ins share.
+
 ### Fixed
 
 - Choosing another period on the Analytics page keeps the page in place:

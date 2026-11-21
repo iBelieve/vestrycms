@@ -273,6 +273,47 @@ describe("the Google Analytics provider", () => {
     );
   });
 
+  it("says what happened when Google answers without JSON", async () => {
+    const google = fakeGoogle();
+    const answer = (text: string, status: number) =>
+      report("7d", {
+        google: {
+          ...google,
+          fetch: (input, init) =>
+            String(input).endsWith(":runReport")
+              ? Promise.resolve(new Response(text, { status }))
+              : google.fetch(input, init),
+        },
+      });
+    await expect(answer("<html>Bad gateway</html>", 502)).rejects.toThrow(
+      "Google Analytics answered HTTP 502.",
+    );
+    await expect(answer("<html>Sign in</html>", 200)).rejects.toThrow(
+      "Google Analytics didn't answer with a report.",
+    );
+  });
+
+  it("gets a new token when Google stops taking the cached one", async () => {
+    const credentials = serviceAccountKey();
+    await report("7d", { credentials });
+    await expect(
+      report("7d", {
+        credentials,
+        google: fakeGoogle({ fail: { status: 401, body: {} } }),
+      }),
+    ).rejects.toThrow("HTTP 401");
+    const google = fakeGoogle();
+    await report("7d", { credentials, google });
+    expect(google.assertions).toHaveLength(1);
+  });
+
+  it("reads a key whose \\n escapes a .env file turned into line breaks", async () => {
+    const result = await report("7d", {
+      credentials: serviceAccountKey().replace(/\\n/g, "\n"),
+    });
+    expect(result.available).toBe(true);
+  });
+
   it("leaves out the live count when the realtime report fails", async () => {
     const result = await report("7d", {
       google: fakeGoogle({ realtimeStatus: 500 }),
@@ -305,6 +346,15 @@ describe("Google Analytics dates", () => {
     expect(periodRanges("6mo", "2028-08-31").before).toEqual({
       startDate: "2027-09-01",
       endDate: "2028-02-29",
+    });
+    // On a month's last day, its months are whole: so are those before.
+    expect(periodRanges("6mo", "2026-11-30").before).toEqual({
+      startDate: "2025-12-01",
+      endDate: "2026-05-31",
+    });
+    expect(periodRanges("6mo", "2026-11-20").before).toEqual({
+      startDate: "2025-12-01",
+      endDate: "2026-05-20",
     });
   });
 

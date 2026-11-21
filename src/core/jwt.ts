@@ -84,7 +84,13 @@ function pemToPkcs8(pem: string, what: string): Uint8Array {
     throw new KeyError(`${what} PEM is malformed.`);
   }
   const label = match[1];
-  const body = base64Decode(match[2]);
+  let body: Uint8Array;
+  try {
+    body = base64Decode(match[2]);
+  } catch {
+    // `atob` (where there is no Buffer) refuses characters outside base64.
+    throw new KeyError(`${what} PEM is malformed.`);
+  }
   if (label === "PRIVATE KEY") return body;
   if (label === "RSA PRIVATE KEY") return wrapPkcs1(body);
   throw new KeyError(
