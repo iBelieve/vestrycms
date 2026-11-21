@@ -614,8 +614,11 @@ How it works:
   that HTML and the site's components, the ones `config.components` lists
   with an `import`, and sends back the page. Expressions, `import`s other
   than the configured components', and props that aren't literals are left
-  out: they need the site's build. A component the route can't render shows
-  a placeholder.
+  out: they need the site's build. A component the route doesn't have (no
+  `import`, `preview: false`, or an `import` the build couldn't resolve)
+  shows a placeholder. One that throws while rendering (say, on a prop
+  still being typed) fails the whole redraw, and the window keeps the last
+  page it drew.
 - The route runs in the site's Worker, on request, so it can't use what
   only the build has. Components that read `astro:content` (a list of
   recent posts, say) would bundle the whole content store into the Worker:
@@ -630,6 +633,9 @@ How it works:
   users only), an HMAC of its expiry under `VESTRY_SECRET` that lasts an
   hour. The route checks it without loading sign-in or the database. In
   `astro dev` without sign-in no token is needed.
+- The page's scripts run in the window, each redraw a new page load (at
+  the address `about:srcdoc`). Leave analytics out of what the preview
+  component renders, or every pause in typing may count as a visit.
 - Images in the body show from the panel (`file?path=`), and new uploads
   from the browser, before they are saved. Images that components and the
   preview component load themselves (`src/assets` imports, say) are the

@@ -23,6 +23,10 @@ export function usePreviewFeed(
   const { basePath } = useVestry();
   const channel = useRef<BroadcastChannel | null>(null);
   const windowOpen = useRef(false);
+  // This editor opened a new window, which is to be sent its entry when it
+  // says hello, whether or not this tab is in view then: the new window may
+  // cover it.
+  const opener = useRef(false);
   const latest = useRef(snapshot);
   latest.current = snapshot;
   const enabled = snapshot !== null;
@@ -45,8 +49,9 @@ export function usePreviewFeed(
       if (data.type !== "hello") return;
       windowOpen.current = true;
       // Another tab's editor may answer too: the one in view is the one
-      // being worked on.
-      if (document.visibilityState === "visible") send();
+      // being worked on, unless this one has just opened the window.
+      if (opener.current || document.visibilityState === "visible") send();
+      opener.current = false;
     };
     opened.postMessage({ type: "who" } satisfies PreviewMessage);
     return () => {
@@ -69,8 +74,10 @@ export function usePreviewFeed(
       PREVIEW_WINDOW,
       "popup,width=1280,height=900",
     );
-    if (popup && popup.location.href === "about:blank")
+    const fresh = popup?.location.href === "about:blank";
+    if (popup && fresh)
       popup.location.href = `${basePath.replace(/\/$/, "")}/preview`;
+    opener.current = fresh;
     popup?.focus();
     // A window that is already open shows this entry now; a new one asks
     // for it when it has loaded.

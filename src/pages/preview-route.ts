@@ -16,12 +16,13 @@ export interface OpenedPreview extends PreviewRequest {
 export async function openPreview(
   request: Request,
 ): Promise<OpenedPreview | Response> {
+  // An empty VESTRY_SECRET is missing, as the API has it.
   const secret =
     auth.mode === "none"
       ? null
       : auth.mode === "secret"
         ? auth.secret
-        : readEnv("VESTRY_SECRET");
+        : readEnv("VESTRY_SECRET") || undefined;
   if (secret === undefined)
     return new Response("Missing environment variable: VESTRY_SECRET", {
       status: 500,

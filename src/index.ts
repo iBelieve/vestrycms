@@ -55,6 +55,9 @@ const VIRTUAL = {
   preview: "virtual:vestry/preview",
 } as const;
 
+/** `virtual:vestry/preview` for the browser, which has no use for it. */
+const EMPTY_PREVIEW_MODULE = `export const components = {};\nexport const previews = {};\nexport const auth = ${JSON.stringify({ mode: "env" } satisfies PreviewAuth)};\n`;
+
 export default function vestry(
   config: VestryConfig,
   options: VestryIntegrationOptions = {},
@@ -106,6 +109,15 @@ export default function vestry(
           },
           load(id) {
             if (!id.startsWith("\0")) return null;
+            // Only the preview route, on the server, imports it. The dev
+            // server would also answer a browser's request for it, and in
+            // dev its `auth` holds the sign-in secret: the browser gets an
+            // empty module.
+            if (
+              id.slice(1) === VIRTUAL.preview &&
+              this.environment?.config.consumer === "client"
+            )
+              return EMPTY_PREVIEW_MODULE;
             if (id.slice(1) === VIRTUAL.preview)
               return previewModule(config, {
                 // Resolved as the site's own files would be, so `@/…`
@@ -218,7 +230,9 @@ function previewAuth(
 ): PreviewAuth {
   if (!isDev) return { mode: "env" };
   if (mode === "local") return { mode: "none" };
-  return { mode: "secret", secret: readEnv("VESTRY_SECRET") ?? DEV_SECRET };
+  // An empty value counts as unset, as it does for the API (`VESTRY_SECRET=`
+  // in a copied `.env.example`).
+  return { mode: "secret", secret: readEnv("VESTRY_SECRET") || DEV_SECRET };
 }
 
 /** The source of one of the integration's virtual modules, by its id. */

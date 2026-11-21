@@ -57,17 +57,36 @@ export function PreviewPage() {
         {render.page ? (
           <PreviewFrame page={render.page} width={WIDTHS[width]} />
         ) : (
-          <EmptyState
-            icon={snapshot ? <Spinner /> : <Eye size={28} />}
-            title={snapshot ? "Drawing the page…" : "Waiting for the editor"}
-          >
-            {snapshot
-              ? render.error && <p>{render.error}</p>
-              : "Choose Preview in an entry's editor, and the page shows here as you edit it."}
-          </EmptyState>
+          <PreviewEmpty waiting={!snapshot} render={render} />
         )}
       </main>
     </div>
+  );
+}
+
+/** Before the first page is drawn: waiting for an entry, drawing it, or failing to. */
+function PreviewEmpty({
+  waiting,
+  render,
+}: {
+  waiting: boolean;
+  render: PreviewRender;
+}) {
+  if (waiting)
+    return (
+      <EmptyState icon={<Eye size={28} />} title="Waiting for the editor">
+        Choose Preview in an entry's editor, and the page shows here as you edit
+        it.
+      </EmptyState>
+    );
+  const failed = render.error !== null && !render.busy;
+  return (
+    <EmptyState
+      icon={failed ? <Eye size={28} /> : <Spinner />}
+      title={failed ? "Couldn't draw the page" : "Drawing the page…"}
+    >
+      {render.error && <p>{render.error}</p>}
+    </EmptyState>
   );
 }
 
@@ -368,9 +387,12 @@ function PreviewFrame({
 function withBase(html: string, path: string | null): string {
   const href = new URL(path ?? "/", window.location.origin).href;
   const base = `<base href="${href.replace(/"/g, "&quot;")}">`;
-  const head = /<head(\s[^>]*)?>/i.exec(html);
-  if (!head) return base + html;
-  const at = head.index + head[0].length;
+  // After `<head>`, or else after the doctype: anything before that would
+  // put the page in quirks mode.
+  const after =
+    /<head(\s[^>]*)?>/i.exec(html) ?? /^\s*<!doctype[^>]*>/i.exec(html);
+  if (!after) return base + html;
+  const at = after.index + after[0].length;
   return html.slice(0, at) + base + html.slice(at);
 }
 
@@ -383,10 +405,30 @@ function keepLinksOut(doc: Document) {
     event.preventDefault();
     const href = link.getAttribute("href") ?? "";
     if (href.startsWith("#")) {
-      doc.getElementById(decodeURIComponent(href.slice(1)))?.scrollIntoView();
+      doc.getElementById(fragmentId(href))?.scrollIntoView();
       return;
     }
-    window.open((link as HTMLAnchorElement).href, "_blank", "noopener");
+    const url = linkUrl(href, doc.baseURI);
+    if (url) window.open(url, "_blank", "noopener");
   });
   doc.addEventListener("submit", (event) => event.preventDefault());
+}
+
+/** A link's address, resolved from its attribute (an SVG link's `href` is no string); null if it isn't one. */
+function linkUrl(href: string, base: string): string | null {
+  try {
+    return new URL(href, base).href;
+  } catch {
+    return null;
+  }
+}
+
+/** The id a `#fragment` link names, as written if it isn't valid percent-encoding. */
+function fragmentId(href: string): string {
+  const id = href.slice(1);
+  try {
+    return decodeURIComponent(id);
+  } catch {
+    return id;
+  }
 }

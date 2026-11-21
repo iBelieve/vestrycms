@@ -67,7 +67,13 @@ function base64Url(bytes: Uint8Array): string {
 
 function fromBase64Url(text: string): Uint8Array | null {
   if (!/^[A-Za-z0-9_-]+$/.test(text)) return null;
-  const binary = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+  let binary: string;
+  try {
+    binary = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+  } catch {
+    // A length no base64 has (one past a multiple of four).
+    return null;
+  }
   return Uint8Array.from(binary, (c) => c.charCodeAt(0));
 }
 
@@ -141,11 +147,12 @@ export async function readPreview(
   }
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_PREVIEW_BYTES) return refuse(413, "Preview too large");
-  const text = await request.text();
-  if (text.length > MAX_PREVIEW_BYTES) return refuse(413, "Preview too large");
+  const bytes = await request.arrayBuffer();
+  if (bytes.byteLength > MAX_PREVIEW_BYTES)
+    return refuse(413, "Preview too large");
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     return refuse(400, "The preview is not JSON");
   }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   MAX_PREVIEW_BYTES,
   PREVIEW_TOKEN_SECONDS,
@@ -42,6 +42,8 @@ describe("preview tokens", () => {
     expect(await verifyPreviewToken("", SECRET)).toBe(false);
     expect(await verifyPreviewToken("123.***", SECRET)).toBe(false);
     expect(await verifyPreviewToken(`${expires}.`, SECRET)).toBe(false);
+    // A length no base64 has.
+    expect(await verifyPreviewToken(`${expires}.abcde`, SECRET)).toBe(false);
   });
 });
 
@@ -94,6 +96,12 @@ describe("readPreview", () => {
       local,
     )) as Response;
     expect(declared.status).toBe(413);
+    // Bytes, not characters.
+    const wide = (await readPreview(
+      post("é".repeat(MAX_PREVIEW_BYTES / 2 + 1)),
+      local,
+    )) as Response;
+    expect(wide.status).toBe(413);
     const junk = (await readPreview(post("{nope"), local)) as Response;
     expect(junk.status).toBe(400);
     expect(await junk.text()).toBe("The preview is not JSON");
@@ -154,11 +162,16 @@ describe("previewProblem", () => {
 });
 
 describe("openPreview", () => {
+  const original = process.env.VESTRY_SECRET;
+  beforeEach(() => {
+    delete process.env.VESTRY_SECRET;
+  });
   afterEach(() => {
     for (const key of Object.keys(auth))
       delete (auth as Record<string, unknown>)[key];
     Object.assign(auth, { mode: "none" });
-    delete process.env.VESTRY_SECRET;
+    if (original === undefined) delete process.env.VESTRY_SECRET;
+    else process.env.VESTRY_SECRET = original;
   });
 
   it("hands over the collection's preview component and the components", async () => {
@@ -183,6 +196,12 @@ describe("openPreview", () => {
       post({ entry, body: [] }, signed),
     )) as Response;
     expect(missing.status).toBe(500);
+    // An empty one is missing too.
+    process.env.VESTRY_SECRET = "";
+    const empty = (await openPreview(
+      post({ entry, body: [] }, signed),
+    )) as Response;
+    expect(empty.status).toBe(500);
     process.env.VESTRY_SECRET = SECRET;
     expect(await openPreview(post({ entry, body: [] }, signed))).toMatchObject({
       entry,

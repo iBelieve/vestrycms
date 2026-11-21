@@ -114,6 +114,36 @@ describe("the editor's Preview button", () => {
     expect(heard).toEqual([]);
   });
 
+  it("sends a window it opened its entry, though the window hides its tab", async () => {
+    const popup = { location: { href: "about:blank" }, focus: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(popup as never);
+    const { channel, heard } = listen();
+    await openPanel(config, { url: "/collections/pages/about", files });
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Preview/ }),
+    );
+    // The new window covers the editor's, whose tab is then out of view.
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    try {
+      heard.length = 0;
+      channel.postMessage({ type: "hello" });
+      await waitFor(() =>
+        expect(heard.at(-1)).toEqual({ type: "entry", snapshot: snapshot() }),
+      );
+      // Only once: after that, the editor in view answers.
+      heard.length = 0;
+      channel.postMessage({ type: "hello" });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(heard).toEqual([]);
+    } finally {
+      delete (document as { visibilityState?: unknown }).visibilityState;
+      open.mockRestore();
+    }
+  });
+
   it("is not there for a collection without a preview", async () => {
     await openPanel(config, { url: "/collections/notes/one", files });
     await screen.findByRole("button", { name: /Save/ });
