@@ -86,6 +86,29 @@ describe("buildDashboard", () => {
     });
   });
 
+  it("lists a collection not sorted by a date newest first by its date column", async () => {
+    const dated = (slug: string, asked: string) => ({
+      ...entry(slug),
+      data: { asked },
+    });
+    const dashboard = await buildDashboard(
+      service({
+        posts: [],
+        // In number order; the highest number is not the newest.
+        faqs: [
+          dated("one", "2025-03-01"),
+          dated("two", "2026-02-10"),
+          dated("three", "2024-06-01"),
+        ],
+        pages: [],
+      }),
+    );
+    expect(dashboard.collections.faqs).toMatchObject({
+      count: 3,
+      recent: [{ slug: "two" }, { slug: "one" }],
+    });
+  });
+
   it("reports a collection that fails and still loads the others", async () => {
     const dashboard = await buildDashboard(
       service({

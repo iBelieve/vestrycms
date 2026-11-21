@@ -7,6 +7,7 @@
  */
 import type { CollectionConfig } from "../config/types.js";
 import type { ContentService, EntrySummary } from "./service.js";
+import { compareSortValues } from "./values.js";
 
 /** How many entries a "Recent …" list shows unless `recent` says otherwise. */
 const DEFAULT_RECENT = 5;
@@ -49,6 +50,25 @@ export function recentCount(col: CollectionConfig): number {
 }
 
 /**
+ * A collection's `limit` most recent entries, from its sorted listing:
+ * newest first by its date field, or in its sort order when it has no date
+ * to go by. A collection sorted by something else (an FAQ number) lists by
+ * its date column.
+ */
+function recentEntries(
+  col: CollectionConfig,
+  entries: EntrySummary[],
+  limit: number,
+): EntrySummary[] {
+  if (limit <= 0) return [];
+  const dateField = recentDateField(col);
+  if (!dateField || sortDateField(col)) return entries.slice(0, limit);
+  return [...entries]
+    .sort((a, b) => compareSortValues(a.data[dateField], b.data[dateField], -1))
+    .slice(0, limit);
+}
+
+/**
  * Every collection's counts and recent entries. A collection that fails to
  * list reports its error and the others still load; when all of them fail
  * (GitHub unreachable, say), the first error is thrown so the panel shows
@@ -80,7 +100,11 @@ export async function buildDashboard(
     collections[key] = {
       count: entries.length,
       drafts: entries.filter((e) => e.status === "draft").length,
-      recent: entries.slice(0, recentCount(config.collections![key])),
+      recent: recentEntries(
+        config.collections![key],
+        entries,
+        recentCount(config.collections![key]),
+      ),
     };
   });
   return { collections };

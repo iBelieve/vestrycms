@@ -81,6 +81,9 @@ describe("the dashboard", () => {
       "---\nnumber: 1\ntitle: First question\ndate: 2025-03-01\n---\n",
     "src/content/faqs/two.md":
       "---\nnumber: 2\ntitle: Second question\ndate: 2026-02-10\n---\n",
+    // The highest number, but not the newest.
+    "src/content/faqs/three.md":
+      "---\nnumber: 3\ntitle: Third question\ndate: 2024-06-01\n---\n",
     "src/content/days/d.md": "---\ntitle: Day D\ndate: 2026-01-01\n---\n",
   };
 
@@ -104,19 +107,25 @@ describe("the dashboard", () => {
     ]);
   });
 
-  it("lists a collection sorted by number with its date column", async () => {
+  it("lists a collection sorted by number newest first by its date column", async () => {
     await openPanel(recentConfig, { files: recentFiles });
     const faqs = await recentSection("Recent FAQs");
-    const rows = within(faqs).getAllByRole("row");
-    expect(rows[0].textContent).toContain("Second question");
-    expect(rows[1].textContent).toContain("First question");
-    expect(rows[0].textContent).toMatch(/2026/);
+    const titles = within(faqs)
+      .getAllByRole("link")
+      .map((a) => a.textContent)
+      .filter((t) => t?.endsWith("question"));
+    expect(titles).toEqual([
+      "Second question",
+      "First question",
+      "Third question",
+    ]);
+    expect(within(faqs).getAllByRole("row")[0].textContent).toMatch(/2026/);
   });
 
   it("loads every collection's counts in one request", async () => {
     const { requests } = await openPanel(recentConfig, { files: recentFiles });
     expect(await screen.findAllByText("1 entry")).toHaveLength(2);
-    expect(screen.getByText("2 entries")).toBeTruthy();
+    expect(screen.getByText("3 entries")).toBeTruthy();
     const gets = requests.map((r) => `${r.method} ${r.url}`);
     expect(gets.filter((r) => r.includes("/dashboard"))).toEqual([
       "GET /admin/api/dashboard",

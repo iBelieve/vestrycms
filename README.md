@@ -547,10 +547,10 @@ matching pinned entries at the top.
 Each collection gets a tile with its entry count. Collections whose `sort`
 field is a date or datetime also get a "Recent …" list; set `recent: false`
 to hide it, `recent: true` to show it for other collections, or a number to
-change how many entries appear. The list follows the collection's sort, so
-`recent: true` on a collection sorted by a number (`number`, descending)
-shows the highest numbers. It shows the sort field's date, or else the first
-date field in `columns`. The dashboard's top bar has a **New …** button
+change how many entries appear. The list shows the newest entries by the
+sort field's date, or else by the first date field in `columns` (so
+`recent: true` on FAQs sorted by `number` lists the latest by date, not the
+highest numbers), and in the collection's sort order when it has neither. The dashboard's top bar has a **New …** button
 for each collection with a recent list, unless it is `fixedEntries` or
 `readOnly`.
 

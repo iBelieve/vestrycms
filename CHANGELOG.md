@@ -17,7 +17,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
   **New …** button for each collection with a "Recent …" list (not for
   `fixedEntries` or `readOnly` collections).
 - A "Recent …" list for a collection not sorted by a date
-  (`recent: true`) shows the first date field in its `columns`.
+  (`recent: true`) shows the first date field in its `columns`, and lists
+  its newest entries by that date rather than the first in its sort.
 - **Alt text and titles for images in the body.** Inserting an image into
   a body now asks for its alt text. Double-click an image in a body or
   Markdown field, or select it and press **Image details** in the
