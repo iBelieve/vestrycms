@@ -1,5 +1,5 @@
 import { ExternalLink } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Navigate } from "react-router";
 import {
   ANALYTICS_PERIODS,
@@ -56,7 +56,9 @@ export function AnalyticsPage() {
     }
   };
   const report = query.data?.available ? query.data : null;
-  const picker = <PeriodPicker period={period} onChange={choose} />;
+  // The report shown before (usually the last period's), kept on screen
+  // while the chosen period loads.
+  const loading = query.isPlaceholderData;
 
   return (
     <>
@@ -77,12 +79,19 @@ export function AnalyticsPage() {
         }
       />
       <div className="v-page">
-        {!report && <div className="v-analytics__toolbar">{picker}</div>}
+        {/* One toolbar whatever shows below it, so the period buttons (and
+            the focus on one) stay put when a report comes or goes. */}
+        <div className="v-analytics__toolbar">
+          {report && (
+            <AnalyticsMeta report={report} period={period} loading={loading} />
+          )}
+          <PeriodPicker period={period} onChange={choose} />
+        </div>
         {/* A report already shown stays when a later refresh fails. */}
         {query.isLoading ? (
           <Loading label="Loading analytics…" />
         ) : report ? (
-          <AnalyticsReportView report={report} toolbar={picker} />
+          <AnalyticsReportView report={report} loading={loading} />
         ) : query.error ? (
           <ErrorState
             title="Analytics couldn't load"
@@ -134,32 +143,47 @@ const PAGE_STATS: TotalKey[] = [
   "visitDuration",
 ];
 
-function AnalyticsReportView({
+/** The chosen period and its dates (or "Loading…"), and who's on now. */
+function AnalyticsMeta({
   report,
-  toolbar,
+  period,
+  loading,
 }: {
   report: AnalyticsReport;
-  toolbar: ReactNode;
+  /** The chosen period, which `report` is for unless it is `loading`. */
+  period: AnalyticsPeriod;
+  loading: boolean;
+}) {
+  const range = loading ? "Loading…" : rangeLabel(report.range);
+  return (
+    <p className="v-analytics__meta">
+      <span role="status">
+        {PERIOD_LABELS[period]}
+        {range && ` · ${range}`}
+      </span>
+      {report.current !== null && (
+        <span className="v-analytics__live">
+          <span className="v-analytics__pulse" />
+          {formatExact(report.current)}{" "}
+          {report.current === 1 ? "visitor" : "visitors"} right now
+        </span>
+      )}
+    </p>
+  );
+}
+
+function AnalyticsReportView({
+  report,
+  loading,
+}: {
+  report: AnalyticsReport;
+  /** `report` is another period's, shown dimmed until the chosen one loads. */
+  loading: boolean;
 }) {
   const { config } = useVestry();
   const [metric, setMetric] = useState<ChartMetric>("visitors");
-  const range = rangeLabel(report.range);
   return (
-    <>
-      <div className="v-analytics__toolbar">
-        <p className="v-analytics__meta">
-          {PERIOD_LABELS[report.period]}
-          {range && ` · ${range}`}
-          {report.current !== null && (
-            <span className="v-analytics__live">
-              <span className="v-analytics__pulse" />
-              {formatExact(report.current)}{" "}
-              {report.current === 1 ? "visitor" : "visitors"} right now
-            </span>
-          )}
-        </p>
-        {toolbar}
-      </div>
+    <div className="v-analytics__body" aria-busy={loading}>
       <section className="v-card v-analytics__overview">
         <div className="v-astats">
           {PAGE_STATS.map((stat) => (
@@ -192,6 +216,6 @@ function AnalyticsReportView({
         <Breakdown title="Countries" rows={report.countries} />
         <Breakdown title="Devices" rows={report.devices} />
       </div>
-    </>
+    </div>
   );
 }

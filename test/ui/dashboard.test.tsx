@@ -107,6 +107,27 @@ describe("the dashboard", () => {
     ]);
   });
 
+  it("leaves collections with dashboard: false off the dashboard", async () => {
+    const { posts, faqs, days } = recentConfig.collections!;
+    await openPanel(
+      {
+        ...recentConfig,
+        collections: { posts: { ...posts, dashboard: false }, faqs, days },
+      },
+      { files: recentFiles },
+    );
+    await recentSection("Recent FAQs");
+    const stats = document.querySelector(".v-stats") as HTMLElement;
+    expect(within(stats).queryByText("Posts")).toBeNull();
+    expect(within(stats).getByText("FAQs")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Recent posts" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /New Post/ })).toBeNull();
+    // Still in the sidebar.
+    expect(
+      document.querySelector('.v-sidebar a[href="/admin/collections/posts"]'),
+    ).not.toBeNull();
+  });
+
   it("lists a collection sorted by number newest first by its date column", async () => {
     await openPanel(recentConfig, { files: recentFiles });
     const faqs = await recentSection("Recent FAQs");

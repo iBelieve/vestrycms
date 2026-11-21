@@ -41,9 +41,14 @@ export function recentDateField(col: CollectionConfig): string | null {
   return sortDateField(col) ?? column ?? null;
 }
 
+/** Whether the collection is on the dashboard (`dashboard: false` hides it). */
+export function onDashboard(col: CollectionConfig): boolean {
+  return col.dashboard !== false;
+}
+
 /** How many entries the collection's "Recent …" list shows (0: none). */
 export function recentCount(col: CollectionConfig): number {
-  if (col.recent === false) return 0;
+  if (col.recent === false || !onDashboard(col)) return 0;
   if (typeof col.recent === "number") return Math.max(0, col.recent);
   if (col.recent === true) return DEFAULT_RECENT;
   return sortDateField(col) ? DEFAULT_RECENT : 0;
@@ -70,7 +75,8 @@ function recentEntries(
 }
 
 /**
- * Every collection's counts and recent entries. A collection that fails to
+ * The counts and recent entries of every collection on the dashboard (the
+ * others aren't listed at all). A collection that fails to
  * list reports its error and the others still load; when all of them fail
  * (GitHub unreachable, say), the first error is thrown so the panel shows
  * it as it would for any request.
@@ -79,7 +85,9 @@ export async function buildDashboard(
   service: ContentService,
 ): Promise<Dashboard> {
   const { config } = service;
-  const keys = Object.keys(config.collections ?? {});
+  const keys = Object.entries(config.collections ?? {})
+    .filter(([, col]) => onDashboard(col))
+    .map(([key]) => key);
   const results = await Promise.allSettled(
     keys.map((key) => service.listEntries(key)),
   );

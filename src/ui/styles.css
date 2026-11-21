@@ -2481,6 +2481,15 @@ button.v-table__toggle:hover {
   box-shadow: 0 0 0 3px var(--v-success-soft);
   flex: none;
 }
+/* The last period's numbers, dimmed while the chosen period loads. The
+   delay keeps a quick load from flickering. */
+.v-analytics__body {
+  transition: opacity 0.15s;
+}
+.v-analytics__body[aria-busy="true"] {
+  opacity: 0.5;
+  transition-delay: 0.15s;
+}
 .v-analytics__overview {
   padding: 4px 18px 14px;
 }

@@ -5,6 +5,15 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ## Unreleased
 
+### Added
+
+- **`dashboard: false`** on a collection leaves it off the dashboard: no
+  tile, "Recent …" list or New button, and the dashboard request no
+  longer lists it. It stays in the sidebar. For collections editors
+  rarely open, such as categories, authors or generated entries. Asking
+  such a collection for a recent list (`recent: true` or a count) is an
+  error at startup.
+
 ### Changed
 
 - **Phones and narrow screens.** Below 860 px the sidebar is a drawer,
@@ -13,6 +22,16 @@ while Vestry is below 1.0, a minor version may change behaviour.
   phone browsers can tuck their address bar away), and on phones a link
   above the title leads back to the breadcrumb's page, such as an entry's
   collection, including one not in the sidebar.
+
+- `recent` must be true, false or a number: anything else (a string in a
+  `.js` config, say) is an error at startup instead of quietly falling
+  back to the default.
+
+### Fixed
+
+- Choosing another period on the Analytics page keeps the page in place:
+  the title, the period buttons and the last period's numbers (dimmed) stay
+  on screen while the new numbers load.
 
 ## 0.7.0
 
