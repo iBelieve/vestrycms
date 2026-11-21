@@ -166,6 +166,8 @@ describe("GitHubSource shared loads", () => {
   function fakeGitHub(options: {
     refGate?: { n: number; promise: Promise<void> };
     blobGate?: Promise<void>;
+    /** Refuse the ref update, as GitHub does when someone else pushed. */
+    conflict?: boolean;
   }) {
     const seen: string[] = [];
     let branchHead = "c0";
@@ -197,6 +199,11 @@ describe("GitHubSource shared loads", () => {
             { status: 201 },
           );
         if (p === "/git/refs/heads/main") {
+          if (options.conflict)
+            return Response.json(
+              { message: "Update is not a fast forward" },
+              { status: 422 },
+            );
           branchHead = "c1";
           return Response.json({ object: { sha: "c1" } });
         }
@@ -234,6 +241,25 @@ describe("GitHubSource shared loads", () => {
     }
   });
 
+  it("does not leave a caller that joined such a load waiting", async () => {
+    const gh = fakeGitHub({
+      refGate: { n: 1, promise: new Promise(() => {}) },
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    try {
+      const src = source();
+      void src.head();
+      await vi.advanceTimersByTimeAsync(1_000);
+      const joined = src.head();
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(await joined).toBe("c0");
+      expect(gh.seen.filter((s) => s.includes("/git/ref/"))).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+      gh.restore();
+    }
+  });
+
   it("keeps a head read before our commit from hiding it", async () => {
     const refGate = deferred();
     const blobGate = deferred();
@@ -259,6 +285,44 @@ describe("GitHubSource shared loads", () => {
       refGate.resolve();
       expect(await reading).toBe("c1");
       expect(await after).toBe("c1");
+    } finally {
+      gh.restore();
+    }
+  });
+
+  it("does not cache a head read across a conflict", async () => {
+    const refGate = deferred();
+    const blobGate = deferred();
+    const gh = fakeGitHub({
+      refGate: { n: 2, promise: refGate.promise },
+      blobGate: blobGate.promise,
+      conflict: true,
+    });
+    const cache = new MemoryCache();
+    try {
+      const src = new GitHubSource({
+        owner: "o",
+        repo: "r",
+        branch: "main",
+        token: "tok",
+        apiBase: "http://gh.test",
+        cache,
+        headTtl: 0,
+      });
+      const committing = src.commit([{ path: "a.md", content: "a" }], {
+        message: "m",
+      });
+      await vi.waitFor(() => expect(gh.seen).toContain("POST /git/blobs"));
+      // Read before the push that the conflict reveals: a stale head.
+      const reading = src.head();
+      await vi.waitFor(() =>
+        expect(gh.seen.filter((s) => s.includes("/git/ref/"))).toHaveLength(2),
+      );
+      blobGate.resolve();
+      await expect(committing).rejects.toMatchObject({ code: "conflict" });
+      refGate.resolve();
+      expect(await reading).toBe("c0");
+      expect(await cache.get("gh:o/r:head:main")).toBeUndefined();
     } finally {
       gh.restore();
     }

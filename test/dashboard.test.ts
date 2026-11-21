@@ -109,6 +109,33 @@ describe("buildDashboard", () => {
     });
   });
 
+  it("lists a collection sorted by date oldest first newest first", async () => {
+    const dated = (slug: string, date: string) => ({
+      ...entry(slug),
+      data: { date },
+    });
+    const ascending = defineConfig({
+      ...config,
+      collections: {
+        posts: {
+          ...config.collections!.posts,
+          sort: { field: "date", direction: "asc" },
+        },
+      },
+    });
+    const dashboard = await buildDashboard({
+      config: ascending,
+      listEntries: async () => [
+        dated("old", "2024-01-01"),
+        dated("mid", "2025-01-01"),
+        dated("new", "2026-01-01"),
+      ],
+    } as unknown as ContentService);
+    expect(dashboard.collections.posts).toMatchObject({
+      recent: [{ slug: "new" }, { slug: "mid" }, { slug: "old" }],
+    });
+  });
+
   it("reports a collection that fails and still loads the others", async () => {
     const dashboard = await buildDashboard(
       service({

@@ -52,8 +52,8 @@ export function recentCount(col: CollectionConfig): number {
 /**
  * A collection's `limit` most recent entries, from its sorted listing:
  * newest first by its date field, or in its sort order when it has no date
- * to go by. A collection sorted by something else (an FAQ number) lists by
- * its date column.
+ * to go by. A collection sorted by something else (an FAQ number), or by
+ * its date oldest first, lists by that date newest first.
  */
 function recentEntries(
   col: CollectionConfig,
@@ -62,7 +62,8 @@ function recentEntries(
 ): EntrySummary[] {
   if (limit <= 0) return [];
   const dateField = recentDateField(col);
-  if (!dateField || sortDateField(col)) return entries.slice(0, limit);
+  const newestFirst = sortDateField(col) && col.sort?.direction !== "asc";
+  if (!dateField || newestFirst) return entries.slice(0, limit);
   return [...entries]
     .sort((a, b) => compareSortValues(a.data[dateField], b.data[dateField], -1))
     .slice(0, limit);

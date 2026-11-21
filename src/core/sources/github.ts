@@ -65,7 +65,10 @@ export class GitHubSource implements ContentSource {
   #headTtl: number;
   #apiBase: string;
   #inflight = new Map<string, { promise: Promise<unknown>; started: number }>();
-  /** Our commits so far, so a head load that one overtook does not undo it. */
+  /**
+   * Branch moves we know of (our commits, and the pushes our conflicts
+   * reveal), so a head load that one overtook does not undo it.
+   */
   #commits = 0;
 
   constructor(private opts: GitHubSourceOptions) {
@@ -147,12 +150,24 @@ export class GitHubSource implements ContentSource {
    * the request that started it, and when that request's client goes away
    * its pending fetches are cancelled and their promises never settle; an
    * entry older than `SHARED_LOAD_MS` is taken for such a load and replaced,
-   * so it cannot hold up every later request in the isolate.
+   * so it cannot hold up every later request in the isolate. A caller that
+   * joined it waits only until the window ends, then loads again itself.
    */
   #shared<T>(key: string, load: () => Promise<T>): Promise<T> {
     const pending = this.#inflight.get(key);
-    if (pending && Date.now() - pending.started < SHARED_LOAD_MS)
-      return pending.promise as Promise<T>;
+    const age = pending ? Date.now() - pending.started : SHARED_LOAD_MS;
+    if (!pending || age >= SHARED_LOAD_MS) return this.#startShared(key, load);
+    return settleWithin(
+      pending.promise as Promise<T>,
+      SHARED_LOAD_MS - age,
+      () =>
+        this.#inflight.get(key) === pending
+          ? this.#startShared(key, load)
+          : this.#shared(key, load),
+    );
+  }
+
+  #startShared<T>(key: string, load: () => Promise<T>): Promise<T> {
     const promise = load().finally(() => {
       if (this.#inflight.get(key)?.promise === promise)
         this.#inflight.delete(key);
@@ -190,19 +205,18 @@ export class GitHubSource implements ContentSource {
   }
 
   /**
-   * Caches the head a load read, unless one of our commits landed while it
-   * was reading: GitHub may have answered before the commit moved the
-   * branch, and the head the commit cached is the newer one.
+   * Caches the head a load read, unless the branch moved while it was
+   * reading: GitHub may have answered before the move, so the head our
+   * commit cached is the newer one, and after a conflict (which leaves no
+   * head cached) what the load read is not cached at all.
    */
   async #storeHead(
     key: string,
     head: CachedHead & { checked: number },
     commits: number,
   ): Promise<CachedHead> {
-    if (commits !== this.#commits) {
-      const newer = await this.#cache.get<CachedHead>(key);
-      if (newer) return newer;
-    }
+    if (commits !== this.#commits)
+      return (await this.#cache.get<CachedHead>(key)) ?? head;
     await this.#cache.set(key, head, 3600);
     return head;
   }
@@ -370,7 +384,11 @@ export class GitHubSource implements ContentSource {
       );
     } catch (e) {
       if (e instanceof SourceError && (e.status === 422 || e.status === 409)) {
-        // Not a fast-forward: the branch moved while we were committing.
+        // Not a fast-forward: the branch moved while we were committing. A
+        // head load still in flight may have read it before it moved, so it
+        // must neither be joined nor cache what it read.
+        this.#commits++;
+        this.#inflight.delete("head");
         await this.#cache.delete(this.#headKey(branch));
         throw new SourceError(
           "The branch changed while saving. Reload and try again.",
@@ -530,6 +548,26 @@ async function responseError(
 
 /** How long (ms) a pending head or tree load is joined by other callers. */
 const SHARED_LOAD_MS = 10_000;
+
+/**
+ * `promise`'s outcome, unless it has not settled within `ms`: then
+ * `fallback()`'s. On a Worker a shared load can be cancelled with the
+ * request that started it and never settle, and a caller that joined it
+ * would otherwise wait until the runtime gave up on its own request.
+ */
+function settleWithin<T>(
+  promise: Promise<T>,
+  ms: number,
+  fallback: () => Promise<T>,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<T>((resolve, reject) => {
+    timer = setTimeout(() => {
+      fallback().then(resolve, reject);
+    }, ms);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
 
 // ------------------------------------------------------------ check runs
 
