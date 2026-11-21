@@ -83,6 +83,26 @@ describe("validateConfig", () => {
       validateConfig(
         defineConfig({
           repo,
+          singletons: {
+            site: singleton({
+              label: "Site",
+              path: "src/data/site.yaml",
+              schema: {
+                hero: fields.object({
+                  tagline: fields.text({ entries: ["index"] }),
+                }),
+              },
+            }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /singleton "site": "hero.tagline" sets entries, but a singleton has one entry/,
+    );
+    expect(() =>
+      validateConfig(
+        defineConfig({
+          repo,
           components: {
             Hero: {
               label: "Hero",
@@ -92,6 +112,55 @@ describe("validateConfig", () => {
         }),
       ),
     ).toThrow(/component "Hero": "title" sets entries/);
+  });
+
+  it("rejects entries on a field that every entry has", () => {
+    expect(() =>
+      validateConfig(
+        posts({ schema: { title: fields.text({ entries: ["index"] }) } }),
+      ),
+    ).toThrow(/"title" sets entries, but the title shows in every entry/);
+    expect(() =>
+      validateConfig(
+        posts({
+          status: { field: "draft", publishedWhen: false },
+          schema: {
+            title: fields.text(),
+            draft: fields.boolean({ entries: ["index"] }),
+          },
+        }),
+      ),
+    ).toThrow(/"draft" sets entries, but the publish switch shows/);
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            title: fields.text(),
+            date: fields.date({ storeIn: "filename", entries: ["index"] }),
+          },
+        }),
+      ),
+    ).toThrow(
+      /"date" sets entries, but every entry's file name holds its date/,
+    );
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: {
+            title: fields.text(),
+            updated: fields.datetime({ autoUpdate: true, entries: ["index"] }),
+          },
+        }),
+      ),
+    ).toThrow(/"updated" sets entries, but saving any entry sets it/);
+    // A title that isn't a text box is an ordinary field.
+    expect(() =>
+      validateConfig(
+        posts({
+          schema: { title: fields.textarea({ entries: ["index"] }) },
+        }),
+      ),
+    ).not.toThrow();
   });
 
   it("accepts a date kept in the file name and known template filters", () => {

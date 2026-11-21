@@ -70,6 +70,7 @@ import {
   effectiveSlug,
   entryDisplay,
   entryFile,
+  checkedSchema,
   entrySchema,
   readOnlySchema,
   fieldPlacement,
@@ -362,14 +363,20 @@ function useEntryForm(props: EntryFormProps) {
     draft,
   });
 
+  // The slug the entry saves under, a new list entry's id included.
+  const entrySlug = addressSlug({
+    collection,
+    pattern,
+    finalSlug: slugs.finalSlug,
+    isNew,
+    data: doc.state.data,
+  });
   // The fields this entry shows, by the slug it saves under: one kept for
   // other entries (`entries`) hides, and shows again if the slug comes back.
   const shown = useMemo(
     () =>
-      collection
-        ? { ...col, schema: entrySchema(col.schema, slugs.finalSlug) }
-        : col,
-    [col, collection, slugs.finalSlug],
+      collection ? { ...col, schema: entrySchema(col.schema, entrySlug) } : col,
+    [col, collection, entrySlug],
   );
 
   // Ask before leaving the page with anything unsaved, a rename included.
@@ -386,6 +393,7 @@ function useEntryForm(props: EntryFormProps) {
     slug,
     isNew,
     col: shown,
+    entrySlug,
     pattern,
     filePath,
     openedFile,
@@ -401,13 +409,7 @@ function useEntryForm(props: EntryFormProps) {
     col: shown,
     data: doc.state.data,
     isNew,
-    slug: addressSlug({
-      collection,
-      pattern,
-      finalSlug: slugs.finalSlug,
-      isNew,
-      data: doc.state.data,
-    }),
+    slug: entrySlug,
     saved,
     siteUrl: config.siteUrl,
   });
@@ -429,7 +431,7 @@ function useEntryForm(props: EntryFormProps) {
     remove,
     saved,
     display,
-    placement: fieldPlacement(col, display.editable),
+    placement: fieldPlacement(shown, display.editable),
     uploadCount: Object.keys(doc.uploads).length,
   };
 }
@@ -949,6 +951,7 @@ function useSave({
   slug,
   isNew,
   col,
+  entrySlug,
   pattern,
   filePath,
   openedFile,
@@ -962,6 +965,8 @@ function useSave({
   slug: string | null;
   isNew: boolean;
   col: Entry;
+  /** The slug the entry saves under, whose fields a save checks. */
+  entrySlug: string;
   pattern: PathPattern;
   filePath: string;
   openedFile: string;
@@ -983,7 +988,12 @@ function useSave({
         uploads: doc.uploads,
         typed: slugs.latestTyped(),
       };
-      const errs = validate(col.schema, sent.state.data);
+      // A field kept for other entries is hidden here, so its value, saved
+      // as it was, isn't checked.
+      const errs = validate(
+        checkedSchema(col.schema, entrySlug),
+        sent.state.data,
+      );
       setErrors(errs);
       if (errs.length) throw new Error(errs[0].message);
       const input = await saveInput({

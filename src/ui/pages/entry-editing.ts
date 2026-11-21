@@ -682,12 +682,27 @@ export function entrySchema(schema: Schema, slug: string): Schema {
   return Object.fromEntries(
     Object.entries(schema).map(([key, field]) => [
       key,
-      field.entries && !field.entries.includes(slug)
+      forOtherEntries(field, slug)
         ? { ...field, hidden: true, required: false }
         : field,
     ]),
   );
 }
+
+/**
+ * The fields a save of the entry at `slug` checks: not one kept for other
+ * entries (`entries`), whose value, hidden here, is saved as it was.
+ */
+export function checkedSchema(schema: Schema, slug: string): Schema {
+  if (!Object.values(schema).some((f) => f.entries)) return schema;
+  return Object.fromEntries(
+    Object.entries(schema).filter(([, field]) => !forOtherEntries(field, slug)),
+  );
+}
+
+/** A field that `entries` keeps for entries other than the one at `slug`. */
+const forOtherEntries = (field: Field, slug: string) =>
+  !!field.entries && !field.entries.includes(slug);
 
 /**
  * `schema` with every field read-only, nested ones included, for a

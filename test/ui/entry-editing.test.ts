@@ -13,6 +13,7 @@ import {
   entryFile,
   pagePath,
   publishToggle,
+  checkedSchema,
   entrySchema,
   readOnlySchema,
   slugBox,
@@ -481,6 +482,20 @@ describe("entrySchema", () => {
     expect(entrySchema(schema, "index")).toEqual(schema);
     const plain = { title: fields.text() };
     expect(entrySchema(plain, "about")).toBe(plain);
+  });
+});
+
+describe("checkedSchema", () => {
+  const schema = {
+    title: fields.text({ required: true }),
+    tagline: fields.text({ entries: ["index"], maxLength: 3 }),
+  };
+
+  it("leaves out a field for other entries, whose value isn't checked", () => {
+    expect(checkedSchema(schema, "about")).toEqual({ title: schema.title });
+    expect(checkedSchema(schema, "index")).toEqual(schema);
+    const plain = { title: fields.text() };
+    expect(checkedSchema(plain, "about")).toBe(plain);
   });
 });
 
