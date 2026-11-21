@@ -37,6 +37,7 @@
   --v-shadow-lg: 0 20px 40px -12px rgba(16, 24, 40, 0.25);
   --v-sidebar-width: 248px;
   --v-topbar-height: 56px;
+  --v-topbar-sticky-height: 57px;
   /* A warm brown-grey on the logo orange's hue; the chrome greys share it. */
   --v-chrome: #2d2622;
   --v-chrome-text: #ede8e4;
@@ -1642,7 +1643,9 @@ button.v-table__toggle:hover {
 }
 @media (max-width: 1100px) {
   .v-editor-layout {
-    grid-template-columns: 1fr;
+    /* minmax: a plain 1fr would grow to the widest field's minimum width
+       (a block's props, the toolbar) and push the page off the screen. */
+    grid-template-columns: minmax(0, 1fr);
   }
   /* One column: the rail follows the main fields and scrolls with the page. */
   .v-editor-sidebar {
@@ -1678,13 +1681,21 @@ button.v-table__toggle:hover {
 }
 
 .v-title-input {
+  display: block;
   width: 100%;
   border: 0;
   background: transparent;
+  font: inherit;
   font-size: 26px;
   font-weight: 700;
+  line-height: 1.3;
   padding: 2px 0;
   letter-spacing: -0.01em;
+  color: inherit;
+  /* A textarea that wraps a long title and grows to fit it. */
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
 }
 .v-title-input:focus {
   outline: none;
@@ -3006,6 +3017,48 @@ button.v-table__toggle:hover {
   .v-modal .v-rte__toolbar {
     top: 0;
   }
+  /* The body's toolbar on one row that scrolls sideways, rather than two or
+     three rows that cover much of a small screen while they stick. */
+  .v-rte__toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .v-rte__toolbar > * {
+    flex: none;
+  }
+  /* The editor's heading (title, View, Delete, Save) stays under the dark
+     bar, so Save is in reach from anywhere in a long entry; the body's
+     toolbar sticks below it. */
+  .v-topbar--sticky {
+    position: sticky;
+    top: var(--v-chrome-height);
+    z-index: 20;
+    height: var(--v-topbar-sticky-height);
+    min-height: 0;
+    padding: 0 16px;
+    flex-wrap: nowrap;
+    background: var(--v-panel);
+    border-bottom: 1px solid var(--v-border);
+  }
+  .v-topbar--sticky .v-topbar__title {
+    flex: 1;
+    font-size: 19px;
+  }
+  .v-topbar--sticky .v-topbar__actions {
+    flex-wrap: nowrap;
+  }
+  .v-topbar--sticky ~ .v-page .v-rte__toolbar {
+    top: calc(var(--v-chrome-height) + var(--v-topbar-sticky-height));
+  }
+  .v-topbar--sticky ~ .v-page .v-modal .v-rte__toolbar {
+    top: 0;
+  }
+  :root:has(.v-topbar--sticky) {
+    scroll-padding-top: calc(
+      var(--v-chrome-height) + var(--v-topbar-sticky-height)
+    );
+  }
   .v-chrome__chip span {
     display: none;
   }
@@ -3037,6 +3090,54 @@ button.v-table__toggle:hover {
 }
 
 @media (max-width: 600px) {
+  /* The sticky editor heading on one row: a back arrow, the title (shown
+     whole in the title card below) and icon-sized buttons. */
+  #vestry-root .v-topbar--sticky .v-topbar__back {
+    flex-basis: auto;
+    flex: none;
+    margin: 0 -6px 0 -6px;
+    padding: 6px 2px;
+  }
+  .v-topbar--sticky .v-topbar__back svg {
+    width: 20px;
+    height: 20px;
+  }
+  .v-topbar--sticky .v-topbar__title {
+    font-size: 17px;
+  }
+  .v-topbar--sticky :is(.v-topbar__back-label, .v-btn__label),
+  .v-unsaved__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .v-topbar--sticky .v-topbar__actions {
+    gap: 6px;
+  }
+  .v-topbar--sticky .v-topbar__actions .v-btn {
+    padding: 0 10px;
+  }
+  .v-kbd {
+    display: none;
+  }
+  /* Side-by-side fields each get the full width. */
+  .v-field--half,
+  .v-field--third {
+    grid-column: span 6;
+  }
+  .v-title-input {
+    font-size: 22px;
+  }
+  /* Less padding around the body and nested blocks, which add up. */
+  .v-rte--flush .v-prose {
+    padding: 16px 16px 24px;
+  }
+  .v-block__children {
+    padding: 4px 10px 10px;
+  }
   /* The breadcrumbs don't fit beside a logo on a phone; the back link
      above the title and the sidebar's drawer lead to the same pages. */
   .v-chrome__crumb {
@@ -3492,4 +3593,22 @@ button.v-tree__toggle:hover {
 .v-table__path {
   font-size: 11.5px;
   color: var(--v-text-faint);
+}
+
+/* iOS zooms the page into any field set in less than 16px when it gets
+   focus, and doesn't zoom back out; touch screens get 16px fields. Fields
+   already set larger (the title, the sign-in code) are left alone. */
+@media (pointer: coarse) {
+  :is(#vestry-root, .v-portal)
+    :is(input, select, textarea):not(
+      [type="checkbox"],
+      [type="radio"],
+      [type="range"],
+      [type="color"],
+      [type="file"],
+      .v-title-input,
+      .v-login__code
+    ) {
+    font-size: 16px;
+  }
 }

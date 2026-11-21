@@ -9,6 +9,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -416,6 +417,7 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
       status={
         display.isPublished === null ? null : statusOf(display.isPublished)
       }
+      sticky
       crumbs={
         collection
           ? [
@@ -1125,8 +1127,9 @@ function EditorActions({
   return (
     <>
       {unsaved && (
-        <span className="v-unsaved">
-          <TriangleExclamationPoint size={13} /> Unsaved changes
+        <span className="v-unsaved" title="Unsaved changes">
+          <TriangleExclamationPoint size={13} />{" "}
+          <span className="v-unsaved__text">Unsaved changes</span>
         </span>
       )}
       {previewHref && (
@@ -1135,8 +1138,9 @@ function EditorActions({
           href={previewHref}
           target="_blank"
           rel="noreferrer"
+          title="View on the site"
         >
-          <ExternalLink /> View
+          <ExternalLink /> <span className="v-btn__label">View</span>
         </a>
       )}
       {canDelete && (
@@ -1187,16 +1191,63 @@ function TitleCard({
   return (
     <div className="v-card">
       <div className="v-card__body" style={{ padding: "14px 18px" }}>
-        <input
-          className="v-title-input"
+        <TitleInput
           value={value}
           placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
           autoFocus={autoFocus}
         />
         {error && <div className="v-field__error">{error}</div>}
       </div>
     </div>
+  );
+}
+
+/**
+ * The title, wrapping onto more lines rather than running out of sight in a
+ * narrow window. A title is one line: Enter and pasted line breaks become
+ * nothing and spaces.
+ */
+function TitleInput({
+  value,
+  placeholder,
+  onChange,
+  autoFocus,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  autoFocus: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // Grows with its text (CSS `field-sizing: content` where supported).
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    // A narrower card wraps the title onto more lines.
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    if (el.parentElement) observer?.observe(el.parentElement);
+    return () => observer?.disconnect();
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      className="v-title-input"
+      rows={1}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value.replace(/\s*[\r\n]+\s*/g, " "))}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.preventDefault();
+      }}
+      autoFocus={autoFocus}
+    />
   );
 }
 

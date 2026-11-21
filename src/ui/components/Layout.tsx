@@ -361,10 +361,14 @@ export function TopBar({
   crumbs,
   actions,
   status,
+  sticky,
 }: {
   title: ReactNode;
   crumbs?: Crumb[];
   actions?: ReactNode;
+  /** Stays in view under the dark bar on narrow screens (the editor's, so
+   *  Save is always in reach). */
+  sticky?: boolean;
   /** Shows a status dot before the title. */
   status?: "published" | "draft" | null;
 }) {
@@ -379,11 +383,11 @@ export function TopBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, setCrumbs]);
   return (
-    <header className="v-topbar">
+    <header className={cx("v-topbar", sticky && "v-topbar--sticky")}>
       {back?.to && (
-        <Link to={back.to} className="v-topbar__back">
+        <Link to={back.to} className="v-topbar__back" title={back.label}>
           <ChevronLeft />
-          {back.label}
+          <span className="v-topbar__back-label">{back.label}</span>
         </Link>
       )}
       <h1 className="v-topbar__title">
