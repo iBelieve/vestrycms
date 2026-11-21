@@ -1,19 +1,24 @@
 import {
   ChartLine,
+  ChevronLeft,
   ExternalLink,
   GitBranch,
   LayoutDashboard,
   LogOut,
+  Menu as MenuIcon,
   Users,
+  X,
 } from "lucide-react";
 import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
-import { Link, NavLink, useNavigate } from "react-router";
+import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useVestry } from "../context.js";
 import { DeployStatus } from "./DeployStatus.js";
 import { Icon } from "./Icon.js";
@@ -35,9 +40,21 @@ const CrumbsContext = createContext<(crumbs: Crumb[]) => void>(() => {});
 export function Shell({ children }: { children: ReactNode }) {
   const { client, config, name, api } = useVestry();
   const [crumbs, setCrumbs] = useState<Crumb[]>([]);
+  const nav = useNavDrawer();
   return (
     <div className="v-app">
       <header className="v-chrome">
+        <button
+          type="button"
+          ref={nav.buttonRef}
+          className="v-chrome__menu"
+          aria-label={nav.open ? "Close menu" : "Open menu"}
+          aria-expanded={nav.open}
+          aria-controls="v-sidebar"
+          onClick={nav.toggle}
+        >
+          {nav.open ? <X /> : <MenuIcon />}
+        </button>
         <Brand logo={logoSrc(config.logo, api)} name={name} />
         {crumbs.map((c, i) => (
           <span key={i} className="v-chrome__crumb">
@@ -66,8 +83,11 @@ export function Shell({ children }: { children: ReactNode }) {
         <Sidebar
           config={config}
           showUsers={client.auth && client.user?.role === "admin"}
+          open={nav.open}
+          sidebarRef={nav.sidebarRef}
         />
-        <div className="v-main">
+        {nav.open && <div className="v-sidebar-backdrop" onClick={nav.close} />}
+        <div className="v-main" inert={nav.open}>
           <CrumbsContext.Provider value={setCrumbs}>
             {children}
           </CrumbsContext.Provider>
@@ -75,6 +95,76 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+/** The width below which the sidebar is a drawer, as in styles.css. */
+const DRAWER_MEDIA = "(max-width: 860px)";
+
+/**
+ * The sidebar as a drawer on narrow screens, where the top bar's menu button
+ * opens it over the page (on wider screens the CSS ignores `open`). Any
+ * change of page (one of its links, the logo, the browser's back button),
+ * tapping outside, Escape or widening the window past the breakpoint closes
+ * it; the page beneath doesn't scroll and can't be tabbed into while it's
+ * open.
+ */
+function useNavDrawer() {
+  // The Shell stays mounted from page to page, so the drawer remembers the
+  // page it was opened on and is shut on any other. Forgetting it there
+  // keeps the back button from reopening it on the way back.
+  const { key } = useLocation();
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  if (openOn !== null && openOn !== key) setOpenOn(null);
+  const open = openOn === key;
+  const setOpen = (next: boolean) => setOpenOn(next ? key : null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.classList.add("v-nav-open");
+    focusCurrentLink(sidebarRef.current);
+    const onKey = (e: KeyboardEvent) => {
+      // An open menu in the top bar (above the drawer) takes Escape first.
+      if (e.key !== "Escape" || document.querySelector(".v-menu__panel"))
+        return;
+      setOpenOn(null);
+      buttonRef.current?.focus();
+    };
+    // A tablet turned to landscape shows the sidebar beside the page again;
+    // left open, the drawer would come back when it's turned back.
+    const narrow = window.matchMedia?.(DRAWER_MEDIA);
+    const onWiden = () => {
+      if (!narrow?.matches) setOpenOn(null);
+    };
+    document.addEventListener("keydown", onKey);
+    narrow?.addEventListener("change", onWiden);
+    return () => {
+      root.classList.remove("v-nav-open");
+      document.removeEventListener("keydown", onKey);
+      narrow?.removeEventListener("change", onWiden);
+    };
+  }, [open]);
+  return {
+    open,
+    buttonRef,
+    sidebarRef,
+    toggle: () => setOpen(!open),
+    close: () => setOpen(false),
+  };
+}
+
+/**
+ * Starts keyboard users on the current page's link, scrolled into view in a
+ * drawer longer than the screen.
+ */
+function focusCurrentLink(sidebar: HTMLElement | null) {
+  const link =
+    sidebar?.querySelector<HTMLElement>("a.is-active") ??
+    sidebar?.querySelector<HTMLElement>("a");
+  link?.focus({ preventScroll: true });
+  // jsdom has no scrollIntoView.
+  link?.scrollIntoView?.({ block: "nearest" });
 }
 
 /** The top bar's home link: the site's logo, or Vestry's mark and the name. */
@@ -176,12 +266,21 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 function Sidebar({
   config,
   showUsers,
+  open,
+  sidebarRef,
 }: {
   config: VestryConfig;
   showUsers: boolean;
+  /** The drawer is open (narrow screens only). */
+  open: boolean;
+  sidebarRef: RefObject<HTMLElement | null>;
 }) {
   return (
-    <aside className="v-sidebar">
+    <aside
+      id="v-sidebar"
+      ref={sidebarRef}
+      className={cx("v-sidebar", open && "is-open")}
+    >
       <nav className="v-nav">
         <div className="v-nav__group">
           <NavLink to="/" end className={navLinkClass}>
@@ -271,6 +370,9 @@ export function TopBar({
 }) {
   const setCrumbs = useContext(CrumbsContext);
   const key = JSON.stringify(crumbs ?? []);
+  // Phones hide the breadcrumbs in the dark bar; the nearest linked one
+  // becomes a back link above the title instead.
+  const back = crumbs?.findLast((c) => c.to);
   useEffect(() => {
     setCrumbs(crumbs ?? []);
     return () => setCrumbs([]);
@@ -278,6 +380,12 @@ export function TopBar({
   }, [key, setCrumbs]);
   return (
     <header className="v-topbar">
+      {back?.to && (
+        <Link to={back.to} className="v-topbar__back">
+          <ChevronLeft />
+          {back.label}
+        </Link>
+      )}
       <h1 className="v-topbar__title">
         {status && (
           <span

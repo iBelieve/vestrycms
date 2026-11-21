@@ -115,8 +115,8 @@ describe("useFitToScrollport", () => {
       () => top,
       (child) => <div data-testid="inner">{child}</div>,
     );
-    // The inner box starts scrolling (as the panel does above 860px, where
-    // the shell stops) and its visible area ends at 600.
+    // The inner box starts scrolling (as the panel does above 860px) and
+    // its visible area ends at 600.
     const inner = view.getByTestId("inner");
     inner.style.overflowY = "auto";
     stubBox(inner, 59, 540);
@@ -125,5 +125,27 @@ describe("useFitToScrollport", () => {
     top = 84;
     fireEvent.scroll(inner);
     await vi.waitFor(() => expect(fitted(rail)).toBe("492px"));
+  });
+
+  it("finds a scroll container that a wider window gives it", async () => {
+    // Below 860px the page itself scrolls, so the rail starts without one.
+    const view = render(
+      <div data-testid="panel">
+        <Rail sticky />
+      </div>,
+    );
+    const panel = view.getByTestId("panel");
+    const rail = view.getByTestId("rail");
+    vi.spyOn(rail, "getBoundingClientRect").mockReturnValue({
+      top: 160,
+    } as DOMRect);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(fitted(rail)).toBe("");
+    // A tablet turned to landscape: the panel scrolls, and nothing it
+    // could observe has said so, only the window.
+    panel.style.overflowY = "auto";
+    stubBox(panel, 59, 640);
+    fireEvent(window, new Event("resize"));
+    await vi.waitFor(() => expect(fitted(rail)).toBe("516px"));
   });
 });
