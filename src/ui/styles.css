@@ -37,6 +37,8 @@
   --v-shadow-lg: 0 20px 40px -12px rgba(16, 24, 40, 0.25);
   --v-sidebar-width: 248px;
   --v-topbar-height: 56px;
+  /* With --v-chrome-height, repeated in RichTextEditor's
+     caretScrollMargins: change them together. */
   --v-topbar-sticky-height: 57px;
   /* A warm brown-grey on the logo orange's hue; the chrome greys share it. */
   --v-chrome: #2d2622;
@@ -1762,6 +1764,12 @@ button.v-table__toggle:hover {
   top: 0;
   z-index: 10;
 }
+/* The Link and Image dialogs render inside the toolbar, so its stacking
+   context lifts them; while one is open it rises as high as any dialog,
+   over the dark bar and the editor's sticky heading. */
+.v-rte__toolbar:has(.v-modal-backdrop) {
+  z-index: 90;
+}
 .v-rte__tool {
   width: 30px;
   height: 30px;
@@ -3024,13 +3032,16 @@ button.v-table__toggle:hover {
     overflow-x: auto;
     scrollbar-width: none;
   }
-  .v-rte__toolbar > * {
+  /* The spacer still grows, keeping Visual/Source at the end of a toolbar
+     that fits. */
+  .v-rte__toolbar > :not(.v-rte__spacer) {
     flex: none;
   }
   /* The editor's heading (title, View, Delete, Save) stays under the dark
      bar, so Save is in reach from anywhere in a long entry; the body's
-     toolbar sticks below it. */
-  .v-topbar--sticky {
+     toolbar sticks below it. Two classes, to win over the wrapping
+     .v-topbar rule further down. */
+  .v-topbar.v-topbar--sticky {
     position: sticky;
     top: var(--v-chrome-height);
     z-index: 20;
@@ -3609,6 +3620,11 @@ button.v-tree__toggle:hover {
       .v-title-input,
       .v-login__code
     ) {
+    font-size: 16px;
+  }
+  /* CodeMirror (the body's source mode, code fields) edits a
+     contenteditable, which iOS zooms into the same way. */
+  :is(#vestry-root, .v-portal) .cm-editor {
     font-size: 16px;
   }
 }

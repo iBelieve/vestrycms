@@ -308,6 +308,21 @@ describe("the title", () => {
     );
   });
 
+  it("keeps the caret where a pasted line break became a space", async () => {
+    await openPanel(config, { url: "/collections/posts/hello", files });
+    await screen.findByDisplayValue("Hello");
+    const title = titleInput();
+    // As a paste of a line break after "Hel" leaves it, caret after the break.
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )!.set!.call(title, "Hel\nlo");
+    title.setSelectionRange(4, 4);
+    fireEvent.input(title);
+    expect(title.value).toBe("Hel lo");
+    expect(title.selectionStart).toBe(4);
+  });
+
   it("heads an editor that stays in view on narrow screens", async () => {
     await openPanel(config, { url: "/collections/posts/hello", files });
     await screen.findByDisplayValue("Hello");
