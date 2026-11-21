@@ -1887,6 +1887,16 @@ button.v-table__toggle:hover {
 .v-prose img.ProseMirror-selectednode {
   outline: 3px solid var(--v-primary-ring);
 }
+
+/* The image details dialog: the image, then its alt text and title. */
+.v-image-details__preview {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  margin: 0 auto 18px;
+  border-radius: var(--v-radius-sm);
+  background: var(--v-surface-muted);
+}
 .v-prose table {
   border-collapse: collapse;
   width: 100%;

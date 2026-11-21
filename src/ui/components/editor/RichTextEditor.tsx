@@ -68,6 +68,13 @@ import {
   useEditorEnv,
   type EditorEnv,
 } from "./EditorContext.js";
+import {
+  ImageDetailsDialog,
+  insertImage,
+  selectedImage,
+  useImageDetails,
+  type ImageTarget,
+} from "./ImageDetails.js";
 import { editorExtensions } from "./schema.js";
 
 export interface RichTextEditorProps {
@@ -108,6 +115,7 @@ function EditorInner(props: RichTextEditorProps) {
   const [mode, setMode] = useState<"visual" | "source">("visual");
   const mdx = useMdxEditor(props, mode === "visual");
   const { editor } = mdx;
+  const image = useImageDetails(editor, !props.readOnly);
 
   const switchMode = (next: "visual" | "source") => {
     if (next === mode || !editor) return;
@@ -134,11 +142,17 @@ function EditorInner(props: RichTextEditorProps) {
           onMode={switchMode}
           components={components ?? Object.keys(env.components)}
           onUpload={props.onUpload}
+          onImageDetails={image.open}
           format={format}
         />
       )}
       {mode === "visual" ? (
-        <EditorContent editor={editor} />
+        // Around EditorContent rather than on it: node views (a component's
+        // content) render through portals beside its element, so their
+        // events bubble past it to here.
+        <div onDoubleClick={image.onDoubleClick}>
+          <EditorContent editor={editor} />
+        </div>
       ) : (
         <div className="v-source-editor">
           {mdx.parseError && (
@@ -153,6 +167,14 @@ function EditorInner(props: RichTextEditorProps) {
             onChange={mdx.emit}
           />
         </div>
+      )}
+      {editor && image.target && (
+        <ImageDetailsDialog
+          key={image.target.pos}
+          editor={editor}
+          target={image.target}
+          onClose={image.close}
+        />
       )}
     </div>
   );
@@ -320,6 +342,7 @@ function Toolbar({
   onMode,
   components,
   onUpload,
+  onImageDetails,
   format,
 }: {
   editor: Editor;
@@ -327,6 +350,7 @@ function Toolbar({
   onMode: (m: "visual" | "source") => void;
   components: string[];
   onUpload?: RichTextEditorProps["onUpload"];
+  onImageDetails: (target: ImageTarget) => void;
   format: "md" | "mdx";
 }) {
   const env = useEditorEnv();
@@ -487,7 +511,13 @@ function Toolbar({
         <Minus />,
         run((c) => c.setHorizontalRule()),
       )}
-      <ImageTool editor={editor} onUpload={onUpload} disabled={disabled} />
+      <ImageTool
+        editor={editor}
+        selected={state.image}
+        onUpload={onUpload}
+        onDetails={onImageDetails}
+        disabled={disabled}
+      />
       <TableMenu editor={editor} inTable={state.table} disabled={disabled} />
       {mdx && (
         <InsertMenu
@@ -523,6 +553,8 @@ function toolbarState(
     sup: editor.isActive("superscript"),
     sub: editor.isActive("subscript"),
     link: editor.isActive("link"),
+    /** The position of the selected image, or null. */
+    image: selectedImage(editor),
     headings: [1, 2, 3].map((level) => editor.isActive("heading", { level })),
     bullet: editor.isActive("bulletList"),
     ordered: editor.isActive("orderedList"),
@@ -602,18 +634,38 @@ function LinkTool({
   );
 }
 
-/** Opens the asset picker and inserts the chosen image. */
+/**
+ * "Image", opening the asset picker and then asking for the new image's alt
+ * text, or "Image details" while an image is selected.
+ */
 function ImageTool({
   editor,
+  selected,
   onUpload,
+  onDetails,
   disabled,
 }: {
   editor: Editor;
+  /** The position of the selected image, or null. */
+  selected: number | null;
   onUpload?: RichTextEditorProps["onUpload"];
+  onDetails: (target: ImageTarget) => void;
   disabled: boolean;
 }) {
   const env = useEditorEnv();
   const [open, setOpen] = useState(false);
+  if (selected !== null) {
+    return (
+      <Tool
+        label="Image details"
+        active
+        disabled={disabled}
+        onRun={() => onDetails({ pos: selected })}
+      >
+        <ImageIcon />
+      </Tool>
+    );
+  }
   return (
     <>
       <Tool
@@ -633,12 +685,10 @@ function ImageTool({
           onClose={() => setOpen(false)}
           onPick={(path, upload) => {
             if (upload) onUpload?.(upload);
-            editor
-              .chain()
-              .focus()
-              .setImage({ src: env.toDocPath(path), alt: "" })
-              .run();
+            const pos = insertImage(editor, env.toDocPath(path));
             setOpen(false);
+            if (pos !== null) onDetails({ pos, inserted: true });
+            else editor.commands.focus();
           }}
         />
       )}
@@ -924,7 +974,7 @@ function LinkDialog({
         placeholder="https://example.com or /visit"
         onChange={(e) => setHref(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") apply();
+          if (e.key === "Enter" && !e.nativeEvent.isComposing) apply();
         }}
       />
     </Modal>

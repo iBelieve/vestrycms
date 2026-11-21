@@ -12,11 +12,13 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Editor } from "@tiptap/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { collection, defineConfig, fields } from "../../src/config/index.js";
 import type { ComponentConfig } from "../../src/config/types.js";
 import type { EditorEnv } from "../../src/ui/components/editor/EditorContext.js";
 import { RichTextEditor } from "../../src/ui/components/editor/RichTextEditor.js";
+import { Modal } from "../../src/ui/components/ui.js";
 
 // CodeMirror needs a real browser; a textarea stands in for it.
 vi.mock("../../src/ui/components/fields/CodeInput.js", () => ({
@@ -341,6 +343,104 @@ describe("the rich text editor", () => {
     expect((tool("Image") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("edits an image's alt text and title", async () => {
+    const user = userEvent.setup();
+    const ed = open('Before ![Old](/a.png "Tip") after\n');
+    await screen.findByText(/Before/);
+    expect(tool("Image").classList.contains("is-active")).toBe(false);
+
+    // Double-clicking the image opens its details.
+    fireEvent.doubleClick(document.querySelector(".ProseMirror img")!);
+    let dialog = within(screen.getByRole("dialog", { name: "Image details" }));
+    expect(
+      screen.getByRole("dialog").querySelector("img")!.getAttribute("src"),
+    ).toBe("/a.png");
+    const alt = dialog.getByLabelText<HTMLTextAreaElement>("Alt text");
+    expect(alt.value).toBe("Old");
+    expect(dialog.getByLabelText<HTMLInputElement>("Title").value).toBe("Tip");
+    // Alt text is one line; an empty title is dropped.
+    fireEvent.change(alt, { target: { value: "  Luther's\n [rose]  " } });
+    await user.clear(dialog.getByLabelText("Title"));
+    await user.click(dialog.getByRole("button", { name: "Apply" }));
+    await ed.reports("Before ![Luther's \\[rose\\]](/a.png) after\n");
+
+    // The image stays selected, and the toolbar opens its details too.
+    expect(tool("Image details").classList.contains("is-active")).toBe(true);
+    await user.click(tool("Image details"));
+    dialog = within(screen.getByRole("dialog", { name: "Image details" }));
+    expect(dialog.getByLabelText<HTMLTextAreaElement>("Alt text").value).toBe(
+      "Luther's [rose]",
+    );
+    await user.type(dialog.getByLabelText("Title"), "Seal");
+    await user.click(dialog.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // Enter applies.
+    await user.click(tool("Image details"));
+    dialog = within(screen.getByRole("dialog", { name: "Image details" }));
+    await user.type(dialog.getByLabelText("Title"), "Seal{Enter}");
+    await ed.reports('![Luther\'s \\[rose\\]](/a.png "Seal")');
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("edits the details of an image inside a component", async () => {
+    const user = userEvent.setup();
+    const ed = open("<Note>\n  See ![Old](/a.png)\n</Note>\n");
+    await waitFor(() =>
+      expect(document.querySelector(".v-block img")).not.toBeNull(),
+    );
+    fireEvent.doubleClick(document.querySelector(".v-block img")!);
+    const dialog = within(
+      screen.getByRole("dialog", { name: "Image details" }),
+    );
+    await user.type(dialog.getByLabelText("Alt text"), " rose{Enter}");
+    await ed.reports("![Old rose](/a.png)");
+  });
+
+  it("closes only the innermost dialog on Escape", async () => {
+    const user = userEvent.setup();
+    const outer = vi.fn();
+    function Nested() {
+      const [inner, setInner] = useState(true);
+      return (
+        <Modal title="Outer" onClose={outer}>
+          {inner && (
+            <Modal title="Inner" onClose={() => setInner(false)}>
+              Inside
+            </Modal>
+          )}
+        </Modal>
+      );
+    }
+    render(<Nested />);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Inner" })).toBeNull();
+    expect(outer).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    expect(outer).toHaveBeenCalledOnce();
+  });
+
+  it("edits image details in plain Markdown, but not when read-only", async () => {
+    const user = userEvent.setup();
+    // No image directory: images can't be inserted, but can be described.
+    const ed = open("![](a.png)\n", { format: "md" });
+    await waitFor(() =>
+      expect(document.querySelector(".ProseMirror img")).not.toBeNull(),
+    );
+    act(() => void ed.editor().commands.setNodeSelection(1));
+    await user.click(tool("Image details"));
+    await user.type(screen.getByLabelText("Alt text"), "A{Enter}");
+    await ed.reports("![A](a.png)\n");
+    ed.view.unmount();
+
+    open("![](a.png)\n", { readOnly: true });
+    await waitFor(() =>
+      expect(document.querySelector(".ProseMirror img")).not.toBeNull(),
+    );
+    fireEvent.doubleClick(document.querySelector(".ProseMirror img")!);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("inserts images in an entry's body", async () => {
     const user = userEvent.setup();
     const config = defineConfig({
@@ -379,23 +479,58 @@ describe("the rich text editor", () => {
       "a.png",
     );
 
-    await user.click(tool("Image"));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Insert image")).toBeTruthy();
-    await user.dblClick(
-      await within(dialog).findByRole("button", { name: /a\.png/ }),
+    /** Picks a.png from the asset picker; the image's dialog opens next. */
+    const insert = async () => {
+      await user.click(tool("Image"));
+      const picker = await screen.findByRole("dialog");
+      expect(within(picker).getByText("Insert image")).toBeTruthy();
+      await user.dblClick(
+        await within(picker).findByRole("button", { name: /a\.png/ }),
+      );
+      return within(
+        await screen.findByRole("dialog", { name: "Describe the image" }),
+      );
+    };
+
+    // A new image asks for its alt text.
+    const details = await insert();
+    expect(
+      screen.getByRole("dialog").querySelector("img")!.getAttribute("src"),
+    ).toContain("a.png");
+    // The description box keeps the focus, a frame on too, so typing
+    // describes the image rather than replacing it.
+    await act(() => new Promise((r) => requestAnimationFrame(r)));
+    expect(document.activeElement).toBe(details.getByLabelText("Alt text"));
+    await user.keyboard("A sunrise");
+    await user.click(details.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // The cursor is left after the new image, so writing goes on after it.
+    const editor = (
+      document.querySelector(".ProseMirror") as HTMLElement & {
+        editor: Editor;
+      }
+    ).editor;
+    expect(tool("Image").classList.contains("is-active")).toBe(false);
+    expect(editor.state.selection.$from.nodeBefore?.attrs.alt).toBe(
+      "A sunrise",
     );
-    await waitFor(() =>
-      expect(document.querySelector(".ProseMirror img")).not.toBeNull(),
-    );
+    // Skipping leaves the next one without any.
+    await user.click((await insert()).getByRole("button", { name: "Skip" }));
+    expect(
+      document.querySelectorAll(".ProseMirror img[data-src]"),
+    ).toHaveLength(2);
+
     await waitFor(() =>
       expect(screen.getByText("Unsaved changes")).toBeTruthy(),
     );
     await user.click(screen.getByRole("button", { name: /^Save/ }));
     await screen.findByText("Saved to disk");
-    expect(
-      await readFile(path.join(root, "src/content/pages/home.mdx"), "utf8"),
-    ).toContain("![](/images/a.png)");
+    const saved = await readFile(
+      path.join(root, "src/content/pages/home.mdx"),
+      "utf8",
+    );
+    expect(saved).toContain("![A sunrise](/images/a.png)");
+    expect(saved).toContain("![](/images/a.png)");
   });
 });
 
