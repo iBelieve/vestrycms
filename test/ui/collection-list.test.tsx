@@ -326,6 +326,20 @@ describe("a collection's list", () => {
     expect(titles()).toEqual(["Alpha", "Beta"]);
   });
 
+  it("names yes/no columns beside their values, for phones", async () => {
+    await openPanel(config, { url: "/collections/posts", files });
+    await screen.findByText("Beta");
+    const labelled = [...document.querySelectorAll("td[data-label]")];
+    expect(
+      new Set(labelled.map((td) => td.getAttribute("data-label"))),
+    ).toEqual(new Set(["Featured"]));
+    expect(
+      labelled.every(
+        (td) => td.textContent === "Yes" || td.textContent === "No",
+      ),
+    ).toBe(true);
+  });
+
   it("shows a status column of its own, and no new button where creating is off", async () => {
     await openPanel(config, { url: "/collections/people", files });
     await screen.findByText("Ann");
@@ -460,6 +474,15 @@ describe("a collection's list", () => {
     expect(screen.queryByRole("button", { name: "List" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Expand CW" }));
     expect(titles()).toEqual(["CW", "Advent"]);
+    // Each row carries its depth, which indents its facts under the title
+    // on phones.
+    const depth = (title: string) =>
+      screen
+        .getByText(title)
+        .closest("tr")!
+        .style.getPropertyValue("--v-depth");
+    expect(depth("CW")).toBe("0");
+    expect(depth("Advent")).toBe("1");
   });
 
   it.each(["{nope", "{}", "null", '"cw"', "[1]"])(

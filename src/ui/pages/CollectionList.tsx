@@ -7,7 +7,7 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { type CSSProperties, Fragment, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import type {
   CollectionConfig,
@@ -518,12 +518,13 @@ function EntryRow({
         <td key={c.field} />
       ),
     );
+  const inTree = !!onToggle || !!pinned?.inTree;
   return (
-    <tr>
+    <tr style={inTree ? depthStyle(onToggle ? row.depth : 0) : undefined}>
       {cells(columns.before)}
       <td className="v-table__main">
         <div
-          className={cx((onToggle || pinned?.inTree) && "v-table__node")}
+          className={cx(inTree && "v-table__node")}
           style={onToggle ? { paddingLeft: `${row.depth * 22}px` } : undefined}
         >
           {pinned?.inTree && <span className="v-table__toggle" />}
@@ -540,19 +541,41 @@ function EntryRow({
       {cells(columns.after)}
       {columns.extraStatus && <td>{e && <Badge status={e.status} />}</td>}
       <td className="v-table__actions">
-        {e && col.previewUrl && (
-          <a
-            className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
-            title="View on site"
-            target="_blank"
-            rel="noreferrer"
-            href={`${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...e.data, slug: e.slug })}`}
-          >
-            <ExternalLink />
-          </a>
-        )}
+        {e && <PreviewLink col={col} entry={e} siteUrl={siteUrl} />}
       </td>
     </tr>
+  );
+}
+
+/**
+ * A tree row's depth, for styles.css: on phones the row's other columns sit
+ * under the title, indented to line up with it.
+ */
+function depthStyle(depth: number): CSSProperties {
+  return { "--v-depth": depth } as CSSProperties;
+}
+
+/** An entry's link to its page on the site, when the collection has one. */
+function PreviewLink({
+  col,
+  entry,
+  siteUrl,
+}: {
+  col: CollectionConfig;
+  entry: EntrySummary;
+  siteUrl?: string;
+}) {
+  if (!col.previewUrl) return null;
+  return (
+    <a
+      className="v-btn v-btn--ghost v-btn--xs v-btn--icon"
+      title="View on site"
+      target="_blank"
+      rel="noreferrer"
+      href={`${siteUrl ?? ""}${fillTemplate(col.previewUrl, { ...entry.data, slug: entry.slug })}`}
+    >
+      <ExternalLink />
+    </a>
   );
 }
 
@@ -771,8 +794,15 @@ function ColumnCell({
   column: ListColumn;
   entry: EntrySummary;
 }) {
+  // A yes/no or a number means little without its column's name, which
+  // phones show beside it once the header is gone (styles.css).
+  const type = col.schema[column.field]?.type;
+  const labelled = type === "boolean" || type === "number";
   return (
-    <td className="v-table__cell">
+    <td
+      className={cx("v-table__cell", labelled && "v-table__cell--labelled")}
+      data-label={labelled ? columnLabel(col, column) : undefined}
+    >
       <div className="v-table__clip">
         {column.field === "status" ? (
           <Badge status={entry.status} />
