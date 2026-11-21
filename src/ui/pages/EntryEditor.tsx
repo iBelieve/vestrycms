@@ -577,6 +577,7 @@ function EntryFields({
         pendingUploads: doc.uploads,
         isNew: form.isNew,
         siblings: doc.state.data,
+        filePath: form.filePath,
       }}
     />
   );
