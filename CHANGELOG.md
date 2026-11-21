@@ -13,6 +13,11 @@ while Vestry is below 1.0, a minor version may change behaviour.
   and devices), read from Plausible's Stats API, including self-hosted
   Plausible, with the key in the `VESTRY_PLAUSIBLE_API_KEY` secret. Built
   so other providers can be added.
+- **Alt text and titles for images in the body.** Inserting an image into
+  a body or Markdown field now asks for its alt text. Double-click an
+  image, or select it and press **Image details** in the toolbar, to edit
+  its alt text and title later; they are written as `![alt](src "title")`.
+  Dialogs are now labelled by their titles for screen readers.
 
 ### Fixed
 

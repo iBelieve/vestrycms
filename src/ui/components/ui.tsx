@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -68,6 +69,7 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const titleId = useId();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -86,9 +88,12 @@ export function Modal({
         className={cx("v-modal", wide && "v-modal--wide")}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
       >
         <div className="v-modal__header">
-          <h2 className="v-modal__title">{title}</h2>
+          <h2 id={titleId} className="v-modal__title">
+            {title}
+          </h2>
           <Button variant="ghost" icon onClick={onClose} aria-label="Close">
             <X />
           </Button>
