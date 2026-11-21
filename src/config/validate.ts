@@ -105,6 +105,7 @@ export function validateConfig(config: VestryConfig) {
   }
   checkTemplate("commitMessage", config.commitMessage);
   checkDeploys(config.deploys);
+  checkAnalytics(config.analytics);
 
   for (const [key, col] of Object.entries(config.collections ?? {}))
     checkCollection(config, `collection "${key}"`, col);
@@ -136,6 +137,42 @@ function checkDeploys(deploys: VestryConfig["deploys"]) {
     (typeof deploys.check !== "string" || !deploys.check.trim())
   )
     fail("deploys.check must be a check run name (or the start of one)");
+}
+
+function checkAnalytics(analytics: VestryConfig["analytics"]) {
+  if (analytics === undefined) return;
+  if (typeof analytics !== "object" || analytics === null)
+    fail("analytics must be an object");
+  if (analytics.provider !== "plausible")
+    fail(
+      `analytics.provider must be "plausible" (got ${JSON.stringify(analytics.provider)})`,
+    );
+  if (typeof analytics.siteId !== "string" || !analytics.siteId.trim())
+    fail("analytics.siteId must be the site's domain in Plausible");
+  if (analytics.host !== undefined && !isServerUrl(analytics.host))
+    fail(
+      `analytics.host must be the Plausible server's URL, e.g. https://plausible.io, with no query or #fragment; plain http only for localhost (got ${JSON.stringify(analytics.host)})`,
+    );
+}
+
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * An https URL that paths can be added to. Plain http would send the API
+ * key in the clear, so it is only for a server on this machine.
+ */
+function isServerUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    if (url.search || url.hash || url.username || url.password) return false;
+    return (
+      url.protocol === "https:" ||
+      (url.protocol === "http:" && LOOPBACK.has(url.hostname))
+    );
+  } catch {
+    return false;
+  }
 }
 
 function checkCollection(
