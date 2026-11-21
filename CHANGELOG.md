@@ -45,8 +45,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - Concurrent requests share one GitHub fetch of the branch head and file
   tree instead of each making their own.
 - Dependencies: better-auth 1.7.23 (its tables are unchanged, so existing
-  databases need no migration), Tiptap 3.34 and other minor and patch
-  updates.
+  databases need no migration). The other ranges are unchanged; this
+  release is tested with Tiptap 3.34 and the other dependencies' latest
+  minor and patch versions.
 
 ### Fixed
 
