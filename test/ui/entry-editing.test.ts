@@ -127,6 +127,7 @@ describe("the entry's file", () => {
         data: {},
         saved: isNew ? null : saved,
         renaming,
+        addressShown: true,
       });
     expect(hint("a", true, false)).toEqual({
       lead: null,
@@ -146,6 +147,7 @@ describe("the entry's file", () => {
         data: {},
         saved: null,
         renaming: false,
+        addressShown: true,
       }),
     ).toBeNull();
   });
@@ -167,6 +169,7 @@ describe("the entry's file", () => {
         data: {},
         saved,
         renaming,
+        addressShown: true,
       });
     // Nothing to say until an edit moves the page.
     expect(hint("2026-10-29-a-title", false)).toBeNull();
@@ -180,7 +183,7 @@ describe("the entry's file", () => {
       path: "src/content/articles/2026-10-30-a-title.mdx",
     });
     // A new entry's address is under its title instead.
-    expect(
+    const created = (addressShown: boolean) =>
       slugHint({
         collection: articles,
         pattern,
@@ -188,6 +191,24 @@ describe("the entry's file", () => {
         data: {},
         saved: null,
         renaming: false,
+        addressShown,
+      });
+    expect(created(true)).toBeNull();
+    // Without a title box to show it under, the slug box names its file.
+    expect(created(false)).toEqual({
+      lead: null,
+      path: "src/content/articles/2026-11-21-.mdx",
+    });
+    // A saved slug ending in a hyphen hasn't moved while it is unchanged.
+    expect(
+      slugHint({
+        collection: articles,
+        pattern,
+        slug: "2026-10-29-",
+        data: {},
+        saved: { slug: "2026-10-29-", data: {} },
+        renaming: false,
+        addressShown: true,
       }),
     ).toBeNull();
   });
@@ -310,6 +331,43 @@ describe("entryDisplay", () => {
     });
     expect(display.previewHref).toBe("https://example.org/posts/hi");
     expect(display.address?.text).toBe("example.org/posts/hi");
+  });
+
+  it("links a saved slug as it is, whatever it ends with", () => {
+    const display = entryDisplay({
+      kind: "collection",
+      col: posts,
+      data: {},
+      isNew: false,
+      slug: "hi-",
+      saved: { slug: "hi-", data: {} },
+      siteUrl: "https://example.org",
+    });
+    expect(display.previewHref).toBe("https://example.org/posts/hi-");
+    expect(display.address).toEqual({
+      text: "example.org/posts/hi-",
+      href: "https://example.org/posts/hi-",
+    });
+  });
+
+  it("puts one slash between the site and a page's path", () => {
+    const notes = collection({
+      label: "Notes",
+      path: "src/content/notes/*.md",
+      previewUrl: "notes/{slug}",
+      schema: {},
+    });
+    const display = entryDisplay({
+      kind: "collection",
+      col: notes,
+      data: {},
+      isNew: false,
+      slug: "a",
+      saved: { slug: "a", data: {} },
+      siteUrl: "https://example.org/",
+    });
+    expect(display.previewHref).toBe("https://example.org/notes/a");
+    expect(display.address?.text).toBe("example.org/notes/a");
   });
 });
 

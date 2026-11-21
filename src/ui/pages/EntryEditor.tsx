@@ -533,6 +533,7 @@ function EntrySidebar({ form }: { form: EntryFormModel }) {
                 data: doc.state.data,
                 saved: form.saved,
                 renaming: slugs.renaming,
+                addressShown: display.titleInput !== null,
               })}
             />
           )}

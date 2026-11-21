@@ -52,9 +52,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - **The Slug box holds only the slug.** Where the date field sets the
   file name's date, the date is no longer shown, fixed, in front of the
   box (it repeated the Date field and took the box's width on phones).
-  Under the box a note appears only when an edit to the slug or the date
-  would move the page ("Moves to /articles/2026/11/title"), or rename the
-  file without moving it.
+  Under the box a note appears only when an edit (to the slug, the date or
+  another field the `previewUrl` names) would move the page ("Moves to
+  /articles/2026/11/title"), or rename the file without moving it. A new
+  entry with no title box to show its address under names its file there.
 - `recent` must be true, false or a number: anything else (a string in a
   `.js` config, say) is an error at startup instead of quietly falling
   back to the default.
@@ -66,6 +67,8 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 - The View button opens the page where it is, not where an unsaved
   edit to its slug or date would move it.
+- View links put one slash between `siteUrl` and the `previewUrl`, so a
+  `siteUrl` ending in `/` no longer gives `//` in the entry list's links.
 - The editor no longer runs off the right edge of a narrow window when a
   body holds components (a 1fr column grew to its widest field).
 - Choosing another period on the Analytics page keeps the page in place:
