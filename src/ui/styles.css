@@ -117,6 +117,8 @@ body {
    the inner panel scrolls, so both sets of rounded corners stay in place. */
 .v-app {
   height: 100vh;
+  /* The visible height on phones, whose 100vh includes the browser's bars. */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--v-chrome);
@@ -134,6 +136,29 @@ body {
   padding: 0 14px 0 16px;
   color: var(--v-chrome-text);
   flex: none;
+}
+/* Opens the sidebar as a drawer on narrow screens. */
+.v-chrome__menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-left: -8px;
+  flex: none;
+  border: 0;
+  border-radius: var(--v-radius-sm);
+  background: transparent;
+  color: var(--v-chrome-text);
+  cursor: pointer;
+}
+.v-chrome__menu:hover,
+.v-chrome__menu[aria-expanded="true"] {
+  background: var(--v-chrome-raised);
+}
+.v-chrome__menu svg {
+  width: 20px;
+  height: 20px;
 }
 .v-chrome__brand {
   display: flex;
@@ -427,6 +452,11 @@ button.v-chrome__chip:hover {
   overflow-y: auto;
 }
 
+/* Behind the sidebar when it's a drawer (narrow screens). */
+.v-sidebar-backdrop {
+  display: none;
+}
+
 .v-nav {
   padding: 12px 10px;
   flex: 1;
@@ -485,6 +515,10 @@ button.v-chrome__chip:hover {
   align-items: center;
   gap: 16px;
   padding: 22px 28px 0;
+}
+/* Phones only: the breadcrumb above the title, as a link back. */
+.v-topbar__back {
+  display: none;
 }
 .v-topbar__title {
   font-size: 24px;
@@ -2874,27 +2908,80 @@ button.v-table__toggle:hover {
 }
 
 @media (max-width: 860px) {
-  .v-shell {
-    grid-template-columns: 1fr;
+  /* The page itself scrolls under a sticky top bar, rather than a pane
+     inside a viewport-high frame: phone browsers can then collapse their
+     address bar, and a field scrolled into view (as when the keyboard
+     opens) can't shift the frame off the screen. */
+  .v-app {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+  .v-chrome {
+    position: sticky;
+    top: 0;
+  }
+  .v-chrome__menu {
+    display: inline-flex;
   }
   .v-shell {
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-  }
-  .v-sidebar {
-    flex: none;
-    overflow: visible;
-    border-bottom: 1px solid var(--v-border);
-  }
-  .v-main {
-    flex: none;
+    flex: 1 0 auto;
     overflow: visible;
   }
   .v-main {
+    flex: 1 0 auto;
+    overflow: visible;
     margin: 0;
     border-radius: 0;
     border: 0;
+  }
+  /* The sidebar becomes a drawer under the top bar, opened by its menu
+     button. Hidden (not just moved off-screen) while closed, so its links
+     leave the tab order. */
+  .v-sidebar {
+    position: fixed;
+    z-index: 25;
+    top: var(--v-chrome-height);
+    bottom: 0;
+    left: 0;
+    width: min(300px, 85vw);
+    background: var(--v-bg);
+    border-right: 1px solid var(--v-border);
+    box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.2s ease,
+      visibility 0s linear 0.2s;
+  }
+  .v-sidebar.is-open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.2s ease;
+  }
+  .v-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    z-index: 24;
+    inset: var(--v-chrome-height) 0 0 0;
+    background: rgba(29, 24, 21, 0.4);
+  }
+  .v-nav__link {
+    /* A comfortable tap target. */
+    padding: 10px 12px;
+    font-size: 14.5px;
+  }
+  /* The drawer scrolls on its own; the page beneath stays put. */
+  :root.v-nav-open {
+    overflow: hidden;
+  }
+  /* The page scrolls now, so sticky bars stop under the top bar. */
+  .v-rte__toolbar {
+    top: var(--v-chrome-height);
   }
   .v-chrome__chip span {
     display: none;
@@ -2931,6 +3018,21 @@ button.v-table__toggle:hover {
      stacked above the page here, has the same links. */
   .v-chrome__crumb {
     display: none;
+  }
+  #vestry-root .v-topbar__back {
+    display: inline-flex;
+    flex-basis: 100%;
+    align-items: center;
+    gap: 2px;
+    margin: 12px 0 -6px -4px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--v-text-muted);
+    text-decoration: none;
+  }
+  .v-topbar__back svg {
+    width: 16px;
+    height: 16px;
   }
   /* The dashboard's recent lists put the date and status under the title
      rather than in columns beside it. */

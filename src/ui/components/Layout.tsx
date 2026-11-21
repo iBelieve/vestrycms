@@ -1,17 +1,22 @@
 import {
   ChartLine,
+  ChevronLeft,
   ExternalLink,
   GitBranch,
   LayoutDashboard,
   LogOut,
+  Menu as MenuIcon,
   Users,
+  X,
 } from "lucide-react";
 import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import { useVestry } from "../context.js";
@@ -35,9 +40,21 @@ const CrumbsContext = createContext<(crumbs: Crumb[]) => void>(() => {});
 export function Shell({ children }: { children: ReactNode }) {
   const { client, config, name, api } = useVestry();
   const [crumbs, setCrumbs] = useState<Crumb[]>([]);
+  const nav = useNavDrawer();
   return (
     <div className="v-app">
       <header className="v-chrome">
+        <button
+          type="button"
+          ref={nav.buttonRef}
+          className="v-chrome__menu"
+          aria-label={nav.open ? "Close menu" : "Open menu"}
+          aria-expanded={nav.open}
+          aria-controls="v-sidebar"
+          onClick={nav.toggle}
+        >
+          {nav.open ? <X /> : <MenuIcon />}
+        </button>
         <Brand logo={logoSrc(config.logo, api)} name={name} />
         {crumbs.map((c, i) => (
           <span key={i} className="v-chrome__crumb">
@@ -66,7 +83,11 @@ export function Shell({ children }: { children: ReactNode }) {
         <Sidebar
           config={config}
           showUsers={client.auth && client.user?.role === "admin"}
+          open={nav.open}
+          sidebarRef={nav.sidebarRef}
+          onNavigate={nav.close}
         />
+        {nav.open && <div className="v-sidebar-backdrop" onClick={nav.close} />}
         <div className="v-main">
           <CrumbsContext.Provider value={setCrumbs}>
             {children}
@@ -75,6 +96,46 @@ export function Shell({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+/**
+ * The sidebar as a drawer on narrow screens, where the top bar's menu button
+ * opens it over the page (on wider screens the CSS ignores `open`). Choosing
+ * a link, tapping outside or Escape closes it; the page beneath doesn't
+ * scroll while it's open.
+ */
+function useNavDrawer() {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.classList.add("v-nav-open");
+    // Start keyboard users on the current page's link.
+    const sidebar = sidebarRef.current;
+    (
+      sidebar?.querySelector<HTMLElement>("a.is-active") ??
+      sidebar?.querySelector<HTMLElement>("a")
+    )?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      root.classList.remove("v-nav-open");
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return {
+    open,
+    buttonRef,
+    sidebarRef,
+    toggle: () => setOpen((o) => !o),
+    close: () => setOpen(false),
+  };
 }
 
 /** The top bar's home link: the site's logo, or Vestry's mark and the name. */
@@ -176,13 +237,30 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 function Sidebar({
   config,
   showUsers,
+  open,
+  sidebarRef,
+  onNavigate,
 }: {
   config: VestryConfig;
   showUsers: boolean;
+  /** The drawer is open (narrow screens only). */
+  open: boolean;
+  sidebarRef: RefObject<HTMLElement | null>;
+  /** A link was chosen: closes the drawer. */
+  onNavigate: () => void;
 }) {
   return (
-    <aside className="v-sidebar">
-      <nav className="v-nav">
+    <aside
+      id="v-sidebar"
+      ref={sidebarRef}
+      className={cx("v-sidebar", open && "is-open")}
+    >
+      <nav
+        className="v-nav"
+        onClick={(e) => {
+          if ((e.target as Element).closest("a")) onNavigate();
+        }}
+      >
         <div className="v-nav__group">
           <NavLink to="/" end className={navLinkClass}>
             <LayoutDashboard /> Dashboard
@@ -271,6 +349,9 @@ export function TopBar({
 }) {
   const setCrumbs = useContext(CrumbsContext);
   const key = JSON.stringify(crumbs ?? []);
+  // Phones hide the breadcrumbs in the dark bar; the nearest linked one
+  // becomes a back link above the title instead.
+  const back = crumbs?.findLast((c) => c.to);
   useEffect(() => {
     setCrumbs(crumbs ?? []);
     return () => setCrumbs([]);
@@ -278,6 +359,12 @@ export function TopBar({
   }, [key, setCrumbs]);
   return (
     <header className="v-topbar">
+      {back?.to && (
+        <Link to={back.to} className="v-topbar__back">
+          <ChevronLeft />
+          {back.label}
+        </Link>
+      )}
       <h1 className="v-topbar__title">
         {status && (
           <span

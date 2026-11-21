@@ -3,6 +3,17 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Changed
+
+- **Phones and narrow screens.** Below 860 px the sidebar is a drawer,
+  opened from a menu button in the top bar, instead of a block stacked
+  above every page. The page itself scrolls under a sticky top bar (so
+  phone browsers can tuck their address bar away), and on phones a link
+  above the title leads back to the breadcrumb's page, such as an entry's
+  collection, including one not in the sidebar.
+
 ## 0.7.0
 
 ### Added
