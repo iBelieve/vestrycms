@@ -221,6 +221,7 @@ export function bodyEnv({
 }): EditorEnv {
   const images = body?.images;
   const fileDir = dirname(filePath);
+  const assetUrl = (repo: string) => uploads[repo]?.previewUrl ?? fileUrl(repo);
   const toRepoPath = (src: string): string | null => {
     if (/^https?:\/\//.test(src)) return null;
     if (images) return assetToRepoPath(images, src, filePath);
@@ -244,10 +245,10 @@ export function bodyEnv({
         : relativePath(fileDir, repoPath),
     resolveImage: (src) => {
       const repo = toRepoPath(src);
-      if (!repo) return src;
-      const pending = uploads[repo];
-      return pending ? pending.previewUrl : fileUrl(repo);
+      return repo ? assetUrl(repo) : src;
     },
+    filePath,
+    assetUrl,
   };
 }
 
