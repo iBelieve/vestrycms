@@ -49,6 +49,7 @@ import {
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
+import { useFitToScrollport } from "../lib/fit-to-scrollport.js";
 import {
   deepEqual,
   defaultValues,
@@ -486,8 +487,10 @@ function EntryMain({ form }: { form: EntryFormModel }) {
 /** Publishing, the slug, and the sidebar's fields. */
 function EntrySidebar({ form }: { form: EntryFormModel }) {
   const { col, collection, display, placement, doc, slugs } = form;
+  const ref = useRef<HTMLElement>(null);
+  useFitToScrollport(ref);
   return (
-    <aside className="v-editor-sidebar v-stack">
+    <aside ref={ref} className="v-editor-sidebar v-stack">
       {(display.statusField || collection) && (
         <PublishCard
           isPublished={display.isPublished}
@@ -574,6 +577,7 @@ function EntryFields({
         pendingUploads: doc.uploads,
         isNew: form.isNew,
         siblings: doc.state.data,
+        filePath: form.filePath,
       }}
     />
   );

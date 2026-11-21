@@ -63,6 +63,8 @@ export interface FieldContext {
   isNew?: boolean;
   /** Values of sibling fields (for slug `from`). */
   siblings?: Record<string, unknown>;
+  /** The repository path of the entry's file. */
+  filePath?: string;
 }
 
 /** Values by field key, as a form holds them. */
@@ -305,13 +307,14 @@ const INPUTS: { [T in Field["type"]]: (props: InputProps<T>) => ReactNode } = {
   ),
   object: (props) => <ObjectInput {...props} />,
   array: (props) => <ArrayInput {...props} />,
-  markdown: ({ field, value, onChange }) => (
+  markdown: ({ field, value, onChange, ctx }) => (
     <MarkdownField
       value={asText(value)}
       onChange={onChange}
       components={field.components}
       placeholder={field.description}
       readOnly={field.readOnly}
+      filePath={ctx?.filePath}
     />
   ),
   code: ({ field, value, onChange }) => (

@@ -1564,23 +1564,48 @@ button.v-table__toggle:hover {
   gap: 24px;
   align-items: start;
 }
+/* Set on the rail by useFitToScrollport. Not inherited, so a new value
+   restyles only the rail, not every field inside it. */
+@property --v-fit-height {
+  syntax: "*";
+  inherits: false;
+}
+.v-editor-sidebar {
+  /* Sticky, but capped to the visible part of the panel and scrollable on
+     its own, so a rail taller than the screen can still be scrolled to its
+     bottom. useFitToScrollport sets --v-fit-height as the page scrolls,
+     because until the rail sticks, the heading above it pushes it down; the
+     fallback is the height once stuck (the panel's inset and 1px top border,
+     and 24px above and below the rail). The 240px floor matters only when
+     something tall above the rail (a long error list) leaves it less room
+     and the rail is taller than the main column: the page can then scroll
+     until the rail has at least that much. Scrolling past either end of the
+     rail carries on to the page. The padding and negative margin keep card
+     shadows from being clipped. */
+  --v-stuck-height: calc(
+    100vh - var(--v-chrome-height) - var(--v-frame-inset) - 49px
+  );
+  position: sticky;
+  top: 24px;
+  max-height: max(
+    var(--v-fit-height, var(--v-stuck-height)),
+    min(240px, var(--v-stuck-height))
+  );
+  overflow-y: auto;
+  min-width: 0;
+  padding: 4px;
+  margin: -4px;
+}
 @media (max-width: 1100px) {
   .v-editor-layout {
     grid-template-columns: 1fr;
   }
-}
-.v-editor-sidebar {
-  /* Sticky, but capped at the viewport and scrollable on its own, so a rail
-     taller than the screen can still be scrolled to its bottom. The padding
-     and negative margin keep card shadows from being clipped. */
-  position: sticky;
-  top: 24px;
-  max-height: calc(100vh - var(--v-chrome-height) - 56px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  min-width: 0;
-  padding: 4px;
-  margin: -4px;
+  /* One column: the rail follows the main fields and scrolls with the page. */
+  .v-editor-sidebar {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 .v-editor-sidebar .v-card__body {
   padding: 14px 16px;
@@ -1861,6 +1886,16 @@ button.v-table__toggle:hover {
 }
 .v-prose img.ProseMirror-selectednode {
   outline: 3px solid var(--v-primary-ring);
+}
+
+/* The image details dialog: the image, then its alt text and title. */
+.v-image-details__preview {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  margin: 0 auto 18px;
+  border-radius: var(--v-radius-sm);
+  background: var(--v-surface-muted);
 }
 .v-prose table {
   border-collapse: collapse;

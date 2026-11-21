@@ -18,8 +18,35 @@ while Vestry is below 1.0, a minor version may change behaviour.
   `fixedEntries` or `readOnly` collections).
 - A "Recent …" list for a collection not sorted by a date
   (`recent: true`) shows the first date field in its `columns`.
+- **Alt text and titles for images in the body.** Inserting an image into
+  a body now asks for its alt text. Double-click an image in a body or
+  Markdown field, or select it and press **Image details** in the
+  toolbar, to edit its alt text and title later; they are written as
+  `![alt](src "title")`.
+  Dialogs are now labelled by their titles for screen readers, and Escape
+  closes only the innermost one when one dialog opens from another.
 
 ### Fixed
+
+- **Image props of components preview with any `storeAs`.** A component's
+  image and file props were edited as the MDX stores them, so only a
+  `repo` path previewed: with `filename`, `relative` or `public` the
+  settings showed a broken image (and, for `relative`, so did the block's
+  thumbnail), and a newly chosen file was written as a repository path
+  whatever `storeAs` said. They now hold repository paths while the editor
+  has the document, like frontmatter fields, and are written in their
+  `storeAs` form. A prop nobody changed is written back as the file had
+  it, so editing one part of a page does not rewrite the others' images;
+  a site dropping a `storeAs: "repo"` workaround keeps its existing
+  references in repository form until they are replaced.
+
+- **Editor sidebar reaches its bottom.** The editor's sidebar is sized to
+  the visible part of the panel as the page scrolls, so its last fields
+  can be scrolled into view while the page heading is still showing.
+  Scrolling past either end of the sidebar now carries on to the page
+  (before, scrolling over the sidebar never moved the page), and in the
+  one-column layout below 1100px the sidebar follows the main fields
+  instead of scrolling inside its own box.
 
 - Labels set mid-sentence ("All FAQs", "Search FAQs…", "Create the first
   FAQ") keep their acronyms instead of becoming "faqs".

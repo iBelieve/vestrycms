@@ -17,6 +17,15 @@ export interface EditorEnv {
   imageDirectory?: string;
   /** Resolve a document image src to a URL the browser can display. */
   resolveImage?: (src: string) => string;
+  /**
+   * The repository path of the file the document is saved in. Given it,
+   * the image and file props of components hold repository paths while
+   * they are edited, and are written back in their fields' `storeAs` form;
+   * without it they are edited as the document stores them.
+   */
+  filePath?: string;
+  /** A repository path → a URL the browser can display. */
+  assetUrl?: (repoPath: string) => string;
 }
 
 export const EditorEnvContext = createContext<EditorEnv>({
