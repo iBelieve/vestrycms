@@ -40,10 +40,11 @@ while Vestry is below 1.0, a minor version may change behaviour.
   column headers become a row of sort buttons, and the search box takes
   the full width.
 - On phones the dashboard's collection tiles sit two to a row, the asset
-  grid and picker show two or three images to a row, a tree field's item
+  grid and picker fit more images to a row, a tree field's item
   (a menu item's URL) goes under its label instead of cutting both short,
-  and a card's note goes under its title. Touch screens leave out the
-  "Drop files here" box, keeping the Upload button.
+  and a card's note goes under its title. Touch-screen phones leave out
+  the "Drop files here" box, keeping the Upload button (the picker lists
+  the accepted file types instead).
 - `recent` must be true, false or a number: anything else (a string in a
   `.js` config, say) is an error at startup instead of quietly falling
   back to the default.

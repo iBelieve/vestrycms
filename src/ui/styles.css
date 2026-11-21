@@ -2261,6 +2261,8 @@ button.v-table__toggle:hover {
   font-weight: 500;
   cursor: pointer;
   text-align: left;
+  /* A long name wraps inside its tile instead of running into the next. */
+  overflow-wrap: anywhere;
 }
 .v-folder svg {
   width: 16px;
@@ -3116,6 +3118,8 @@ button.v-table__toggle:hover {
   .v-stat__body {
     min-width: 0;
     overflow-wrap: anywhere;
+    /* A label too long for the tile breaks with a hyphen where it can. */
+    hyphens: auto;
   }
   /* A card's note goes under its title rather than squeezing it. */
   .v-card__header {
@@ -3125,14 +3129,8 @@ button.v-table__toggle:hover {
   .v-card__header > .v-muted {
     flex-basis: 100%;
   }
-  /* A tree item's link (a menu item's URL) goes under its label, so both
-     have the row's width instead of ending at "W..". */
-  .v-tree__text {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-  }
-  /* Two or three images to a row in the asset grid and picker. */
+  /* More images to a row in the asset grid and picker (two or three on the
+     Assets page). */
   .v-asset-grid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 10px;
@@ -3719,6 +3717,20 @@ button.v-tree__toggle:hover {
   max-width: 420px;
   cursor: grabbing;
 }
+/* On phones a tree item's link (a menu item's URL) goes under its label, so
+   both have the row's width instead of ending at "W..". It comes after the
+   rules above because it overrides them. */
+@media (max-width: 600px) {
+  .v-tree__text {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  /* The hidden children's count stays a pill, not a full-width bar. */
+  .v-tree__count {
+    align-self: flex-start;
+  }
+}
 
 /* Slug box: a date held by the date field is shown, fixed, in front. */
 .v-slug {
@@ -3769,11 +3781,24 @@ button.v-tree__toggle:hover {
   color: var(--v-text-faint);
 }
 
-/* Nothing can be dragged onto a phone or tablet: the Upload button stays,
-   the drop target goes. */
-@media (hover: none) and (pointer: coarse) {
-  .v-dropzone {
+/* A phone can't drag files onto the page (an iPad or Android tablet beside
+   another app can, so they keep it): the drop target goes and the Upload
+   button stays. The accepted file types, which the picker's drop target
+   lists, stay as a caption. */
+@media (max-width: 600px) and (hover: none) and (pointer: coarse) {
+  .v-dropzone:not(:has(.v-drop-accept)),
+  .v-drop-hint {
     display: none;
+  }
+  .v-dropzone {
+    border: 0;
+    padding: 0;
+    margin-bottom: 12px;
+    text-align: left;
+    font-size: 12.5px;
+  }
+  .v-drop-accept::before {
+    content: "Accepts ";
   }
 }
 
