@@ -239,11 +239,15 @@ describe("the users page", () => {
       within(dialog).getByRole<HTMLInputElement>("radio", { name: /Editor/ })
         .disabled,
     ).toBe(true);
-    await user.type(within(dialog).getByRole("textbox"), "Owner");
+    // The name starts as "Owner" (from the address): replace it, so the
+    // check below can't pass on the list from before the save.
+    const name = within(dialog).getByRole("textbox");
+    await user.clear(name);
+    await user.type(name, "Olive Owner");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await screen.findByText("User updated.")).toBeTruthy();
     expect(
-      await screen.findByText("Owner", { selector: ".v-table__title" }),
+      await screen.findByText("Olive Owner", { selector: ".v-table__title" }),
     ).toBeTruthy();
   });
 

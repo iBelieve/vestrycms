@@ -328,6 +328,7 @@ export function createApi(options: ApiOptions) {
     route: Route,
   ): Promise<Response> {
     const { url, segments, method } = route;
+    prefetchSource(request, route);
     // Everything that needs sign-in shares one setup check.
     const signIn = await signInSetup(url, ctx);
 
@@ -362,6 +363,20 @@ export function createApi(options: ApiOptions) {
     }
 
     return signedInRoute(request, route, user, signIn, ctx);
+  }
+
+  /**
+   * Starts the GitHub reads a signed-in request will need while its session
+   * is checked: the installation token for the deploy status, and the
+   * branch head as well for content. Only for requests that carry a session
+   * cookie, so anonymous ones cost GitHub nothing.
+   */
+  function prefetchSource(request: Request, { segments }: Route) {
+    const what = prefetchFor(segments[0]);
+    if (!what) return;
+    if (authRequired && !hasSessionCookie(request)) return;
+    const source = resolveSource();
+    if (!("error" in source)) source.prefetch?.(what);
   }
 
   /** Everything past sign-in: users, analytics, deploys and content. */
@@ -613,6 +628,30 @@ interface SignIn {
   setupError?: string;
 }
 
+/** What a section of the API reads from the source first, if anything. */
+function prefetchFor(section: string | undefined): "head" | "token" | null {
+  switch (section) {
+    case "deploys":
+      return "token";
+    case "status":
+    case "dashboard":
+    case "collections":
+    case "singletons":
+    case "assets":
+    case "file":
+      return "head";
+    default:
+      return null;
+  }
+}
+
+/** Whether a request carries Better Auth's session cookie (`vestry.session_token`). */
+function hasSessionCookie(request: Request): boolean {
+  return /(?:^|;\s*)(?:__Secure-)?vestry\.session_token=/.test(
+    request.headers.get("cookie") ?? "",
+  );
+}
+
 /** The route of a request, or the response that refuses it. */
 function parseRoute(request: Request, apiPrefix: string): Route | Response {
   const url = new URL(request.url);
@@ -678,37 +717,18 @@ function userAdmin(
   headers: Headers,
   user: PublicUser,
 ): UserAdmin {
-  const { auth, toPublicUser } = vestryAuth;
   return {
     vestryAuth,
     headers,
     user,
-    async getUser(id) {
-      try {
-        const found = await auth.api.getUser({ query: { id }, headers });
-        return found ? toPublicUser(found) : null;
-      } catch (e) {
-        if (isAPIError(e) && e.statusCode === 404) return null;
-        throw e;
-      }
-    },
-    async adminCount() {
-      const { total } = await auth.api.listUsers({
-        query: { filterField: "role", filterValue: "admin", limit: 1 },
-        headers,
-      });
-      return total;
-    },
+    getUser: (id) => vestryAuth.users.get(id),
+    adminCount: () => vestryAuth.users.adminCount(),
   };
 }
 
-async function listUsers({ vestryAuth, headers }: UserAdmin) {
+async function listUsers({ vestryAuth }: UserAdmin) {
   await vestryAuth.ensureConfigAdmins();
-  const { users } = await vestryAuth.auth.api.listUsers({
-    query: { limit: 1000, sortBy: "name", sortDirection: "asc" },
-    headers,
-  });
-  return json({ users: users.map(vestryAuth.toPublicUser) });
+  return json({ users: await vestryAuth.users.list() });
 }
 
 async function inviteUser(

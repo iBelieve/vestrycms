@@ -6,16 +6,20 @@
  *
  * Storage is whatever Better Auth accepts: a Cloudflare D1 binding in
  * production, a `node:sqlite` database in development, the memory adapter
- * in tests. Tables are created on first use with Better Auth's migrator.
+ * in tests. Tables are created on first use with Better Auth's migrator;
+ * once they match, a schema version row (`schema-version.ts`) lets later
+ * isolates skip the migrator's check of every table.
  */
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
-import { getMigrations } from "better-auth/db/migration";
+import { getSchema } from "better-auth/db";
 import { admin, emailOTP } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/admin/access";
 import type { Mailer } from "./mail.js";
 import { isRole, type PublicUser, type Role } from "./roles.js";
+import { schemaFingerprint, schemaVersions } from "./schema-version.js";
+import { isSqlDatabase } from "./sql.js";
 import { tablePrefixError } from "./table-prefix.js";
 
 export type AuthDatabase = NonNullable<BetterAuthOptions["database"]>;
@@ -129,6 +133,9 @@ export function createVestryAuth(opts: VestryAuthOptions) {
     advanced: {
       cookiePrefix: "vestry",
       useSecureCookies: opts.baseURL.startsWith("https://"),
+      // Reads a session and its user in one query rather than two; every
+      // signed-in request does it.
+      database: { joins: true },
       defaultCookieAttributes: { path: opts.cookiePath ?? "/" },
       // Cloudflare puts the client address in cf-connecting-ip; the default
       // x-forwarded-for is absent or client-controlled there, which would
@@ -205,6 +212,13 @@ export function createVestryAuth(opts: VestryAuthOptions) {
     const pending = byPrefix.get(prefix);
     if (pending) return pending;
     const run = (async () => {
+      const versions = isSqlDatabase(opts.database)
+        ? schemaVersions(opts.database, prefix)
+        : null;
+      const version = await schemaFingerprint(getSchema(auth.options));
+      if (versions && (await versions.get("auth")) === version) return;
+      // Only loaded when the schema may need work.
+      const { getMigrations } = await import("better-auth/db/migration");
       const { runMigrations, unsafeChanges } = await getMigrations(
         auth.options,
         { throwOnUnsafe: false },
@@ -221,6 +235,10 @@ export function createVestryAuth(opts: VestryAuthOptions) {
         if (!/already exists/i.test(e instanceof Error ? e.message : String(e)))
           throw e;
       }
+      // With changes left to make by hand, every isolate keeps checking (and
+      // warning) until they are made.
+      if (versions && !unsafeChanges?.length)
+        await versions.set("auth", version);
     })().catch((e) => {
       byPrefix.delete(prefix);
       throw e;
@@ -262,12 +280,48 @@ export function createVestryAuth(opts: VestryAuthOptions) {
    * An entry that isn't an address (empty, or a typo without a domain) gets
    * none: nobody could sign in to it, and it couldn't be removed.
    */
-  const ensureConfigAdmins = async () => {
-    const { internalAdapter } = await auth.$context;
-    const emails = [...new Set(admins)].filter(isEmailAddress);
-    await Promise.all(
-      emails.map((email) => ensureConfigAdmin(internalAdapter, email)),
-    );
+  let configAdminsReady: Promise<void> | undefined;
+  const ensureConfigAdmins = () => {
+    // Once per isolate: Vestry never demotes or removes a config admin, so
+    // the accounts stay as this left them.
+    configAdminsReady ??= (async () => {
+      const { internalAdapter } = await auth.$context;
+      const emails = [...new Set(admins)].filter(isEmailAddress);
+      await Promise.all(
+        emails.map((email) => ensureConfigAdmin(internalAdapter, email)),
+      );
+    })().catch((e) => {
+      configAdminsReady = undefined;
+      throw e;
+    });
+    return configAdminsReady;
+  };
+
+  /**
+   * Better Auth's own reads, for routes that have already checked who is
+   * asking: going through its admin endpoints would look the session up
+   * again for each call.
+   */
+  const users = {
+    async list(): Promise<PublicUser[]> {
+      const { internalAdapter } = await auth.$context;
+      const found = await internalAdapter.listUsers(1000, 0, {
+        field: "name",
+        direction: "asc",
+      });
+      return found.map(toPublicUser);
+    },
+    async get(id: string): Promise<PublicUser | null> {
+      const { internalAdapter } = await auth.$context;
+      const found = await internalAdapter.findUserById(id);
+      return found ? toPublicUser(found) : null;
+    },
+    async adminCount(): Promise<number> {
+      const { internalAdapter } = await auth.$context;
+      return internalAdapter.countTotalUsers([
+        { field: "role", value: "admin" },
+      ]);
+    },
   };
 
   return {
@@ -276,6 +330,7 @@ export function createVestryAuth(opts: VestryAuthOptions) {
     toPublicUser,
     isConfigAdmin,
     ensureConfigAdmins,
+    users,
     sendInvite,
   };
 }

@@ -95,6 +95,12 @@ export interface ContentSource {
    * the deploy status; sources without builds leave it out.
    */
   recentCommits?(limit: number): Promise<SourceCommit[]>;
+  /**
+   * Starts loading what a request is about to need (`"head"`: the branch
+   * head, `"token"`: only the credentials), without waiting for it, so it
+   * overlaps the sign-in check. Failures are left for the real read.
+   */
+  prefetch?(what: "head" | "token"): void;
 }
 
 export class SourceError extends Error {
