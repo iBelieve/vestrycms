@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router";
 import type { PublicUser, Role } from "../api.js";
 import { ROLES } from "../../core/roles.js";
+import { Avatar } from "../components/Avatar.js";
 import { TopBar } from "../components/Layout.js";
 import {
   Alert,
@@ -18,7 +19,7 @@ import {
   useToast,
 } from "../components/ui.js";
 import { useVestry } from "../context.js";
-import { cx, formatDate, initials } from "../lib/utils.js";
+import { cx, formatDate } from "../lib/utils.js";
 
 export function UsersPage() {
   const { api, client, refresh } = useVestry();
@@ -290,9 +291,7 @@ function UserRow({
     <tr>
       <td className="v-table__main">
         <span className="v-user">
-          <span className="v-avatar" aria-hidden>
-            {initials(u.name || u.email)}
-          </span>
+          <Avatar name={u.name} email={u.email} size={32} />
           <span className="v-user__text">
             <span className="v-table__title">
               {u.name}

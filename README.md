@@ -116,6 +116,16 @@ page and choose a role:
 | `editor` | Create, edit, publish and delete content; upload assets      |
 | `admin`  | Everything an editor can, plus invite, edit and remove users |
 
+Users show with their [Gravatar](https://gravatar.com) in the top bar and on
+the **Users** page. Someone without one gets Gravatar's initials on a colour
+of its own. The browser asks Gravatar for each picture by the SHA-256 hash of
+the address, with the user's name for those initials (or, without a name,
+initials taken from the address) and no referrer. So Gravatar sees the
+hashed addresses and names that signed-in browsers look up, but never the
+addresses themselves. Where Gravatar can't be reached, or the panel
+is served over plain HTTP from anywhere but `localhost` (Web Crypto needs a
+secure origin), the panel's own initials stay instead.
+
 Users, sessions (30 days) and pending codes live in a SQL database that
 Better Auth accepts directly: a Cloudflare D1 binding named `VESTRY_DB` in
 production, a `node:sqlite` file in dev, its memory adapter in tests. The
