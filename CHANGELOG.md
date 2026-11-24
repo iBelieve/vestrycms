@@ -3,6 +3,16 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
+## Unreleased
+
+### Added
+
+- **Gravatars.** The top bar's account button and the **Users** page show
+  each user's Gravatar, looked up by the SHA-256 hash of their address.
+  People without one get Gravatar's initials on a colour of their own
+  (`d=initials`, from their name). The panel's own initials show while the
+  picture loads, and stay if Gravatar can't be reached.
+
 ## 0.8.0
 
 ### Added

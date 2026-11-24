@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { screen, waitFor, within } from "@testing-library/react";
+import { createHash } from "node:crypto";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { openPanel, signIn } from "./harness.js";
@@ -270,6 +271,36 @@ describe("the users page", () => {
     expect(await screen.findByText("User updated.")).toBeTruthy();
     await waitFor(() => expect(row("Seth")).toBeTruthy());
     expect(screen.getAllByText("second@example.org")).toHaveLength(1);
+  });
+
+  it("shows Gravatars, over initials for when they don't load", async () => {
+    await signedIn();
+    const me = await screen.findByText("owner@example.org", {
+      selector: ".v-table__sub",
+    });
+    const avatar = me.closest("tr")!.querySelector(".v-avatar")!;
+    expect(avatar.textContent).toBe("O");
+    const hash = createHash("sha256").update("owner@example.org").digest("hex");
+    const img = await waitFor(() => avatar.querySelector("img")!);
+    const url = new URL(img.src);
+    expect(url.origin + url.pathname).toBe(
+      `https://gravatar.com/avatar/${hash}`,
+    );
+    expect(url.searchParams.get("d")).toBe("initials");
+    expect(url.searchParams.get("s")).toBe("64");
+    expect(url.searchParams.get("name")).toBeTruthy();
+
+    // The top bar's avatar is the same picture, at the button's size.
+    const chrome = await waitFor(() =>
+      document.querySelector<HTMLImageElement>(".v-chrome__avatar img")!,
+    );
+    expect(chrome.src).toContain(hash);
+    expect(new URL(chrome.src).searchParams.get("s")).toBe("56");
+
+    // Gravatar unreachable: the initials stay.
+    fireEvent.error(img);
+    expect(avatar.querySelector("img")).toBeNull();
+    expect(avatar.textContent).toBe("O");
   });
 
   it("explains that local mode has no users", async () => {
