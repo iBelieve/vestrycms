@@ -133,9 +133,16 @@ export function createVestryAuth(opts: VestryAuthOptions) {
     advanced: {
       cookiePrefix: "vestry",
       useSecureCookies: opts.baseURL.startsWith("https://"),
-      // Reads a session and its user in one query rather than two; every
-      // signed-in request does it.
-      database: { joins: true },
+      database: {
+        // Reads a session and its user in one query rather than two; every
+        // signed-in request does it.
+        joins: true,
+        // `ensureMigrated` checks the tables, once per schema version where
+        // it can record one. Better Auth's own check would read the layout
+        // of every table in the database again, on each isolate's first
+        // request. Without migrations the tables are the host's, so it stays.
+        ...(opts.migrate === false ? {} : { validateSchema: false }),
+      },
       defaultCookieAttributes: { path: opts.cookiePath ?? "/" },
       // Cloudflare puts the client address in cf-connecting-ip; the default
       // x-forwarded-for is absent or client-controlled there, which would
@@ -217,28 +224,11 @@ export function createVestryAuth(opts: VestryAuthOptions) {
         : null;
       const version = await schemaFingerprint(getSchema(auth.options));
       if (versions && (await versions.get("auth")) === version) return;
-      // Only loaded when the schema may need work.
-      const { getMigrations } = await import("better-auth/db/migration");
-      const { runMigrations, unsafeChanges } = await getMigrations(
-        auth.options,
-        { throwOnUnsafe: false },
-      );
-      for (const change of unsafeChanges ?? []) {
-        console.warn(
-          `[vestry] auth schema needs a manual migration: ${change}`,
-        );
-      }
-      try {
-        await runMigrations();
-      } catch (e) {
-        // Another isolate created the same table or index a moment earlier.
-        if (!/already exists/i.test(e instanceof Error ? e.message : String(e)))
-          throw e;
-      }
-      // With changes left to make by hand, every isolate keeps checking (and
-      // warning) until they are made.
-      if (versions && !unsafeChanges?.length)
-        await versions.set("auth", version);
+      const current = await runAuthMigrations(auth.options);
+      // With changes left to make by hand, or another isolate's migration
+      // still under way, every isolate keeps checking until the tables are
+      // right.
+      if (versions && current) await versions.set("auth", version);
     })().catch((e) => {
       byPrefix.delete(prefix);
       throw e;
@@ -280,21 +270,20 @@ export function createVestryAuth(opts: VestryAuthOptions) {
    * An entry that isn't an address (empty, or a typo without a domain) gets
    * none: nobody could sign in to it, and it couldn't be removed.
    */
-  let configAdminsReady: Promise<void> | undefined;
-  const ensureConfigAdmins = () => {
+  let configAdminsDone = false;
+  const ensureConfigAdmins = async () => {
     // Once per isolate: Vestry never demotes or removes a config admin, so
-    // the accounts stay as this left them.
-    configAdminsReady ??= (async () => {
-      const { internalAdapter } = await auth.$context;
-      const emails = [...new Set(admins)].filter(isEmailAddress);
-      await Promise.all(
-        emails.map((email) => ensureConfigAdmin(internalAdapter, email)),
-      );
-    })().catch((e) => {
-      configAdminsReady = undefined;
-      throw e;
-    });
-    return configAdminsReady;
+    // the accounts stay as this left them. Only a finished run counts, and
+    // a pending one isn't shared: on a Worker it belongs to the request
+    // that started it, and if that request is cancelled it never settles
+    // for the others. Concurrent runs are safe (see ensureConfigAdmin).
+    if (configAdminsDone) return;
+    const { internalAdapter } = await auth.$context;
+    const emails = [...new Set(admins)].filter(isEmailAddress);
+    await Promise.all(
+      emails.map((email) => ensureConfigAdmin(internalAdapter, email)),
+    );
+    configAdminsDone = true;
   };
 
   /**
@@ -336,6 +325,32 @@ export function createVestryAuth(opts: VestryAuthOptions) {
 }
 
 export type VestryAuth = ReturnType<typeof createVestryAuth>;
+
+/**
+ * Runs Better Auth's migrations, and says whether the tables are now
+ * current: not with changes left to make by hand, nor when another isolate
+ * was creating the same tables at the same moment, since its run may still
+ * have the rest to create (and may not live to).
+ */
+async function runAuthMigrations(options: BetterAuthOptions): Promise<boolean> {
+  // Only loaded when the schema may need work.
+  const { getMigrations } = await import("better-auth/db/migration");
+  const { runMigrations, unsafeChanges } = await getMigrations(options, {
+    throwOnUnsafe: false,
+  });
+  for (const change of unsafeChanges ?? []) {
+    console.warn(`[vestry] auth schema needs a manual migration: ${change}`);
+  }
+  try {
+    await runMigrations();
+  } catch (e) {
+    // Another isolate created the same table or index a moment earlier.
+    if (!/already exists/i.test(e instanceof Error ? e.message : String(e)))
+      throw e;
+    return false;
+  }
+  return !unsafeChanges?.length;
+}
 
 type InternalAdapter = Awaited<
   ReturnType<typeof betterAuth>["$context"]

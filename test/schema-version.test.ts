@@ -64,10 +64,42 @@ describe("the auth schema's version", () => {
     expect(row.version).toMatch(/^[0-9a-f]{64}$/);
 
     const second = isolate(file);
-    await auth(second.db).ensureMigrated();
+    const vestryAuth = auth(second.db);
+    await vestryAuth.ensureMigrated();
     expect(second.queries).toEqual([
       `SELECT version FROM "site_vestrySchema" WHERE name = ?`,
     ]);
+
+    // Nor does Better Auth read them again for its own check on the first
+    // request.
+    await vestryAuth.auth.api.getSession({
+      headers: new Headers({ cookie: "vestry.session_token=unknown" }),
+    });
+    expect(introspects(second.queries)).toBe(false);
+  });
+
+  it("records no version while another isolate may still be migrating", async () => {
+    const file = newFile();
+    const { db } = isolate(file);
+    // Another isolate creates the first table a moment before this one
+    // does, and may yet die before it creates the rest.
+    const prepare = db.prepare.bind(db);
+    let raced = false;
+    db.prepare = (sql: string) => {
+      if (!raced && /^create table/i.test(sql)) {
+        raced = true;
+        throw new Error("table already exists");
+      }
+      return prepare(sql);
+    };
+    await auth(db).ensureMigrated();
+    expect(raced).toBe(true);
+
+    // So the next isolate checks in full, and creates what is missing.
+    const next = isolate(file);
+    await auth(next.db).ensureMigrated();
+    expect(introspects(next.queries)).toBe(true);
+    expect(next.queries.some((q) => /^create table/i.test(q))).toBe(true);
   });
 
   it("checks in full again when the version is missing or differs", async () => {

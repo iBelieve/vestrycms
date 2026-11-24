@@ -237,10 +237,14 @@ export class GitHubSource implements ContentSource {
     return (await this.#resolveHead()).sha;
   }
 
-  prefetch(what: "head" | "token"): void {
-    const load = what === "head" ? this.#resolveHead() : this.#token();
+  prefetch(what: "head" | "token"): Promise<void> {
+    const load: Promise<unknown> =
+      what === "head" ? this.#resolveHead() : this.#token();
     // The read that needs it reports any failure.
-    load.catch(() => {});
+    return load.then(
+      () => {},
+      () => {},
+    );
   }
 
   #tree(commitSha: string): Promise<TreeEntry[]> {

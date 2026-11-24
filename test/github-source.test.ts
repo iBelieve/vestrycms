@@ -168,8 +168,9 @@ describe("GitHubSource reads", () => {
       cache: new MemoryCache(),
     });
     log.length = 0;
-    cold.prefetch("head");
+    const prefetched = cold.prefetch("head");
     expect(await cold.list("src/content/sermons")).toHaveLength(1);
+    await prefetched;
     expect(log.filter((l) => l.includes("/git/ref/"))).toHaveLength(1);
   });
 });
