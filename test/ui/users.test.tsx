@@ -281,7 +281,13 @@ describe("the users page", () => {
     const avatar = me.closest("tr")!.querySelector(".v-avatar")!;
     expect(avatar.textContent).toBe("O");
     const hash = createHash("sha256").update("owner@example.org").digest("hex");
-    const img = await waitFor(() => avatar.querySelector("img")!);
+    // waitFor retries only a callback that throws, so assert inside it.
+    const img = await waitFor(() => {
+      const found = avatar.querySelector("img");
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(img.getAttribute("referrerpolicy")).toBe("no-referrer");
     const url = new URL(img.src);
     expect(url.origin + url.pathname).toBe(
       `https://gravatar.com/avatar/${hash}`,
@@ -291,9 +297,13 @@ describe("the users page", () => {
     expect(url.searchParams.get("name")).toBeTruthy();
 
     // The top bar's avatar is the same picture, at the button's size.
-    const chrome = await waitFor(() =>
-      document.querySelector<HTMLImageElement>(".v-chrome__avatar img")!,
-    );
+    const chrome = await waitFor(() => {
+      const found = document.querySelector<HTMLImageElement>(
+        ".v-chrome__avatar img",
+      );
+      expect(found).not.toBeNull();
+      return found!;
+    });
     expect(chrome.src).toContain(hash);
     expect(new URL(chrome.src).searchParams.get("s")).toBe("56");
 

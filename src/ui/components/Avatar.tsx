@@ -25,7 +25,12 @@ export function Avatar({
     <span className={cx("v-avatar", className)} aria-hidden>
       {initials(name || email || "?")}
       {src && failed !== src && (
-        <img src={src} alt="" onError={() => setFailed(src)} />
+        <img
+          src={src}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(src)}
+        />
       )}
     </span>
   );
