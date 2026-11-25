@@ -43,7 +43,8 @@ interface GitTree {
 
 interface CachedHead {
   sha: string;
-  treeSha: string;
+  /** The commit's tree, once known (our own commits, or a save's lookup). */
+  treeSha?: string;
   etag?: string;
 }
 
@@ -51,8 +52,10 @@ interface CachedHead {
  * GitHub-backed source using the Git Data API.
  *
  * Reads: the branch head is cached briefly (and revalidated with ETags, which
- * don't count against the rate limit); the recursive tree is cached per tree
- * SHA; blobs are cached per blob SHA (immutable). After one of our own commits
+ * don't count against the rate limit); the recursive tree is read by the
+ * head commit's SHA (GitHub resolves it to the commit's tree, which saves
+ * reading the commit first) and cached per commit; blobs are cached per blob
+ * SHA (immutable). After one of our own commits
  * the head cache is updated in place so the next read sees the new state
  * without waiting for the TTL.
  *
@@ -195,11 +198,9 @@ export class GitHubSource implements ContentSource {
     });
     if (status === 304 && fresh)
       return this.#storeHead(key, { ...fresh, checked: Date.now() }, commits);
-    const sha = data.object.sha;
-    const treeSha = await this.#treeShaForCommit(sha);
     return this.#storeHead(
       key,
-      { sha, treeSha, etag, checked: Date.now() },
+      { sha: data.object.sha, etag, checked: Date.now() },
       commits,
     );
   }
@@ -236,16 +237,27 @@ export class GitHubSource implements ContentSource {
     return (await this.#resolveHead()).sha;
   }
 
-  #tree(treeSha: string): Promise<TreeEntry[]> {
-    return this.#shared(`tree:${treeSha}`, () => this.#loadTree(treeSha));
+  prefetch(what: "head" | "token"): Promise<void> {
+    const load: Promise<unknown> =
+      what === "head" ? this.#resolveHead() : this.#token();
+    // The read that needs it reports any failure.
+    return load.then(
+      () => {},
+      () => {},
+    );
   }
 
-  async #loadTree(treeSha: string): Promise<TreeEntry[]> {
-    const key = `gh:${this.repoPath}:tree:${treeSha}`;
+  #tree(commitSha: string): Promise<TreeEntry[]> {
+    return this.#shared(`tree:${commitSha}`, () => this.#loadTree(commitSha));
+  }
+
+  /** The files at a commit, read in one request by the commit's SHA. */
+  async #loadTree(commitSha: string): Promise<TreeEntry[]> {
+    const key = `gh:${this.repoPath}:commit-tree:${commitSha}`;
     const cached = await this.#cache.get<TreeEntry[]>(key);
     if (cached) return cached;
     const { data } = await this.#request<GitTree>(
-      `/repos/${this.repoPath}/git/trees/${treeSha}?recursive=1`,
+      `/repos/${this.repoPath}/git/trees/${commitSha}?recursive=1`,
     );
     if (data.truncated) {
       throw new SourceError(
@@ -264,7 +276,7 @@ export class GitHubSource implements ContentSource {
   async list(directory: string): Promise<TreeEntry[]> {
     const head = await this.#resolveHead();
     const dir = normalizePath(directory);
-    const all = await this.#tree(head.treeSha);
+    const all = await this.#tree(head.sha);
     if (!dir) return all;
     const prefix = `${dir}/`;
     return all.filter((e) => e.path.startsWith(prefix));
@@ -272,7 +284,7 @@ export class GitHubSource implements ContentSource {
 
   async #findBlob(p: string): Promise<TreeEntry | undefined> {
     const head = await this.#resolveHead();
-    const all = await this.#tree(head.treeSha);
+    const all = await this.#tree(head.sha);
     const n = normalizePath(p);
     return all.find((e) => e.path === n);
   }
@@ -357,7 +369,10 @@ export class GitHubSource implements ContentSource {
       `/repos/${this.repoPath}/git/trees`,
       {
         method: "POST",
-        body: JSON.stringify({ base_tree: head.treeSha, tree }),
+        body: JSON.stringify({
+          base_tree: head.treeSha ?? (await this.#treeShaForCommit(head.sha)),
+          tree,
+        }),
       },
     );
     const { data: commit } = await this.#request<{

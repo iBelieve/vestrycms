@@ -95,6 +95,14 @@ export interface ContentSource {
    * the deploy status; sources without builds leave it out.
    */
   recentCommits?(limit: number): Promise<SourceCommit[]>;
+  /**
+   * Starts loading what a request is about to need (`"head"`: the branch
+   * head, `"token"`: only the credentials), so it overlaps the sign-in
+   * check. The promise settles once the load has; the API awaits it before
+   * answering, since on a Worker a load the response leaves behind is
+   * cancelled. Failures are left for the real read.
+   */
+  prefetch?(what: "head" | "token"): Promise<void> | void;
 }
 
 export class SourceError extends Error {

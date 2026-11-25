@@ -31,6 +31,7 @@ import { MailError, consoleMailer, resendMailer, type Mailer } from "./mail.js";
 import { isRole, type PublicUser, type Role } from "./roles.js";
 import { ContentService, type SaveEntryInput } from "./service.js";
 import { SourceError, withAuthor, type ContentSource } from "./source.js";
+import { isSqlDatabase } from "./sql.js";
 import { submissionStore, type SubmissionDatabase } from "./submissions.js";
 import { GitHubSource } from "./sources/github.js";
 import { installationTokenProvider } from "./sources/github-app.js";
@@ -314,10 +315,18 @@ export function createApi(options: ApiOptions) {
   ): Promise<Response> {
     const route = parseRoute(request, apiPrefix);
     if (route instanceof Response) return route;
+    const prefetched = prefetchSource(request, route);
     try {
       return await routeRequest(request, ctx, cookies, route);
     } catch (e) {
       return errorResponse(e);
+    } finally {
+      // Seen through even when the answer didn't need it (a refused
+      // session, deploys off, a cached status): on a Worker a load still
+      // running when the response goes out is cancelled with this request,
+      // and never settles for whoever joined it, such as the installation
+      // token's mint, which every later GitHub read in the isolate awaits.
+      await prefetched;
     }
   }
 
@@ -362,6 +371,29 @@ export function createApi(options: ApiOptions) {
     }
 
     return signedInRoute(request, route, user, signIn, ctx);
+  }
+
+  /**
+   * Starts the GitHub reads a signed-in request will need while its session
+   * is checked: the installation token for the deploy status, and the
+   * branch head as well for content. Only for requests that carry a session
+   * cookie, so anonymous ones cost GitHub nothing. Settles once the loads
+   * have, and never rejects: failures, a source that cannot be created
+   * among them, are left for the real read, after the session check.
+   */
+  function prefetchSource(
+    request: Request,
+    { segments }: Route,
+  ): Promise<void> | undefined {
+    const what = prefetchFor(segments[0]);
+    if (!what || (authRequired && !hasSessionCookie(request))) return;
+    try {
+      const source = resolveSource();
+      if ("error" in source || !source.prefetch) return;
+      return Promise.resolve(source.prefetch(what)).catch(() => {});
+    } catch {
+      return;
+    }
   }
 
   /** Everything past sign-in: users, analytics, deploys and content. */
@@ -521,17 +553,14 @@ export function createApi(options: ApiOptions) {
     }
     // The sign-in database may be any Better Auth accepts; submissions need
     // a SQL one.
-    const database = resolved.database as Partial<SubmissionDatabase>;
-    if (typeof database.prepare !== "function")
+    const { database } = resolved;
+    if (!isSqlDatabase(database))
       return error(
         "Form submissions need a D1 or node:sqlite database (or the API's submissionsDatabase option).",
         500,
         "setup",
       );
-    return submissionStore(
-      database as SubmissionDatabase,
-      config.auth?.tablePrefix,
-    );
+    return submissionStore(database, config.auth?.tablePrefix);
   }
 
   async function listSubmissions(
@@ -613,6 +642,30 @@ interface SignIn {
   setupError?: string;
 }
 
+/** What a section of the API reads from the source first, if anything. */
+function prefetchFor(section: string | undefined): "head" | "token" | null {
+  switch (section) {
+    case "deploys":
+      return "token";
+    case "status":
+    case "dashboard":
+    case "collections":
+    case "singletons":
+    case "assets":
+    case "file":
+      return "head";
+    default:
+      return null;
+  }
+}
+
+/** Whether a request carries Better Auth's session cookie (`vestry.session_token`). */
+function hasSessionCookie(request: Request): boolean {
+  return /(?:^|;\s*)(?:__Secure-)?vestry\.session_token=/.test(
+    request.headers.get("cookie") ?? "",
+  );
+}
+
 /** The route of a request, or the response that refuses it. */
 function parseRoute(request: Request, apiPrefix: string): Route | Response {
   const url = new URL(request.url);
@@ -678,37 +731,18 @@ function userAdmin(
   headers: Headers,
   user: PublicUser,
 ): UserAdmin {
-  const { auth, toPublicUser } = vestryAuth;
   return {
     vestryAuth,
     headers,
     user,
-    async getUser(id) {
-      try {
-        const found = await auth.api.getUser({ query: { id }, headers });
-        return found ? toPublicUser(found) : null;
-      } catch (e) {
-        if (isAPIError(e) && e.statusCode === 404) return null;
-        throw e;
-      }
-    },
-    async adminCount() {
-      const { total } = await auth.api.listUsers({
-        query: { filterField: "role", filterValue: "admin", limit: 1 },
-        headers,
-      });
-      return total;
-    },
+    getUser: (id) => vestryAuth.users.get(id),
+    adminCount: () => vestryAuth.users.adminCount(),
   };
 }
 
-async function listUsers({ vestryAuth, headers }: UserAdmin) {
+async function listUsers({ vestryAuth }: UserAdmin) {
   await vestryAuth.ensureConfigAdmins();
-  const { users } = await vestryAuth.auth.api.listUsers({
-    query: { limit: 1000, sortBy: "name", sortDirection: "asc" },
-    headers,
-  });
-  return json({ users: users.map(vestryAuth.toPublicUser) });
+  return json({ users: await vestryAuth.users.list() });
 }
 
 async function inviteUser(

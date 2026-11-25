@@ -80,6 +80,87 @@ describe("the content source", () => {
     expect(createSource).toHaveBeenCalledTimes(1);
   });
 
+  it("starts its reads during the sign-in check, for requests with a session cookie", async () => {
+    const prefetch = vi.fn();
+    const source: ContentSource = {
+      info: () => ({ kind: "github", label: "custom" }),
+      head: async () => "h",
+      list: async () => [],
+      read: async () => null,
+      commit: async () => ({ sha: "c" }),
+      prefetch,
+    };
+    const instance = api({ auth: signIn, createSource: () => source });
+    const request = (route: string, cookie?: string) =>
+      instance.handle(
+        new Request(`${ORIGIN}/admin/api${route}`, {
+          headers: cookie ? { cookie } : {},
+        }),
+      );
+
+    // Anonymous: nothing is fetched for a request that will be refused.
+    expect((await request("/collections/posts")).status).toBe(401);
+    expect(prefetch).not.toHaveBeenCalled();
+
+    // An expired cookie is still refused, but the head was worth starting.
+    const cookie = "theme=dark; vestry.session_token=expired";
+    expect((await request("/collections/posts", cookie)).status).toBe(401);
+    expect(prefetch).toHaveBeenLastCalledWith("head");
+    await request("/deploys", `__Secure-${cookie.split("; ")[1]}`);
+    expect(prefetch).toHaveBeenLastCalledWith("token");
+
+    // Routes that don't read the repository start nothing.
+    prefetch.mockClear();
+    await request("/users", cookie);
+    await request("/analytics", cookie);
+    await request("/config", cookie);
+    expect(prefetch).not.toHaveBeenCalled();
+  });
+
+  it("answers only once its reads have settled, even when refused", async () => {
+    // On a Worker a load left running is cancelled with its request, and
+    // never settles for a later request that joined it.
+    let settle!: () => void;
+    const source: ContentSource = {
+      info: () => ({ kind: "github", label: "custom" }),
+      head: async () => "h",
+      list: async () => [],
+      read: async () => null,
+      commit: async () => ({ sha: "c" }),
+      prefetch: () =>
+        new Promise<void>((_, reject) => (settle = () => reject(new Error()))),
+    };
+    const instance = api({ auth: signIn, createSource: () => source });
+    let answered = false;
+    const response = instance
+      .handle(
+        new Request(`${ORIGIN}/admin/api/deploys`, {
+          headers: { cookie: "vestry.session_token=expired" },
+        }),
+      )
+      .finally(() => (answered = true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(answered).toBe(false);
+    // A failed load is the real read's to report, not this request's.
+    settle();
+    expect((await response).status).toBe(401);
+  });
+
+  it("refuses a stale session even when the source cannot be created", async () => {
+    const instance = api({
+      auth: signIn,
+      createSource: () => {
+        throw new Error("source misconfigured");
+      },
+    });
+    const response = await instance.handle(
+      new Request(`${ORIGIN}/admin/api/collections/posts`, {
+        headers: { cookie: "vestry.session_token=expired" },
+      }),
+    );
+    expect(response.status).toBe(401);
+  });
+
   it("is the GitHub repository when the app's variables are set", async () => {
     const env: Record<string, string> = {
       VESTRY_GITHUB_APP_ID: "1",

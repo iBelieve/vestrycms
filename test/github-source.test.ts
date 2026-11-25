@@ -65,10 +65,13 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && p.startsWith("/git/commits/"))
     return json(200, { tree: { sha: commits.get(p.slice(13))!.tree } });
   if (req.method === "GET" && p.startsWith("/git/trees/")) {
+    // Like GitHub, a commit's SHA reads that commit's tree (and the answer
+    // carries the SHA asked for, not the tree's).
+    const id = p.slice(11);
     return json(200, {
-      sha: p.slice(11),
+      sha: id,
       truncated: false,
-      tree: trees.get(p.slice(11)),
+      tree: trees.get(id) ?? trees.get(commits.get(id)?.tree ?? ""),
     });
   }
   if (req.method === "GET" && p.startsWith("/git/blobs/")) {
@@ -150,8 +153,25 @@ describe("GitHubSource reads", () => {
     ]);
     expect(lists[0]).toHaveLength(1);
     expect(log.filter((l) => l.includes("/git/ref/"))).toHaveLength(1);
-    expect(log.filter((l) => l.includes("/git/commits/"))).toHaveLength(1);
+    // The tree is read by the commit's SHA, without reading the commit.
+    expect(log.filter((l) => l.includes("/git/commits/"))).toHaveLength(0);
     expect(log.filter((l) => l.includes("/git/trees/"))).toHaveLength(1);
+  });
+
+  it("starts the head on prefetch, and the next read joins it", async () => {
+    const cold = new GitHubSource({
+      owner: "o",
+      repo: "r",
+      branch: "main",
+      token: "tok",
+      apiBase: `http://127.0.0.1:${port}`,
+      cache: new MemoryCache(),
+    });
+    log.length = 0;
+    const prefetched = cold.prefetch("head");
+    expect(await cold.list("src/content/sermons")).toHaveLength(1);
+    await prefetched;
+    expect(log.filter((l) => l.includes("/git/ref/"))).toHaveLength(1);
   });
 });
 

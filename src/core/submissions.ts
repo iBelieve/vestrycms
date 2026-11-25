@@ -2,9 +2,11 @@
  * Form submissions the site saves (a contact form, say) and admins read in
  * the control panel. They live in the sign-in database, a D1 binding in
  * production or `node:sqlite` in development and tests, in one table per
- * table prefix, created on first use.
+ * table prefix. The table is created when a query first finds it missing,
+ * so the usual request costs no extra round trip to check for it.
  */
 import type { VestryConfig } from "../config/types.js";
+import { isMissingTable, sql, type SqlDatabase } from "./sql.js";
 import { tablePrefixError } from "./table-prefix.js";
 
 /** The values a submission holds, by field. */
@@ -20,65 +22,8 @@ export interface Submission {
   readAt?: string;
 }
 
-/** A D1 binding, by the parts of its shape used here. */
-interface D1Like {
-  prepare(sql: string): {
-    bind(...values: unknown[]): {
-      run(): Promise<unknown>;
-      all<T>(): Promise<{ results: T[] }>;
-    };
-  };
-  /** Unused, but what tells D1 apart from `node:sqlite`. */
-  batch(statements: unknown[]): Promise<unknown>;
-}
-
-/** A `node:sqlite` database, likewise. */
-interface SqliteLike {
-  prepare(sql: string): {
-    run(...values: unknown[]): unknown;
-    all(...values: unknown[]): unknown[];
-  };
-  exec(sql: string): void;
-}
-
 /** The database submissions are kept in. */
-export type SubmissionDatabase = D1Like | SqliteLike;
-
-interface Sql {
-  run(sql: string, ...values: unknown[]): Promise<void>;
-  all<T>(sql: string, ...values: unknown[]): Promise<T[]>;
-}
-
-// By `batch`, which only D1 has: both have `exec`.
-const isD1 = (db: SubmissionDatabase): db is D1Like =>
-  typeof (db as D1Like).batch === "function";
-
-function sql(db: SubmissionDatabase): Sql {
-  if (isD1(db)) {
-    return {
-      run: async (query, ...values) => {
-        await db
-          .prepare(query)
-          .bind(...values)
-          .run();
-      },
-      all: async <T>(query: string, ...values: unknown[]) =>
-        (
-          await db
-            .prepare(query)
-            .bind(...values)
-            .all<T>()
-        ).results,
-    };
-  }
-  return {
-    run: async (query, ...values) => {
-      db.prepare(query).run(...values);
-    },
-    all: async <T>(query: string, ...values: unknown[]) =>
-      db.prepare(query).all(...values) as T[],
-  };
-}
+export type SubmissionDatabase = SqlDatabase;
 
 interface Row {
   id: string;
@@ -87,8 +32,6 @@ interface Row {
   createdAt: string;
   readAt: string | null;
 }
-
-const created = new WeakMap<object, Set<string>>();
 
 /** The submissions in one database, under one table prefix. */
 export function submissionStore(
@@ -100,29 +43,37 @@ export function submissionStore(
   const table = `${tablePrefix}submission`;
   const db = sql(database);
 
-  async function ready() {
-    let tables = created.get(database);
-    if (!tables) created.set(database, (tables = new Set()));
-    if (tables.has(table)) return;
+  async function createTable() {
     await db.run(
       `CREATE TABLE IF NOT EXISTS "${table}" (id TEXT PRIMARY KEY NOT NULL, form TEXT NOT NULL, data TEXT NOT NULL, createdAt TEXT NOT NULL, readAt TEXT)`,
     );
     await db.run(
       `CREATE INDEX IF NOT EXISTS "${table}_form_createdAt" ON "${table}" (form, createdAt)`,
     );
-    tables.add(table);
+  }
+
+  /** Runs a query, creating the table first if it turns out to be missing. */
+  async function withTable<T>(query: () => Promise<T>): Promise<T> {
+    try {
+      return await query();
+    } catch (e) {
+      if (!isMissingTable(e)) throw e;
+      await createTable();
+      return query();
+    }
   }
 
   return {
     async save(form: string, data: SubmissionData, now = new Date()) {
-      await ready();
       const id = crypto.randomUUID();
-      await db.run(
-        `INSERT INTO "${table}" (id, form, data, createdAt) VALUES (?, ?, ?, ?)`,
-        id,
-        form,
-        JSON.stringify(data),
-        now.toISOString(),
+      await withTable(() =>
+        db.run(
+          `INSERT INTO "${table}" (id, form, data, createdAt) VALUES (?, ?, ?, ?)`,
+          id,
+          form,
+          JSON.stringify(data),
+          now.toISOString(),
+        ),
       );
       return id;
     },
@@ -141,15 +92,16 @@ export function submissionStore(
         before?: Pick<Submission, "id" | "createdAt">;
       } = {},
     ): Promise<{ submissions: Submission[]; more: boolean }> {
-      await ready();
       const cursor = before
         ? ` AND (createdAt < ? OR (createdAt = ? AND id < ?))`
         : "";
-      const rows = await db.all<Row>(
-        `SELECT * FROM "${table}" WHERE form = ?${cursor} ORDER BY createdAt DESC, id DESC LIMIT ?`,
-        form,
-        ...(before ? [before.createdAt, before.createdAt, before.id] : []),
-        limit + 1,
+      const rows = await withTable(() =>
+        db.all<Row>(
+          `SELECT * FROM "${table}" WHERE form = ?${cursor} ORDER BY createdAt DESC, id DESC LIMIT ?`,
+          form,
+          ...(before ? [before.createdAt, before.createdAt, before.id] : []),
+          limit + 1,
+        ),
       );
       return {
         submissions: rows.slice(0, limit).map(toSubmission),
@@ -158,32 +110,31 @@ export function submissionStore(
     },
 
     async get(form: string, id: string): Promise<Submission | null> {
-      await ready();
-      const [row] = await db.all<Row>(
-        `SELECT * FROM "${table}" WHERE form = ? AND id = ?`,
-        form,
-        id,
+      const [row] = await withTable(() =>
+        db.all<Row>(
+          `SELECT * FROM "${table}" WHERE form = ? AND id = ?`,
+          form,
+          id,
+        ),
       );
       return row ? toSubmission(row) : null;
     },
 
     /** Marks a submission read, unless it already is. */
     async markRead(form: string, id: string, now = new Date()) {
-      await ready();
-      await db.run(
-        `UPDATE "${table}" SET readAt = ? WHERE form = ? AND id = ? AND readAt IS NULL`,
-        now.toISOString(),
-        form,
-        id,
+      await withTable(() =>
+        db.run(
+          `UPDATE "${table}" SET readAt = ? WHERE form = ? AND id = ? AND readAt IS NULL`,
+          now.toISOString(),
+          form,
+          id,
+        ),
       );
     },
 
     async remove(form: string, id: string) {
-      await ready();
-      await db.run(
-        `DELETE FROM "${table}" WHERE form = ? AND id = ?`,
-        form,
-        id,
+      await withTable(() =>
+        db.run(`DELETE FROM "${table}" WHERE form = ? AND id = ?`, form, id),
       );
     },
   };

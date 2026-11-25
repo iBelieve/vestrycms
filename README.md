@@ -130,7 +130,11 @@ Users, sessions (30 days) and pending codes live in a SQL database that
 Better Auth accepts directly: a Cloudflare D1 binding named `VESTRY_DB` in
 production, a `node:sqlite` file in dev, its memory adapter in tests. The
 tables are created on first use with Better Auth's migrator, so there is no
-migration step. Codes expire after 10 minutes and are burned after five
+migration step. A fingerprint of the schema is then kept in
+`<prefix>vestrySchema`, so a new Worker isolate learns from one row that the
+tables are current instead of reading the layout of every table in the
+database (delete the row to have the next isolate check, and migrate, in
+full). Codes expire after 10 minutes and are burned after five
 wrong guesses; Better Auth rate-limits the sign-in routes per IP (counters in
 the database, so they hold across Worker isolates). Emails go through
 `config.mail` (`resend`, with the key in `VESTRY_RESEND_API_KEY`, or `console`
@@ -800,8 +804,8 @@ Each form gets a page under **Forms** in the sidebar, for admins: its
 submissions newest first, unread ones in bold, with the form's `columns`
 (by default the first three fields). A submission's page shows every field
 and has Reply (when it has an `email` field) and Delete. They are kept in a
-`submission` table in the D1 database, after `auth.tablePrefix`, created on
-first use, until an admin deletes them. In local mode (`astro dev` without
+`submission` table in the D1 database, after `auth.tablePrefix`, created
+when a query first finds it missing, until an admin deletes them. In local mode (`astro dev` without
 `VESTRY_MODE=auth`) the page has no database to read; in `astro dev` the
 site's handler writes to Wrangler's local D1, not `.vestry/auth.sqlite`.
 

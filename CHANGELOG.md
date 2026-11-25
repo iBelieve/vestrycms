@@ -12,6 +12,29 @@ while Vestry is below 1.0, a minor version may change behaviour.
   People without one get Gravatar's initials on a colour of their own
   (`d=initials`, from their name). The panel's own initials show while the
   picture loads, and stay if Gravatar can't be reached.
+- **`prefetch` on `ContentSource`** (optional): the API calls it while the
+  session is checked, so a source can start loading what the request will
+  read, and awaits the promise it returns before answering.
+
+### Changed
+
+- **Fewer D1 and GitHub round trips per admin request**, each of which
+  costs 100 ms or more from a Worker far from the database:
+  - A new isolate checks one schema version row, in a new
+    `<prefix>vestrySchema` table in the sign-in database, instead of Better
+    Auth's migrator and its own schema check, which between them read the
+    layout of every table in the shared database twice. The migrator still
+    runs when the row is missing or the schema changed (delete the row to
+    have the next isolate check, and migrate, in full).
+  - A session is read with its user in one query (Better Auth's database
+    joins), and the **Users** page reads Better Auth's adapter directly
+    instead of its admin endpoints, which looked the session up again: 9
+    queries down to 2.
+  - The submissions table is created only when a query finds it missing,
+    rather than with two `CREATE … IF NOT EXISTS` on every isolate.
+  - The repository tree is read by the head commit's SHA, without first
+    reading the commit, and signed-in requests start the installation token
+    and branch head while their session is checked.
 
 ## 0.8.0
 
