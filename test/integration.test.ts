@@ -229,25 +229,51 @@ describe("formatterModule", () => {
 });
 
 describe("logoModule", () => {
-  const none = "export default null;\n";
+  const none = "export const onDark = null;\nexport const onLight = null;\n";
+  const bundled = (name: string, file: string) =>
+    `export { default as ${name} } from ${JSON.stringify(`${path.join(root, file)}?url`)};\n`;
 
   beforeAll(async () => {
     await mkdir(path.join(root, "src/assets"), { recursive: true });
     await writeFile(path.join(root, "src/assets/logo.svg"), "<svg/>");
+    await writeFile(path.join(root, "src/assets/logo-light.svg"), "<svg/>");
   });
 
   it("bundles a logo file in the project as a build asset", () => {
-    const file = path.join(root, "src/assets/logo.svg");
-    const source = `import url from ${JSON.stringify(`${file}?url`)};\nexport default url;\n`;
+    const source =
+      bundled("onDark", "src/assets/logo.svg") +
+      "export const onLight = null;\n";
     expect(logoModule(root, "src/assets/logo.svg")).toBe(source);
     expect(logoModule(root, "/src/assets/logo.svg")).toBe(source);
     expect(logoModule(root, "./src/assets/logo.svg")).toBe(source);
+  });
+
+  it("bundles each of the dark and light logos", () => {
+    expect(
+      logoModule(root, {
+        onDark: "src/assets/logo.svg",
+        onLight: "src/assets/logo-light.svg",
+      }),
+    ).toBe(
+      bundled("onDark", "src/assets/logo.svg") +
+        bundled("onLight", "src/assets/logo-light.svg"),
+    );
+    expect(logoModule(root, { onLight: "src/assets/logo-light.svg" })).toBe(
+      "export const onDark = null;\n" +
+        bundled("onLight", "src/assets/logo-light.svg"),
+    );
   });
 
   it("leaves a missing file, an absolute URL or no logo to the API", () => {
     expect(logoModule(root, undefined)).toBe(none);
     expect(logoModule(root, "https://example.org/logo.svg")).toBe(none);
     expect(logoModule(root, "src/assets/missing.svg")).toBe(none);
+    expect(
+      logoModule(root, {
+        onDark: "https://example.org/logo.svg",
+        onLight: "src/assets/missing.svg",
+      }),
+    ).toBe(none);
   });
 
   it("bundles only a file inside the project", () => {
@@ -337,7 +363,7 @@ describe("the integration", () => {
       "export const available = false;",
     );
     expect(await plugin.load("\0virtual:vestry/logo")).toBe(
-      "export default null;\n",
+      "export const onDark = null;\nexport const onLight = null;\n",
     );
     const index = await plugin.load("\0virtual:vestry/index");
     expect(index).toContain("src/content/posts/first.md");

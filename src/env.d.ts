@@ -21,7 +21,8 @@ declare module "virtual:vestry/formatter" {
 }
 
 declare module "virtual:vestry/logo" {
-  /** The configured logo as a build asset, or null to load it through the API. */
-  const url: string | null;
-  export default url;
+  /** The logo for dark surfaces as a build asset, or null to load it through the API. */
+  export const onDark: string | null;
+  /** The logo for light surfaces as a build asset, or null to load it through the API. */
+  export const onLight: string | null;
 }

@@ -7,6 +7,15 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **A light-surface logo.** `logo` takes `{ onDark, onLight }`: the top bar
+  keeps the dark one (`onDark`, which a plain path still means), and the
+  sign-in page shows `onLight` on its light card, so it no longer needs the
+  dark plate behind the logo. Either may be left out: the sign-in page puts
+  an `onDark` logo on a dark plate, and the top bar an `onLight` one on a
+  light plate.
+- **`signIn.showName`.** The sign-in page's heading is now the logo alone,
+  named by its alt text; `signIn: { showName: true }` puts the site's name
+  under it again. Without a logo the name shows, as before.
 - **Gravatars.** The top bar's account button and the **Users** page show
   each user's Gravatar, looked up by the SHA-256 hash of their address.
   People without one get Gravatar's initials on a colour of their own
@@ -18,6 +27,10 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Changed
 
+- **A refreshed sign-in page**, in the colours of vestrycms.com: a warm glow
+  behind the card, a gradient strip in the logo sparkle's colours along its
+  top, and a "Powered by Vestry CMS" link below. It follows the system's
+  dark mode (the rest of the panel stays light).
 - **Fewer D1 and GitHub round trips per admin request**, each of which
   costs 100 ms or more from a Worker far from the database:
   - A new isolate checks one schema version row, in a new

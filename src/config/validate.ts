@@ -9,6 +9,7 @@ import type {
   ComponentConfig,
   Field,
   GoogleAnalyticsConfig,
+  LogoConfig,
   PlausibleAnalyticsConfig,
   Schema,
   VestryConfig,
@@ -157,6 +158,8 @@ export function validateConfig(config: VestryConfig) {
     fail("config.repo.owner and config.repo.name are required");
   }
   checkTemplate("commitMessage", config.commitMessage);
+  checkLogo(config.logo);
+  checkSignIn(config.signIn);
   checkDeploys(config.deploys);
   checkAnalytics(config.analytics);
 
@@ -215,6 +218,43 @@ function checkForms(forms: VestryConfig["forms"]) {
     )
       fail(`${what} columns must be a list of field names`);
   }
+}
+
+const isLogoPath = (value: unknown) =>
+  typeof value === "string" && value.trim() !== "";
+
+/** A path or URL, or `{ onDark, onLight }` with at least one of them. */
+function checkLogo(logo: VestryConfig["logo"]) {
+  if (logo === undefined) return;
+  if (typeof logo === "string") {
+    if (!isLogoPath(logo)) fail("logo must be a repository path or a URL");
+    return;
+  }
+  if (typeof logo !== "object" || logo === null)
+    fail("logo must be a path or URL, or { onDark, onLight }");
+  checkLogoVariants(logo);
+}
+
+function checkLogoVariants(logo: LogoConfig) {
+  const unknown = Object.keys(logo).find(
+    (key) => key !== "onDark" && key !== "onLight",
+  );
+  if (unknown)
+    fail(`logo has an unknown key "${unknown}"; use onDark and onLight`);
+  for (const key of ["onDark", "onLight"] as const) {
+    if (logo[key] !== undefined && !isLogoPath(logo[key]))
+      fail(`logo.${key} must be a repository path or a URL`);
+  }
+  if (logo.onDark === undefined && logo.onLight === undefined)
+    fail("logo needs onDark, onLight or both");
+}
+
+function checkSignIn(signIn: VestryConfig["signIn"]) {
+  if (signIn === undefined) return;
+  if (typeof signIn !== "object" || signIn === null)
+    fail("signIn must be an object");
+  if (signIn.showName !== undefined && typeof signIn.showName !== "boolean")
+    fail("signIn.showName must be true or false");
 }
 
 function checkDeploys(deploys: VestryConfig["deploys"]) {

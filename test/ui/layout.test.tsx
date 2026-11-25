@@ -152,3 +152,35 @@ describe("the back link", () => {
     expect(document.querySelector(".v-topbar__back")).toBeNull();
   });
 });
+
+describe("the top bar's logo", () => {
+  it("shows the dark-surface logo", async () => {
+    await openPanel(
+      {
+        ...config,
+        logo: {
+          onDark: "src/assets/logo.svg",
+          onLight: "src/assets/logo-light.svg",
+        },
+      },
+      { files },
+    );
+    const img = await screen.findByRole("img", { name: "Test Site" });
+    expect(img.getAttribute("src")).toBe(
+      "/admin/api/file?path=src%2Fassets%2Flogo.svg",
+    );
+    expect(img.classList).not.toContain("v-chrome__logo--plate");
+  });
+
+  it("puts a light-surface logo on a plate when there is no dark one", async () => {
+    await openPanel(
+      { ...config, logo: { onLight: "src/assets/logo-light.svg" } },
+      { files },
+    );
+    const img = await screen.findByRole("img", { name: "Test Site" });
+    expect(img.getAttribute("src")).toBe(
+      "/admin/api/file?path=src%2Fassets%2Flogo-light.svg",
+    );
+    expect(img.classList).toContain("v-chrome__logo--plate");
+  });
+});

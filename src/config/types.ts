@@ -633,16 +633,40 @@ export interface FormConfig {
   columns?: string[];
 }
 
+/** The site's logo for each kind of surface. Give at least one. */
+export interface LogoConfig {
+  /**
+   * For dark surfaces: the top bar, and the sign-in page when the system is
+   * in dark mode. A light or reverse version of the logo.
+   */
+  onDark?: string;
+  /**
+   * For light surfaces: the sign-in page. Without it, the sign-in page shows
+   * the `onDark` logo on a dark plate.
+   */
+  onLight?: string;
+}
+
+export interface SignInConfig {
+  /**
+   * Show the site's name under its logo. Off by default, since the logo
+   * usually carries the name; without a logo the name always shows.
+   */
+  showName?: boolean;
+}
+
 export interface VestryConfig {
   /** Display name for the control panel. */
   name?: string;
   /**
-   * Logo shown in the control panel's top bar instead of the name: a
-   * repository path (e.g. `src/assets/logo.svg`, bundled into the build, or
-   * served through Vestry when the file is not there at build time) or an
-   * absolute URL. The bar is dark, so use a light/reverse variant.
+   * The site's logo, shown in the control panel's top bar instead of the
+   * name and on the sign-in page. Each logo is a repository path (e.g.
+   * `src/assets/logo.svg`, bundled into the build, or served through Vestry
+   * when the file is not there at build time) or an absolute URL. A single
+   * path is the logo for dark surfaces (`onDark`); give `{ onDark, onLight }`
+   * so light surfaces show a logo drawn for them.
    */
-  logo?: string;
+  logo?: string | LogoConfig;
   /** Public site URL, used for preview links. */
   siteUrl?: string;
   repo: RepoConfig;
@@ -669,6 +693,8 @@ export interface VestryConfig {
    * `.prettierignore`.
    */
   format?: boolean;
+  /** The sign-in page. */
+  signIn?: SignInConfig;
   /** Sign-in: who may edit. Users sign in with a code emailed to them. */
   auth?: AuthConfig;
   /** Outbound email for sign-in codes and invitations. Required in production. */

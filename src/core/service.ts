@@ -1,3 +1,4 @@
+import { logoFiles } from "../config/logo.js";
 import type {
   AssetContainerConfig,
   CollectionConfig,
@@ -896,8 +897,8 @@ export class ContentService {
 
   allowedDirectories(): string[] {
     const dirs = new Set<string>();
-    if (this.config.logo && !/^https?:\/\//.test(this.config.logo)) {
-      dirs.add(dirname(normalizePath(this.config.logo)));
+    for (const logo of logoFiles(this.config.logo)) {
+      dirs.add(dirname(normalizePath(logo)));
     }
     for (const a of Object.values(this.config.assets ?? {}))
       dirs.add(normalizePath(a.directory));
