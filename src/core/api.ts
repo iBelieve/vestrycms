@@ -2,6 +2,7 @@
  * The Vestry HTTP API. Runtime-agnostic: takes a `Request`, returns a
  * `Response`. The Astro route and the dev-server middleware both delegate here.
  */
+import { logoFiles } from "../config/logo.js";
 import type { VestryConfig } from "../config/types.js";
 import { isAPIError } from "better-auth/api";
 import {
@@ -356,7 +357,7 @@ export function createApi(options: ApiOptions) {
       if ("error" in source) return error(source.error, 500, "setup");
       return serveFile(
         new ContentService(config, source, options.index),
-        config.logo!,
+        route.url.searchParams.get("path")!,
         request,
       );
     }
@@ -505,13 +506,9 @@ export function createApi(options: ApiOptions) {
   }
 
   function isLogoRequest({ url, segments, method }: Route): boolean {
-    return (
-      segments[0] === "file" &&
-      method === "GET" &&
-      Boolean(config.logo) &&
-      normalizePath(url.searchParams.get("path") ?? "") ===
-        normalizePath(config.logo!)
-    );
+    if (segments[0] !== "file" || method !== "GET") return false;
+    const path = normalizePath(url.searchParams.get("path") ?? "");
+    return logoFiles(config.logo).some((logo) => normalizePath(logo) === path);
   }
 
   /**
@@ -1034,6 +1031,7 @@ function publicConfig(config: VestryConfig): VestryConfig {
   return {
     name: config.name,
     logo: config.logo,
+    signIn: config.signIn,
     siteUrl: config.siteUrl,
     repo: config.repo,
   };

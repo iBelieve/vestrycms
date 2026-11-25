@@ -95,8 +95,22 @@ the browser), so it cannot contain functions.
 `name` titles the control panel; `logo` (a repository path such as
 `src/assets/logo-reverse.svg`, or an absolute URL) replaces it in the dark
 top bar (a warm brown-grey, `#2d2622`), so a light or reverse variant works
-best. A repository logo is bundled into the build, so the sign-in page shows
-it even before the GitHub App is set up.
+best. Give a version for light surfaces too and the sign-in page uses it on
+its light card, and the dark one when the system is in dark mode:
+
+```ts
+logo: {
+  onDark: "src/assets/logo-reverse.svg", // the top bar, dark mode
+  onLight: "src/assets/logo.svg", // the sign-in page's light card
+},
+```
+
+A plain path is `onDark`. Without `onLight`, the sign-in page shows the dark
+logo on a dark plate; with only `onLight`, the top bar shows it on a light
+one. Repository logos are bundled into the build, so the sign-in page shows
+them even before the GitHub App is set up. The sign-in page's heading is the
+logo alone, since a logo usually carries the name; `signIn: { showName: true }`
+adds the name under it. Without a logo, the page shows the name.
 
 ### Sign-in and users
 
@@ -215,7 +229,8 @@ Routes injected into the site:
 Virtual modules provided by the Vite plugin: `virtual:vestry/config`,
 `virtual:vestry/runtime`, `virtual:vestry/index` (build-time frontmatter
 index keyed by git blob SHA), `virtual:vestry/formatter` (Prettier, when
-installed) and `virtual:vestry/logo` (the logo's build asset URL, or `null`).
+installed) and `virtual:vestry/logo` (`onDark` and `onLight`, each logo's
+build asset URL or `null`).
 
 The index is bundled into the server, so it holds only what entry lists
 show: nested and long-form fields (`array`, `object`, `tree`, `markdown`,

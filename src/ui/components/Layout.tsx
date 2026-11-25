@@ -24,7 +24,7 @@ import { Avatar } from "./Avatar.js";
 import { DeployStatus } from "./DeployStatus.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./ui.js";
-import { logoSrc } from "../lib/logo.js";
+import { logoUrls, type LogoUrls } from "../lib/logo.js";
 import { VestryMark } from "./VestryMark.js";
 import { cx } from "../lib/utils.js";
 import type { ClientConfig, PublicUser } from "../api.js";
@@ -56,7 +56,7 @@ export function Shell({ children }: { children: ReactNode }) {
         >
           {nav.open ? <X /> : <MenuIcon />}
         </button>
-        <Brand logo={logoSrc(config.logo, api)} name={name} />
+        <Brand logos={logoUrls(config.logo, api)} name={name} />
         {crumbs.map((c, i) => (
           <span key={i} className="v-chrome__crumb">
             <span className="v-chrome__sep">/</span>
@@ -168,12 +168,22 @@ function focusCurrentLink(sidebar: HTMLElement | null) {
   link?.scrollIntoView?.({ block: "nearest" });
 }
 
-/** The top bar's home link: the site's logo, or Vestry's mark and the name. */
-function Brand({ logo, name }: { logo: string | null; name: string }) {
+/**
+ * The top bar's home link: the site's logo for dark surfaces (or, without
+ * one, its light-surface logo on a light plate), or Vestry's mark and the
+ * name.
+ */
+function Brand({ logos, name }: { logos: LogoUrls; name: string }) {
   return (
     <Link to="/" className="v-chrome__brand" title={name}>
-      {logo ? (
-        <img className="v-chrome__logo" src={logo} alt={name} />
+      {logos.onDark ? (
+        <img className="v-chrome__logo" src={logos.onDark} alt={name} />
+      ) : logos.onLight ? (
+        <img
+          className="v-chrome__logo v-chrome__logo--plate"
+          src={logos.onLight}
+          alt={name}
+        />
       ) : (
         <>
           <VestryMark className="v-chrome__mark" />

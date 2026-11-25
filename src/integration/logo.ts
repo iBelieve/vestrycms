@@ -1,24 +1,37 @@
 import { statSync } from "node:fs";
 import path from "node:path";
+import { isLogoUrl, logoVariants } from "../config/logo.js";
+import type { VestryConfig } from "../config/types.js";
 import { isSafeRepoPath, normalizePath } from "../core/paths.js";
 
 /**
- * Generates the `virtual:vestry/logo` module: the URL of the configured logo
- * as a build asset, so the control panel shows it without reading the
- * repository. The sign-in page needs the logo before anyone is signed in,
- * and fetching it through the API needs the GitHub credentials, so a site
- * still being set up would show a broken image. The module exports `null`
- * when there is no logo, when it is an absolute URL, or when it is not a
- * file in the project; the panel then loads it through the API.
+ * Generates the `virtual:vestry/logo` module: the URLs of the configured
+ * logos (`onDark` and `onLight`) as build assets, so the control panel shows
+ * them without reading the repository. The sign-in page needs a logo before
+ * anyone is signed in, and fetching it through the API needs the GitHub
+ * credentials, so a site still being set up would show a broken image. Each
+ * export is `null` when that logo is missing, an absolute URL, or not a file
+ * in the project; the panel then loads it through the API.
  */
-export function logoModule(root: string, logo: string | undefined): string {
-  const none = "export default null;\n";
-  if (!logo || /^https?:\/\//.test(logo)) return none;
+export function logoModule(root: string, logo: VestryConfig["logo"]): string {
+  const variants = logoVariants(logo);
+  return (["onDark", "onLight"] as const)
+    .map((name) => {
+      const file = projectFile(root, variants[name]);
+      return file
+        ? `export { default as ${name} } from ${JSON.stringify(`${file}?url`)};\n`
+        : `export const ${name} = null;\n`;
+    })
+    .join("");
+}
+
+/** A logo's file in the project, or null when there is none to bundle. */
+function projectFile(root: string, logo: string | undefined): string | null {
+  if (!logo || isLogoUrl(logo)) return null;
   // The same repository path the API would serve: nothing outside the
   // project, and a file (a folder would fail the site's build).
   const repoPath = normalizePath(logo);
-  if (!isSafeRepoPath(repoPath)) return none;
+  if (!isSafeRepoPath(repoPath)) return null;
   const file = path.join(root, repoPath);
-  if (!statSync(file, { throwIfNoEntry: false })?.isFile()) return none;
-  return `import url from ${JSON.stringify(`${file}?url`)};\nexport default url;\n`;
+  return statSync(file, { throwIfNoEntry: false })?.isFile() ? file : null;
 }

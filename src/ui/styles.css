@@ -193,6 +193,13 @@ body {
   object-fit: contain;
   object-position: left center;
 }
+/* A light-surface logo, when the site has no dark one. */
+.v-chrome__logo--plate {
+  height: 36px;
+  padding: 4px 10px;
+  border-radius: var(--v-radius-sm);
+  background: var(--v-panel);
+}
 .v-chrome__name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2822,6 +2829,8 @@ button.v-table__toggle:hover {
 }
 
 /* ---------------------------------------------------------------- login */
+/* A warm glow from the top and a peach wash in the far corner, in the
+   colours of vestrycms.com. The error page shares the light backdrop. */
 .v-login,
 .v-error-page {
   min-height: 100vh;
@@ -2829,15 +2838,38 @@ button.v-table__toggle:hover {
   place-items: center;
   padding: 24px;
   background:
-    radial-gradient(1200px 600px at 20% -10%, #ffedd5 0%, transparent 60%),
+    radial-gradient(
+      700px 420px at 50% -8%,
+      rgba(255, 154, 77, 0.22) 0%,
+      transparent 70%
+    ),
     radial-gradient(900px 500px at 100% 100%, #fde4d0 0%, transparent 55%),
     var(--v-bg);
 }
+.v-login {
+  grid-template-rows: 1fr auto;
+  color: var(--v-text);
+}
 .v-login__card {
+  position: relative;
   width: 100%;
   max-width: 400px;
   padding: 36px 32px;
   text-align: center;
+  border-color: rgba(45, 38, 34, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 24px 48px -20px rgba(45, 38, 34, 0.28),
+    var(--v-shadow-sm);
+}
+/* The logo's sparkle as a strip along the top: gold to the brand orange. */
+.v-login__card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(100deg, #f6d58b 0%, #ff791b 55%, #c2410c 100%);
 }
 .v-login__mark {
   width: 48px;
@@ -2855,6 +2887,10 @@ button.v-table__toggle:hover {
   font-size: 20px;
   margin: 0 0 6px;
 }
+/* With the name hidden, the heading is the logo, named by its alt text. */
+.v-login h1.v-login__brand {
+  margin: 0 0 18px;
+}
 .v-login p {
   color: var(--v-text-muted);
   margin: 0 0 22px;
@@ -2866,15 +2902,120 @@ button.v-table__toggle:hover {
 .v-login__logo {
   display: inline-grid;
   place-items: center;
-  background: var(--v-chrome);
-  border-radius: 12px;
-  padding: 12px 18px;
   margin: 0 auto 16px;
+  max-width: 100%;
+}
+.v-login__brand .v-login__logo {
+  margin-bottom: 0;
 }
 .v-login__logo img {
-  height: 36px;
+  height: 56px;
   width: auto;
+  max-width: 100%;
+  object-fit: contain;
   display: block;
+}
+/* A logo drawn for the other kind of surface sits on a plate of its own
+   colour: a dark-surface logo on the light card here, a light-surface one
+   on the dark card in dark mode. */
+.v-login__logo--dark-plate {
+  border-radius: 12px;
+  padding: 12px 18px;
+  background: var(--v-chrome);
+}
+.v-login__logo--dark-plate img {
+  height: 36px;
+}
+/* Small and quiet, in the chrome's brown-greys (AA on the backdrop). */
+.v-login__powered {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 0 0;
+  font-size: 12.5px;
+}
+:is(#vestry-root, .v-portal) a.v-login__powered {
+  color: #6b625b;
+}
+.v-login__powered strong {
+  font-weight: 600;
+  color: #463d37;
+}
+.v-login__powered svg {
+  width: 15px;
+  height: 16px;
+  color: var(--v-chrome);
+}
+/* The sign-in page follows the system's dark mode; the panel stays light. */
+@media (prefers-color-scheme: dark) {
+  .v-login {
+    color-scheme: dark;
+    --v-bg: #120e0c;
+    --v-surface: #211b17;
+    --v-surface-muted: #1a1512;
+    --v-border: rgba(255, 255, 255, 0.08);
+    --v-border-strong: rgba(255, 255, 255, 0.14);
+    --v-text: #f6f1ec;
+    --v-text-muted: #b3a89f;
+    --v-text-faint: #7a6d63;
+    --v-primary-ring: rgba(255, 121, 27, 0.35);
+    --v-danger-soft: rgba(220, 38, 38, 0.14);
+    background:
+      radial-gradient(
+        700px 420px at 50% -8%,
+        rgba(232, 93, 12, 0.3) 0%,
+        transparent 70%
+      ),
+      var(--v-bg);
+  }
+  .v-login__card {
+    border-color: var(--v-border);
+    box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+  }
+  /* The initial's chrome-coloured square would vanish into the dark card. */
+  .v-login__mark {
+    box-shadow: inset 0 0 0 1px var(--v-border-strong);
+  }
+  .v-login .v-input {
+    background: #120e0c;
+  }
+  .v-login__logo--dark-plate {
+    background: none;
+    padding: 0;
+  }
+  .v-login__logo--dark-plate img {
+    height: 56px;
+  }
+  .v-login__logo--light-plate {
+    border-radius: 12px;
+    padding: 12px 18px;
+    background: #faf9f7;
+  }
+  .v-login__logo--light-plate img {
+    height: 36px;
+  }
+  /* The links' orange, lightened to read on the dark card. */
+  .v-login .v-link {
+    color: #ff9a4d;
+  }
+  :is(#vestry-root, .v-portal) a.v-login__powered {
+    color: #9d9087;
+  }
+  .v-login__powered strong {
+    color: #d6cdc6;
+  }
+  .v-login__powered svg {
+    color: #ede8e4;
+  }
+  .v-login .v-alert--error {
+    border-color: rgba(248, 113, 113, 0.35);
+    color: #fca5a5;
+  }
+  .v-login .v-alert--info {
+    background: rgba(59, 130, 246, 0.14);
+    border-color: rgba(96, 165, 250, 0.35);
+    color: #bfdbfe;
+  }
 }
 .v-login__form {
   display: flex;

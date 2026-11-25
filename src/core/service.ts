@@ -1,3 +1,4 @@
+import { logoFiles } from "../config/logo.js";
 import type {
   AssetContainerConfig,
   CollectionConfig,
@@ -882,9 +883,11 @@ export class ContentService {
     const n = normalizePath(path);
     if (!isSafeRepoPath(n))
       throw new SourceError("Invalid path", 400, "bad_path");
-    const allowed = this.allowedDirectories().some((d) =>
-      n.startsWith(`${d}/`),
-    );
+    // A logo is readable by its own path too, since one at the repository's
+    // root has no directory to allow.
+    const allowed =
+      logoFiles(this.config.logo).some((logo) => normalizePath(logo) === n) ||
+      this.allowedDirectories().some((d) => n.startsWith(`${d}/`));
     if (!allowed)
       throw new SourceError(
         "Path is not readable through Vestry",
@@ -896,8 +899,8 @@ export class ContentService {
 
   allowedDirectories(): string[] {
     const dirs = new Set<string>();
-    if (this.config.logo && !/^https?:\/\//.test(this.config.logo)) {
-      dirs.add(dirname(normalizePath(this.config.logo)));
+    for (const logo of logoFiles(this.config.logo)) {
+      dirs.add(dirname(normalizePath(logo)));
     }
     for (const a of Object.values(this.config.assets ?? {}))
       dirs.add(normalizePath(a.directory));

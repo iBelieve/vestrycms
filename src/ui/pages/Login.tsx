@@ -2,8 +2,9 @@ import { ArrowLeft, KeyRound, Mail } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authErrorMessage } from "../auth-client.js";
 import { Alert, Spinner } from "../components/ui.js";
+import { VestryMark } from "../components/VestryMark.js";
 import { useVestry } from "../context.js";
-import { logoSrc } from "../lib/logo.js";
+import { logoUrls, type LogoUrls } from "../lib/logo.js";
 
 /**
  * Two-step sign-in: an email address, then the six-digit code we emailed.
@@ -69,8 +70,11 @@ export function LoginPage() {
   return (
     <div className="v-login">
       <div className="v-card v-login__card">
-        <LoginMark logo={logoSrc(client.config.logo, api)} name={name} />
-        <h1>{name}</h1>
+        <LoginBrand
+          logos={logoUrls(client.config.logo, api)}
+          name={name}
+          showName={client.config.signIn?.showName === true}
+        />
         {client.setupError ? (
           <>
             <p>Vestry isn't configured yet.</p>
@@ -104,19 +108,98 @@ export function LoginPage() {
           />
         )}
       </div>
+      <a
+        className="v-login__powered"
+        href="https://vestrycms.com"
+        target="_blank"
+        rel="noreferrer"
+      >
+        <VestryMark /> Powered by <strong>Vestry CMS</strong>
+      </a>
     </div>
   );
 }
 
-/** The site's logo, or its initial when it has none. */
-function LoginMark({ logo, name }: { logo: string | null; name: string }) {
-  return logo ? (
-    <div className="v-login__logo">
-      <img src={logo} alt={name} />
-    </div>
-  ) : (
-    <div className="v-login__mark">{name.slice(0, 1)}</div>
+/**
+ * The page's heading: the site's logo, named by its alt text, or with
+ * `signIn.showName` the logo above the name. Without a logo, the site's
+ * initial above the name.
+ */
+function LoginBrand({
+  logos,
+  name,
+  showName,
+}: {
+  logos: LogoUrls;
+  name: string;
+  showName: boolean;
+}) {
+  // A logo that fails to load (a site still being set up, a URL that's
+  // down) would leave the page without a visible name.
+  const [failed, setFailed] = useState(false);
+  const onError = () => setFailed(true);
+  if (failed || (!logos.onDark && !logos.onLight)) {
+    return (
+      <>
+        <div className="v-login__mark">{name.slice(0, 1)}</div>
+        <h1>{name}</h1>
+      </>
+    );
+  }
+  if (showName) {
+    return (
+      <>
+        <LoginLogo logos={logos} alt="" onError={onError} />
+        <h1>{name}</h1>
+      </>
+    );
+  }
+  return (
+    <h1 className="v-login__brand">
+      <LoginLogo logos={logos} alt={name} onError={onError} />
+    </h1>
   );
+}
+
+/**
+ * The logo for the card's surface, which follows the system's colour
+ * scheme: `onLight` on the light card and `onDark` on the dark one. A site
+ * with only one of them gets it on a plate where the card doesn't suit it.
+ */
+function LoginLogo({
+  logos,
+  alt,
+  onError,
+}: {
+  logos: LogoUrls;
+  alt: string;
+  onError: () => void;
+}) {
+  const { onDark, onLight } = logos;
+  const plate = !onLight
+    ? " v-login__logo--dark-plate"
+    : !onDark
+      ? " v-login__logo--light-plate"
+      : "";
+  return (
+    <picture className={`v-login__logo${plate}`}>
+      {onDark && onLight && (
+        <source
+          media="(prefers-color-scheme: dark)"
+          srcSet={srcsetCandidate(onDark)}
+        />
+      )}
+      <img src={(onLight ?? onDark)!} alt={alt} onError={onError} />
+    </picture>
+  );
+}
+
+/**
+ * A URL as a lone `srcset` candidate: whitespace there ends the URL and
+ * trailing commas are dropped, so both are percent-encoded.
+ */
+function srcsetCandidate(url: string): string {
+  return url.replace(/\s|,+$/g, (c) => encodeURIComponent(c));
 }
 
 /** Step one: the email address to send a code to. */
