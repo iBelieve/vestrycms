@@ -36,6 +36,7 @@ import { submissionStore, type SubmissionDatabase } from "./submissions.js";
 import { GitHubSource } from "./sources/github.js";
 import { installationTokenProvider } from "./sources/github-app.js";
 import { extname, normalizePath } from "./paths.js";
+import { signPreviewToken } from "./preview.js";
 
 export type EnvReader = (key: string) => string | undefined;
 
@@ -122,7 +123,7 @@ const AUTH_ROUTES = new Set([
   "/get-session",
   "/ok",
 ]);
-const DEV_SECRET = "vestry-development-secret-do-not-use-in-production";
+export const DEV_SECRET = "vestry-development-secret-do-not-use-in-production";
 
 export function json(data: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -413,6 +414,8 @@ export function createApi(options: ApiOptions) {
 
     // Analytics come from the provider, not the repository.
     if (segments[0] === "analytics" && method === "GET") return analytics(url);
+    if (segments.join("/") === "preview/token" && method === "POST")
+      return previewToken();
 
     const baseSource = resolveSource();
     if ("error" in baseSource) return error(baseSource.error, 500, "setup");
@@ -427,6 +430,17 @@ export function createApi(options: ApiOptions) {
       source,
       new ContentService(config, source, options.index),
     );
+  }
+
+  /**
+   * A token for the site's preview route (see `core/preview.ts`), signed with
+   * the sign-in secret; none is needed without sign-in.
+   */
+  async function previewToken(): Promise<Response> {
+    if (!authRequired) return json({ token: null, expires: null });
+    const secret = resolveSecret();
+    if (typeof secret !== "string") return error(secret.error, 500, "setup");
+    return json(await signPreviewToken(secret));
   }
 
   async function analytics(url: URL): Promise<Response> {

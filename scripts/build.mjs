@@ -1,6 +1,7 @@
 // Compiles src/ to dist/ with tsc and copies the files tsc doesn't emit: the
 // admin.astro shell (its client script is pointed at the compiled UI), the
-// control panel stylesheet and the ambient virtual-module declarations.
+// live preview route's pages, the control panel stylesheet and the ambient
+// virtual-module declarations.
 // It then checks that `clientDependencies` names every package the compiled
 // control panel imports. `--watch` keeps tsc running afterwards, for working
 // against a linked site.
@@ -49,6 +50,9 @@ async function copyAssets() {
     throw new Error("admin.astro no longer imports ../ui/main.tsx");
   }
   await writeFile(path.join(dist, "pages/admin.astro"), compiled);
+  // The preview route's pages import compiled modules by their .js names.
+  for (const page of ["preview.astro", "PreviewParts.astro"])
+    await cp(path.join(src, "pages", page), path.join(dist, "pages", page));
   await cp(path.join(src, "ui/styles.css"), path.join(dist, "ui/styles.css"));
   await cp(path.join(src, "env.d.ts"), path.join(dist, "env.d.ts"));
 }

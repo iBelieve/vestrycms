@@ -7,6 +7,19 @@ while Vestry is below 1.0, a minor version may change behaviour.
 
 ### Added
 
+- **Live preview.** `preview` on a collection names an Astro component of
+  the site's (`"@/components/vestry/PagePreview.astro"`) and adds a
+  Preview button to the editor. It opens a window that shows the entry as
+  the site draws it, unsaved changes included, redrawn as you type: the
+  site's preview component and its components rendered by an injected
+  on-demand route, `/admin/preview/render`. The window has phone, tablet
+  and desktop widths and follows the editor in use. `preview: false` on a
+  component leaves it out (one that reads `astro:content`, say, which would
+  bundle the content store into the Worker). See "Live preview" in the
+  README.
+- In `astro dev` with local files, links to the site (View, the address
+  under the title, the lists' and analytics' links) go to the dev server
+  rather than to `siteUrl`.
 - **Gravatars.** The top bar's account button and the **Users** page show
   each user's Gravatar, looked up by the SHA-256 hash of their address.
   People without one get Gravatar's initials on a colour of their own

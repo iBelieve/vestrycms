@@ -58,7 +58,8 @@ describe("the dashboard's visitors card", () => {
     // 150 visitors against 100 the week before.
     expect(within(card).getByText("+50%")).toBeTruthy();
     const home = within(card).getByRole("link", { name: "/" });
-    expect(home.getAttribute("href")).toBe("https://example.org/");
+    // Local files are `astro dev`: links go to its server, not the live site.
+    expect(home.getAttribute("href")).toBe(`${window.location.origin}/`);
     // The sidebar's link and the card's.
     expect(screen.getAllByRole("link", { name: /Analytics/ })).toHaveLength(2);
   });

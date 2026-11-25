@@ -4,21 +4,9 @@ import config from "virtual:vestry/config";
 import index from "virtual:vestry/index";
 import { basePath } from "virtual:vestry/runtime";
 import { createApi } from "../core/api.js";
+import { readEnv } from "./env.js";
 
 export const prerender = false;
-
-function readEnv(key: string): string | undefined {
-  // Cloudflare (nodejs_compat populates process.env), Node adapters, and
-  // anything else that exposes a process.env object.
-  const fromProcess = (
-    globalThis as { process?: { env?: Record<string, string | undefined> } }
-  ).process?.env?.[key];
-  if (fromProcess !== undefined) return fromProcess;
-  const fromMeta = (
-    import.meta as unknown as { env?: Record<string, string | undefined> }
-  ).env?.[key];
-  return fromMeta;
-}
 
 const api = createApi({ config, index, basePath, env: readEnv });
 

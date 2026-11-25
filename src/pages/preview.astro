@@ -1,0 +1,27 @@
+---
+/// <reference path="../env.d.ts" />
+// The live preview route: renders the unsaved entry the preview window
+// posts with the collection's preview component, its body drawn with the
+// site's components.
+import { PREVIEW_END, PREVIEW_HEADER } from "../core/preview.js";
+import PreviewParts from "./PreviewParts.astro";
+import { openPreview } from "./preview-route.js";
+
+export const prerender = false;
+
+const opened = await openPreview(Astro.request);
+if (opened instanceof Response) return opened;
+const { entry, body, components } = opened;
+const Preview = opened.Preview as any;
+Astro.response.headers.set("Cache-Control", "no-store");
+Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow");
+// The preview window checks for this: when this route fails to load in
+// `astro dev` (a component it imports can't run there), Astro answers with
+// the next route that matches, the control panel.
+Astro.response.headers.set(PREVIEW_HEADER, "1");
+---
+
+<Preview entry={entry}>
+  <PreviewParts parts={body} components={components} />
+</Preview>
+<Fragment set:html={PREVIEW_END} />

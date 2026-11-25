@@ -1,0 +1,34 @@
+---
+// A previewed body: its HTML as it is, and each component rendered with
+// its props, the parts inside it in its default slot.
+import type { PreviewPart } from "../core/preview.js";
+
+interface Props {
+  parts: PreviewPart[];
+  components: Record<string, unknown>;
+}
+
+const { parts, components } = Astro.props;
+const escape = (text: string) =>
+  text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+/** Shown in place of a component the preview can't draw. */
+const missing = (name: string) =>
+  `<span data-vestry-missing style="display:block;margin:1em 0;padding:.75em 1em;border:1px dashed #a8a29e;border-radius:6px;color:#57534e;font:14px/1.4 system-ui,sans-serif">${escape(name)} can't be shown in the preview.</span>`;
+---
+
+{parts.map((part) => {
+  if (typeof part === "string") return <Fragment set:html={part} />;
+  const Component = (
+    Object.hasOwn(components, part.component)
+      ? components[part.component]
+      : null
+  ) as any;
+  if (!Component) return <Fragment set:html={missing(part.component)} />;
+  return part.children ? (
+    <Component {...part.props}>
+      <Astro.self parts={part.children} components={components} />
+    </Component>
+  ) : (
+    <Component {...part.props} />
+  );
+})}

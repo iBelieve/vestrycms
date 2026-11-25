@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ExternalLink,
+  Eye,
   Link as LinkIcon,
   Save,
   Trash,
@@ -85,8 +86,11 @@ import {
   slugFixed,
   slugHint,
   type Saved,
+  sitePath,
   type SlugHint,
 } from "./entry-editing.js";
+import type { PreviewSnapshot } from "../lib/preview-channel.js";
+import { usePreviewFeed } from "./use-preview-feed.js";
 
 export function CollectionEntryPage() {
   const { collection = "", "*": slug = "" } = useParams();
@@ -416,6 +420,7 @@ function useEntryForm(props: EntryFormProps) {
   return {
     ...props,
     col: shown,
+    entrySlug,
     readOnly,
     collection,
     doc,
@@ -447,6 +452,7 @@ const savedEntry = (
 
 function EntryTopBar({ form }: { form: EntryFormModel }) {
   const { collection, display, isNew, saving, slugs, unsaved } = form;
+  const openPreview = usePreviewFeed(usePreviewSnapshot(form));
   return (
     <TopBar
       status={
@@ -472,6 +478,7 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
         <EditorActions
           unsaved={unsaved}
           previewHref={display.previewHref}
+          onPreview={openPreview}
           canDelete={form.slugs.deletable}
           readOnly={form.readOnly}
           onDelete={() => form.setConfirmDelete(true)}
@@ -486,6 +493,41 @@ function EntryTopBar({ form }: { form: EntryFormModel }) {
         />
       }
     />
+  );
+}
+
+/** The entry as the preview window draws it; null without a preview. */
+function usePreviewSnapshot(form: EntryFormModel): PreviewSnapshot | null {
+  const { collection, collectionKey, entrySlug, filePath, display, doc } = form;
+  const { data, body } = doc.state;
+  const { uploads } = doc;
+  const title = display.titleValue;
+  return useMemo(
+    () =>
+      collection?.preview
+        ? {
+            collection: collectionKey,
+            slug: entrySlug,
+            filePath,
+            path: sitePath(collection, entrySlug, data),
+            title,
+            data,
+            body,
+            uploads: Object.fromEntries(
+              Object.entries(uploads).map(([path, u]) => [path, u.previewUrl]),
+            ),
+          }
+        : null,
+    [
+      collection,
+      collectionKey,
+      entrySlug,
+      filePath,
+      title,
+      data,
+      body,
+      uploads,
+    ],
   );
 }
 
@@ -1216,6 +1258,7 @@ function Card({
 function EditorActions({
   unsaved,
   previewHref,
+  onPreview,
   canDelete,
   readOnly,
   onDelete,
@@ -1226,6 +1269,8 @@ function EditorActions({
 }: {
   unsaved: boolean;
   previewHref: string | null;
+  /** Opens the live preview; null without one. */
+  onPreview: (() => void) | null;
   canDelete: boolean;
   readOnly: boolean;
   onDelete: () => void;
@@ -1241,6 +1286,11 @@ function EditorActions({
           <TriangleExclamationPoint size={13} />{" "}
           <span className="v-unsaved__text">Unsaved changes</span>
         </span>
+      )}
+      {onPreview && (
+        <Button title="Preview unsaved changes in a window" onClick={onPreview}>
+          <Eye /> <span className="v-btn__label">Preview</span>
+        </Button>
       )}
       {previewHref && (
         <a

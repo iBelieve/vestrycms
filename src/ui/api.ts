@@ -129,6 +129,12 @@ export function createClient(basePath: string) {
       `${prefix}/file?path=${encodeURIComponent(path)}${sha ? `&v=${sha}` : ""}`,
     config: () => request<ClientConfig>("/config"),
     status: () => request<{ head: string }>("/status"),
+    /** A token for the site's live preview route; null without sign-in. */
+    previewToken: () =>
+      request<{ token: string | null; expires: number | null }>(
+        "/preview/token",
+        { method: "POST" },
+      ),
     /** Build and deploy status of the branch's recent commits. */
     deploys: () => request<DeployStatus>("/deploys"),
     /** Every collection's counts and recent entries, in one request. */

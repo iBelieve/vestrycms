@@ -481,3 +481,26 @@ describe("validateConfig", () => {
     );
   });
 });
+
+describe("live preview settings", () => {
+  it("accepts a preview component and components left out of it", () => {
+    expect(() =>
+      validateConfig({
+        ...posts({ preview: "@/components/PostPreview.astro" }),
+        components: { List: { import: "@/List.astro", preview: false } },
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects a preview that names no component", () => {
+    expect(() => validateConfig(posts({ preview: " " }))).toThrow(
+      'collection "posts" preview must be the import specifier of an Astro component',
+    );
+    expect(() =>
+      validateConfig({
+        ...posts(),
+        components: { List: { preview: "no" as unknown as boolean } },
+      }),
+    ).toThrow('component "List" preview must be true or false');
+  });
+});

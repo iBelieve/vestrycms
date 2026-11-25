@@ -198,7 +198,7 @@ src
 │   ├── mail.ts         Mailer interface, Resend + console adapters
 │   └── values.ts       Asset path normalisation, auto fields
 ├── mdx/                MDX ⇄ ProseMirror document conversion
-├── pages/              Injected routes: admin.astro shell, api.ts endpoint
+├── pages/              Injected routes: admin.astro shell, api.ts endpoint, preview route
 ├── integration/        Build-time index, formatter and logo modules, dev bridge, client deps
 └── ui/                 React control panel (Tiptap, TanStack Query, react-router)
 ```
@@ -207,7 +207,10 @@ Routes injected into the site:
 
 - `/admin/[...path]` – the control panel shell (on-demand, no auth needed to
   load the shell; data comes from the API).
-- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `dashboard`, `analytics?period=`, `collections/:key`,
+- `/admin/preview/render` – the live preview route (on-demand, POST only;
+  injected only when a collection has a `preview`). See
+  [Live preview](#live-preview).
+- `/admin/api/[...path]` – JSON API. `config`, `status`, `deploys`, `dashboard`, `analytics?period=`, `preview/token` (POST), `collections/:key`,
   `collections/:key/entries/:slug`, `collections/:key/references?slug=`,
   `singletons/:key`, `assets/:container?dir=` (`&all=1` for every file below it),
   `file?path=`, `users` (admins), and `auth/*` (Better Auth's routes).
@@ -215,7 +218,9 @@ Routes injected into the site:
 Virtual modules provided by the Vite plugin: `virtual:vestry/config`,
 `virtual:vestry/runtime`, `virtual:vestry/index` (build-time frontmatter
 index keyed by git blob SHA), `virtual:vestry/formatter` (Prettier, when
-installed) and `virtual:vestry/logo` (the logo's build asset URL, or `null`).
+installed), `virtual:vestry/logo` (the logo's build asset URL, or `null`)
+and `virtual:vestry/preview` (the components the preview route renders,
+imported only by that route).
 
 The index is bundled into the server, so it holds only what entry lists
 show: nested and long-form fields (`array`, `object`, `tree`, `markdown`,
@@ -231,6 +236,10 @@ With the Cloudflare adapter, on-demand routes run inside workerd even in
 serves the API from a Vite dev-server middleware (Node) in development, and
 from the injected Astro endpoint in production. Both call the same
 `createApi()`.
+
+When it edits local files (`astro dev`), the panel's links to the site
+(View, the page address under the title, the list's and the analytics'
+links) go to the dev server, where the edit is, rather than to `siteUrl`.
 
 ### Editing model
 
@@ -572,6 +581,90 @@ tree, a pinned entry leaves its folder, and shows its slug after its title
 when it sits in one (`resources/lectionaries`); one with entries under it
 also stays in the tree, at the head of its folder. A search or filter keeps
 matching pinned entries at the top.
+
+## Live preview
+
+A collection with `preview` gets a **Preview** button in the editor. It
+opens a window that shows the entry as the site draws it, unsaved changes
+included, and redraws it about a second after typing stops. The window has
+phone, tablet and desktop widths, keeps its scroll position across
+redraws, and follows whichever editor is in use, in any tab. Links in it
+open the live page in a new tab.
+
+```ts
+pages: collection({
+  path: "src/content/pages/**.mdx",
+  previewUrl: "/{slug}",
+  preview: "@/components/vestry/PagePreview.astro",
+  // …
+}),
+```
+
+`preview` is the import specifier of an Astro component the site writes,
+resolved as the site's own files are (aliases included). It gets the entry
+as its `entry` prop and the body, drawn with the site's components, in its
+default slot. It usually hands them to the layout the entry's page uses:
+
+```astro
+---
+import type { PreviewEntry } from "vestrycms/core";
+import DefaultPage from "@/components/DefaultPage.astro";
+
+const { entry } = Astro.props as { entry: PreviewEntry };
+---
+
+<DefaultPage title={String(entry.data.title ?? "")}>
+  <slot />
+</DefaultPage>
+```
+
+`entry` is `{ collection, slug, path, data }`: `path` is the page's
+address from `previewUrl` (or null), and `data` is the frontmatter as the
+file would hold it, so dates are strings and images and files are as their
+fields store them, not the objects a content collection's schema makes.
+
+How it works:
+
+- The window turns the body into HTML in the browser, as MDX would compile
+  it (GFM, footnotes, ids on headings), and cuts out each component with
+  its props. The site's preview route (`/admin/preview/render`, injected
+  only when a collection has `preview`) renders the preview component with
+  that HTML and the site's components, the ones `config.components` lists
+  with an `import`, and sends back the page. Expressions, `import`s other
+  than the configured components', and props that aren't literals are left
+  out: they need the site's build. A component the route doesn't have (no
+  `import`, `preview: false`, or an `import` the build couldn't resolve)
+  shows a placeholder. One that throws while rendering (say, on a prop
+  still being typed) fails the whole redraw, and the window keeps the last
+  page it drew.
+- The route runs in the site's Worker, on request, so it can't use what
+  only the build has. Components that read `astro:content` (a list of
+  recent posts, say) would bundle the whole content store into the Worker:
+  give those `preview: false`, and the preview shows a placeholder in their
+  place. So do components that read files with `node:fs` (build-time data)
+  or import every page: the route fails to load with them, and in
+  `astro dev` the control panel's route answers in its place, which the
+  window reports as "the preview route didn't answer" (Astro logs nothing
+  about it). The window tells the route's pages by their `X-Vestry-Preview`
+  header, so site middleware that replaces a response must keep its
+  headers, and by a comment the route writes at their end, so a page a
+  component cut short by throwing isn't drawn. A build that can't resolve
+  a component's `import` leaves it out with a warning.
+- Each request costs CPU time like any on-demand page: the layout, the
+  components, and whatever the preview component does with the body. The
+  window sends one request at a time, the newest change only, and keeps the
+  last page it drew if a redraw fails (the error shows in its bar).
+- Requests carry a token from `POST /admin/api/preview/token` (signed-in
+  users only), an HMAC of its expiry under `VESTRY_SECRET` that lasts an
+  hour. The route checks it without loading sign-in or the database. In
+  `astro dev` without sign-in no token is needed.
+- The page's scripts run in the window, each redraw a new page load (at
+  the address `about:srcdoc`). Leave analytics out of what the preview
+  component renders, or every pause in typing may count as a visit.
+- Images in the body show from the panel (`file?path=`), and new uploads
+  from the browser, before they are saved. Images that components and the
+  preview component load themselves (`src/assets` imports, say) are the
+  build's, so a new one shows once it is saved and deployed.
 
 ## Icons
 

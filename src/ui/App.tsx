@@ -12,7 +12,8 @@ import {
   Routes,
   useLocation,
 } from "react-router";
-import { createClient, UNAUTHORIZED_EVENT } from "./api.js";
+import type { VestryConfig } from "../config/types.js";
+import { type ClientConfig, createClient, UNAUTHORIZED_EVENT } from "./api.js";
 import { createVestryAuthClient } from "./auth-client.js";
 import { Shell } from "./components/Layout.js";
 import { ErrorState, Loading, ToastProvider } from "./components/ui.js";
@@ -27,6 +28,7 @@ import {
   SingletonPage,
 } from "./pages/EntryEditor.js";
 import { LoginPage } from "./pages/Login.js";
+import { PreviewPage } from "./pages/Preview.js";
 import { SubmissionPage, SubmissionsPage } from "./pages/Submissions.js";
 import { UsersPage } from "./pages/Users.js";
 
@@ -78,6 +80,12 @@ function Root({ basePath, name }: { basePath: string; name: string }) {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, [refetch]);
 
+  // Made once per config, so its users see the same object every render.
+  const localConfig = useMemo(
+    () => (configQuery.data ? withLocalSite(configQuery.data) : null),
+    [configQuery.data],
+  );
+
   if (configQuery.isLoading) return <Loading page label="Loading Vestry…" />;
   if (configQuery.error || !configQuery.data) {
     return (
@@ -94,13 +102,14 @@ function Root({ basePath, name }: { basePath: string; name: string }) {
     );
   }
   const client = configQuery.data;
+  const config = localConfig ?? client.config;
   const value = {
     basePath,
-    name: client.config.name ?? name,
+    name: config.name ?? name,
     api,
     authClient,
     client,
-    config: client.config,
+    config,
     refresh: async () => {
       await configQuery.refetch();
     },
@@ -134,6 +143,7 @@ function Root({ basePath, name }: { basePath: string; name: string }) {
             <Navigate to={afterLogin(location.search, basePath)} replace />
           }
         />
+        <Route path="/preview" element={<PreviewPage />} />
         <Route
           path="*"
           element={
@@ -169,6 +179,23 @@ function Root({ basePath, name }: { basePath: string; name: string }) {
       </Routes>
     </VestryContext.Provider>
   );
+}
+
+/**
+ * The config, with links to the site pointing at this server when it edits
+ * local files (`astro dev`), where the page being edited is, rather than at
+ * the live site.
+ */
+function withLocalSite(client: ClientConfig): VestryConfig {
+  const { config } = client;
+  if (client.mode !== "local") return config;
+  let path = "/";
+  try {
+    if (config.siteUrl) path = new URL(config.siteUrl).pathname;
+  } catch {
+    // Not a URL: the site's root.
+  }
+  return { ...config, siteUrl: new URL(path, window.location.origin).href };
 }
 
 /** Where to go after sign-in: the `next` the login page was sent with, made router-relative. */

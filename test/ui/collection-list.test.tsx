@@ -266,8 +266,9 @@ describe("a collection's list", () => {
     expect(within(beta).getByText("…")).toBeTruthy();
     expect(within(beta).getByText("7")).toBeTruthy();
     expect(within(beta).getByText("b-first")).toBeTruthy();
+    // Local files are `astro dev`: links go to its server, not the live site.
     expect(within(beta).getByTitle("View on site").getAttribute("href")).toBe(
-      "https://example.org/posts/b-first",
+      `${window.location.origin}/posts/b-first`,
     );
     const alpha = screen.getByText("Alpha").closest("tr")!;
     expect(within(alpha).getByText("The body of alpha.")).toBeTruthy();
