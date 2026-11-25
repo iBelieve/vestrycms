@@ -116,11 +116,25 @@ page and choose a role:
 | `editor` | Create, edit, publish and delete content; upload assets      |
 | `admin`  | Everything an editor can, plus invite, edit and remove users |
 
+Users show with their [Gravatar](https://gravatar.com) in the top bar and on
+the **Users** page. Someone without one gets Gravatar's initials on a colour
+of its own. The browser asks Gravatar for each picture by the SHA-256 hash of
+the address, with the user's name for those initials (or, without a name,
+initials taken from the address) and no referrer. So Gravatar sees the
+hashed addresses and names that signed-in browsers look up, but never the
+addresses themselves. Where Gravatar can't be reached, or the panel
+is served over plain HTTP from anywhere but `localhost` (Web Crypto needs a
+secure origin), the panel's own initials stay instead.
+
 Users, sessions (30 days) and pending codes live in a SQL database that
 Better Auth accepts directly: a Cloudflare D1 binding named `VESTRY_DB` in
 production, a `node:sqlite` file in dev, its memory adapter in tests. The
 tables are created on first use with Better Auth's migrator, so there is no
-migration step. Codes expire after 10 minutes and are burned after five
+migration step. A fingerprint of the schema is then kept in
+`<prefix>vestrySchema`, so a new Worker isolate learns from one row that the
+tables are current instead of reading the layout of every table in the
+database (delete the row to have the next isolate check, and migrate, in
+full). Codes expire after 10 minutes and are burned after five
 wrong guesses; Better Auth rate-limits the sign-in routes per IP (counters in
 the database, so they hold across Worker isolates). Emails go through
 `config.mail` (`resend`, with the key in `VESTRY_RESEND_API_KEY`, or `console`
@@ -681,9 +695,9 @@ for each collection with a recent list, unless it is `fixedEntries` or
 `readOnly`. `dashboard: false` on a collection leaves it off the dashboard
 altogether (no tile, list or button, and the dashboard request doesn't list
 it), for collections editors rarely open such as categories, authors or
-generated entries; it stays in the sidebar. Setting `recent` on such a
-collection is an error at startup, as is a `recent` that is not true, false
-or a number.
+generated entries; it stays in the sidebar. Asking such a collection for a
+recent list (`recent: true` or a number above 0) is an error at startup, as
+is a `recent` that is not true, false or a number.
 
 The dashboard loads with one request (`GET /admin/api/dashboard`) that
 returns each collection's counts and recent entries, rather than one full
@@ -883,8 +897,8 @@ Each form gets a page under **Forms** in the sidebar, for admins: its
 submissions newest first, unread ones in bold, with the form's `columns`
 (by default the first three fields). A submission's page shows every field
 and has Reply (when it has an `email` field) and Delete. They are kept in a
-`submission` table in the D1 database, after `auth.tablePrefix`, created on
-first use, until an admin deletes them. In local mode (`astro dev` without
+`submission` table in the D1 database, after `auth.tablePrefix`, created
+when a query first finds it missing, until an admin deletes them. In local mode (`astro dev` without
 `VESTRY_MODE=auth`) the page has no database to read; in `astro dev` the
 site's handler writes to Wrangler's local D1, not `.vestry/auth.sqlite`.
 

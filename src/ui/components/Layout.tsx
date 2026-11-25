@@ -20,12 +20,13 @@ import {
 } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useVestry } from "../context.js";
+import { Avatar } from "./Avatar.js";
 import { DeployStatus } from "./DeployStatus.js";
 import { Icon } from "./Icon.js";
 import { Menu } from "./ui.js";
 import { logoSrc } from "../lib/logo.js";
 import { VestryMark } from "./VestryMark.js";
-import { cx, initials } from "../lib/utils.js";
+import { cx } from "../lib/utils.js";
 import type { ClientConfig, PublicUser } from "../api.js";
 import type { NavigationGroup, VestryConfig } from "../../config/types.js";
 
@@ -222,7 +223,12 @@ function AccountMenu({ user }: { user: PublicUser }) {
           onClick={toggle}
           title={user.name}
         >
-          {initials(user.name || user.email || "?")}
+          <Avatar
+            name={user.name}
+            email={user.email}
+            size={28}
+            className="v-avatar--chrome"
+          />
         </button>
       )}
     >

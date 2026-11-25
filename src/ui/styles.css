@@ -274,11 +274,6 @@ a.v-chrome__chip:hover {
   place-items: center;
   overflow: hidden;
 }
-.v-chrome__avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
 .v-chrome__avatar:hover {
   border-color: rgba(255, 255, 255, 0.4);
 }
@@ -2952,9 +2947,11 @@ button.v-table__toggle:hover {
   min-width: 0;
 }
 .v-avatar {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--v-primary-soft);
   color: var(--v-primary);
   font-size: 12px;
@@ -2963,9 +2960,19 @@ button.v-table__toggle:hover {
   place-items: center;
   flex: none;
 }
-.v-chrome__avatar {
-  font-size: 12px;
-  font-weight: 700;
+/* The Gravatar picture covers the initials once it loads. */
+.v-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.v-avatar--chrome {
+  width: 100%;
+  height: 100%;
+  background: none;
+  color: inherit;
   letter-spacing: 0.02em;
 }
 .v-radio-cards {

@@ -434,7 +434,8 @@ export interface CollectionConfig {
    * `false` leaves the collection off the dashboard: no tile, no "Recent …"
    * list and no New button there. It stays in the sidebar. For collections
    * editors rarely open, such as categories, authors or generated entries.
-   * Setting `recent` on such a collection is an error at startup.
+   * Asking such a collection for a recent list (`recent: true` or a number
+   * above 0) is an error at startup.
    */
   dashboard?: boolean;
   /**

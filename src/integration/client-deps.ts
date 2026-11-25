@@ -33,6 +33,7 @@ export const clientDependencies = [
   "mdast-util-from-markdown",
   "mdast-util-gfm",
   "mdast-util-mdx",
+  "mdast-util-mdx-jsx",
   "mdast-util-to-hast",
   "mdast-util-to-markdown",
   "micromark-extension-gfm",

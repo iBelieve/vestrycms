@@ -20,6 +20,39 @@ while Vestry is below 1.0, a minor version may change behaviour.
 - In `astro dev` with local files, links to the site (View, the address
   under the title, the lists' and analytics' links) go to the dev server
   rather than to `siteUrl`.
+- **Gravatars.** The top bar's account button and the **Users** page show
+  each user's Gravatar, looked up by the SHA-256 hash of their address.
+  People without one get Gravatar's initials on a colour of their own
+  (`d=initials`, from their name). The panel's own initials show while the
+  picture loads, and stay if Gravatar can't be reached.
+- **`prefetch` on `ContentSource`** (optional): the API calls it while the
+  session is checked, so a source can start loading what the request will
+  read, and awaits the promise it returns before answering.
+
+### Changed
+
+- **Fewer D1 and GitHub round trips per admin request**, each of which
+  costs 100 ms or more from a Worker far from the database:
+  - A new isolate checks one schema version row, in a new
+    `<prefix>vestrySchema` table in the sign-in database, instead of Better
+    Auth's migrator and its own schema check, which between them read the
+    layout of every table in the shared database twice. The migrator still
+    runs when the row is missing or the schema changed (delete the row to
+    have the next isolate check, and migrate, in full).
+  - A session is read with its user in one query (Better Auth's database
+    joins), and the **Users** page reads Better Auth's adapter directly
+    instead of its admin endpoints, which looked the session up again: 9
+    queries down to 2.
+  - The submissions table is created only when a query finds it missing,
+    rather than with two `CREATE … IF NOT EXISTS` on every isolate.
+  - The repository tree is read by the head commit's SHA, without first
+    reading the commit, and signed-in requests start the installation token
+    and branch head while their session is checked.
+
+## 0.8.0
+
+### Added
+
 - **Form submissions.** `forms` in the config names the site's forms, and
   `saveSubmission` (from the new `vestrycms/forms` export) saves what the
   site's own handler receives into the D1 database. Admins read each form's
@@ -49,8 +82,6 @@ while Vestry is below 1.0, a minor version may change behaviour.
   name in the folder shown and every folder inside it, naming the folder
   each match sits in. The assets API takes `all=1` for that recursive
   listing.
-- Hidden folders in an asset folder (`.cache`, say) no longer show up as
-  folders, as hidden files already didn't.
 - **More icons**: `book-down`, `book-marked`, `circle-question-mark`,
   `columns-4`, `diamond`, `download`, `feather`, `grid-3x3`, `library`,
   `list-indent-increase`, `music`, `notebook-pen`, `shopping-cart`,
@@ -137,12 +168,23 @@ while Vestry is below 1.0, a minor version may change behaviour.
   EHV proclaims…"), links keep their words but not their addresses, and
   images, code blocks, footnotes and the backslashes of hard line breaks
   are left out.
+- Hidden folders in an asset folder (`.cache`, say) no longer show up as
+  folders, as hidden files already didn't.
 - A menu item's name stays whole beside a long link ("Donate
   https://www.paypal.com/…", not "Do…").
 - A file field shows a file icon, not a picture's, beside a PDF or while
   empty.
 - An `index` entry's View link opens its folder's page (`/`, or
   `/guides` for `guides/index`) instead of `/index`.
+- A component prop kept as written (a function, or a template literal
+  with placeholders) that spans lines keeps its indentation on save; each
+  save took two spaces off its later lines, whitespace inside a template
+  literal included. Vestry now depends on `mdast-util-mdx-jsx` 3.2.1 or
+  later directly, whatever version a site's `mdast-util-mdx` resolves.
+- A string prop holding a character reference (`Tom &amp; Jerry`) is
+  saved as an expression, so a save no longer decodes it to `Tom & Jerry`.
+- Saving a body with a block fragment (`<>` … `</>`) no longer writes
+  `<><>`, which MDX cannot read.
 
 ## 0.7.0
 

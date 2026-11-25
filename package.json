@@ -1,6 +1,6 @@
 {
   "name": "vestrycms",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "A git-backed CMS for Astro. Content, assets and configuration live in your repository; the control panel runs as an Astro integration.",
   "license": "MIT",
   "author": "Michael Spencer",
@@ -111,6 +111,7 @@
     "mdast-util-from-markdown": "^2.0.2",
     "mdast-util-gfm": "^3.1.0",
     "mdast-util-mdx": "^3.0.0",
+    "mdast-util-mdx-jsx": "^3.2.1",
     "mdast-util-to-hast": "^13.2.1",
     "mdast-util-to-markdown": "^2.1.2",
     "micromark-extension-gfm": "^3.0.0",

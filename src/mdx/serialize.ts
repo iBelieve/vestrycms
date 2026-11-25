@@ -10,6 +10,7 @@ import type {
 } from "mdast-util-mdx";
 import { gfmToMarkdown } from "mdast-util-gfm";
 import { mdxToMarkdown } from "mdast-util-mdx";
+import { mdxJsxToMarkdown } from "mdast-util-mdx-jsx";
 import {
   defaultHandlers,
   toMarkdown,
@@ -84,7 +85,13 @@ export function serializeMdx(
   }
 
   const mdx = mdxToMarkdown({ quote: '"' });
-  const libFlow = findHandler(mdx, "mdxJsxFlowElement");
+  // The JSX handlers come from mdast-util-mdx-jsx itself, at the version
+  // this package requires, rather than whichever one mdast-util-mdx
+  // resolved in the site: since 3.2.1 they indent an expression's later
+  // lines (see `propsToAttributes`), and before it they lost that indent.
+  const jsx = mdxJsxToMarkdown({ quote: '"' });
+  const libFlow = findHandler(jsx, "mdxJsxFlowElement");
+  const libText = findHandler(jsx, "mdxJsxTextElement");
   let out = toMarkdown(root, {
     extensions: isMdx ? [mdx, gfmToMarkdown()] : [gfmToMarkdown()],
     bullet: "-",
@@ -100,6 +107,7 @@ export function serializeMdx(
       rawHtml: (node: { value: string }) => node.value,
       rawInlineHtml: (node: { value: string }) => node.value,
       ...(libFlow ? { mdxJsxFlowElement: flowElementHandler(libFlow) } : {}),
+      ...(libText ? { mdxJsxTextElement: libText } : {}),
       list: listHandler(defaultHandlers.list as Handler),
     } as never,
   });
@@ -147,10 +155,13 @@ function flowElementHandler(lib: Handler): Handler {
   return (node, parent, state, info) => {
     const el = node as MdxJsxFlowElement;
     if (!el.children?.length) return lib(node, parent, state, info);
-    const open = lib({ ...el, children: [] }, parent, state, info).replace(
-      /\s*\/>$/,
-      ">",
-    );
+    // The library writes an empty fragment as `<></>`, not self-closing.
+    const open = el.name
+      ? lib({ ...el, children: [] }, parent, state, info).replace(
+          /\s*\/>$/,
+          ">",
+        )
+      : "<>";
     const children = state.containerFlow(el, info);
     return `${open}\n\n${children}\n\n</${el.name ?? ""}>`;
   };
@@ -548,8 +559,10 @@ function propsToAttributes(
       attrs.push({ type: "mdxJsxAttribute", name, value });
     } else {
       // Block components print each attribute on its own line, indented
-      // two spaces, so nested lines are indented relative to that.
-      const source = valueToSource(value, inline ? "" : "  ");
+      // two spaces, so the value is laid out for that column. The library
+      // indents the expression's later lines by those two spaces itself
+      // (MDX takes them off again when it reads the file).
+      const source = valueToSource(value, "", inline ? 0 : 2);
       scan(source, used);
       attrs.push({
         type: "mdxJsxAttribute",

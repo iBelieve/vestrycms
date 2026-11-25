@@ -15,6 +15,7 @@ import {
   titleCase,
   validate,
 } from "../src/ui/lib/utils.js";
+import { gravatarUrl } from "../src/ui/components/Avatar.js";
 
 describe("defaultValue", () => {
   afterEach(() => vi.useRealTimers());
@@ -331,5 +332,38 @@ describe("siteHref", () => {
       "https://example.org/note:a",
     );
     expect(siteHref(undefined, "mailto:a@b.org")).toBe("/mailto:a@b.org");
+  });
+});
+
+describe("gravatarUrl", () => {
+  it("hashes the trimmed, lower-cased address with SHA-256", async () => {
+    // Gravatar's own example (docs.gravatar.com/rest/hash).
+    const url = new URL(
+      (await gravatarUrl(" MyEmailAddress@example.com ", "Ann Smith", 64))!,
+    );
+    expect(url.pathname).toBe(
+      "/avatar/84059b07d4be67b806386c0aad8070a23f18836bbaae342275dc0a83414c32ee",
+    );
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      s: "64",
+      d: "initials",
+      name: "Ann Smith",
+    });
+  });
+
+  it("sends our initials when there is no name", async () => {
+    const url = new URL((await gravatarUrl("seth.georgson@x.org", "", 64))!);
+    expect(url.searchParams.get("initials")).toBe("SG");
+    expect(url.searchParams.has("name")).toBe(false);
+  });
+
+  it("is null without an address or Web Crypto", async () => {
+    expect(await gravatarUrl("  ", "Ann", 64)).toBeNull();
+    vi.stubGlobal("crypto", {});
+    try {
+      expect(await gravatarUrl("a@b.org", "Ann", 64)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
