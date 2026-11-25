@@ -134,7 +134,11 @@ function LoginBrand({
   name: string;
   showName: boolean;
 }) {
-  if (!logos.onDark && !logos.onLight) {
+  // A logo that fails to load (a site still being set up, a URL that's
+  // down) would leave the page without a visible name.
+  const [failed, setFailed] = useState(false);
+  const onError = () => setFailed(true);
+  if (failed || (!logos.onDark && !logos.onLight)) {
     return (
       <>
         <div className="v-login__mark">{name.slice(0, 1)}</div>
@@ -145,14 +149,14 @@ function LoginBrand({
   if (showName) {
     return (
       <>
-        <LoginLogo logos={logos} alt="" />
+        <LoginLogo logos={logos} alt="" onError={onError} />
         <h1>{name}</h1>
       </>
     );
   }
   return (
     <h1 className="v-login__brand">
-      <LoginLogo logos={logos} alt={name} />
+      <LoginLogo logos={logos} alt={name} onError={onError} />
     </h1>
   );
 }
@@ -162,7 +166,15 @@ function LoginBrand({
  * scheme: `onLight` on the light card and `onDark` on the dark one. A site
  * with only one of them gets it on a plate where the card doesn't suit it.
  */
-function LoginLogo({ logos, alt }: { logos: LogoUrls; alt: string }) {
+function LoginLogo({
+  logos,
+  alt,
+  onError,
+}: {
+  logos: LogoUrls;
+  alt: string;
+  onError: () => void;
+}) {
   const { onDark, onLight } = logos;
   const plate = !onLight
     ? " v-login__logo--dark-plate"
@@ -172,11 +184,22 @@ function LoginLogo({ logos, alt }: { logos: LogoUrls; alt: string }) {
   return (
     <picture className={`v-login__logo${plate}`}>
       {onDark && onLight && (
-        <source media="(prefers-color-scheme: dark)" srcSet={onDark} />
+        <source
+          media="(prefers-color-scheme: dark)"
+          srcSet={srcsetCandidate(onDark)}
+        />
       )}
-      <img src={(onLight ?? onDark)!} alt={alt} />
+      <img src={(onLight ?? onDark)!} alt={alt} onError={onError} />
     </picture>
   );
+}
+
+/**
+ * A URL as a lone `srcset` candidate: whitespace there ends the URL and
+ * trailing commas are dropped, so both are percent-encoded.
+ */
+function srcsetCandidate(url: string): string {
+  return url.replace(/\s|,+$/g, (c) => encodeURIComponent(c));
 }
 
 /** Step one: the email address to send a code to. */

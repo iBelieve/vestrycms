@@ -883,9 +883,11 @@ export class ContentService {
     const n = normalizePath(path);
     if (!isSafeRepoPath(n))
       throw new SourceError("Invalid path", 400, "bad_path");
-    const allowed = this.allowedDirectories().some((d) =>
-      n.startsWith(`${d}/`),
-    );
+    // A logo is readable by its own path too, since one at the repository's
+    // root has no directory to allow.
+    const allowed =
+      logoFiles(this.config.logo).some((logo) => normalizePath(logo) === n) ||
+      this.allowedDirectories().some((d) => n.startsWith(`${d}/`));
     if (!allowed)
       throw new SourceError(
         "Path is not readable through Vestry",

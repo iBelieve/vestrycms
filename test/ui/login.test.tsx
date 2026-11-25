@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { openPanel, signIn } from "./harness.js";
 import { defineConfig } from "../../src/config/index.js";
@@ -63,6 +63,33 @@ describe("the sign-in page", () => {
     }
   });
 
+  it("escapes a dark-mode logo URL for its srcset", async () => {
+    await signInPage({
+      logo: {
+        onDark: "https://example.org/my logo.svg",
+        onLight: "src/assets/logos/logo-light.svg",
+      },
+    });
+    const img = screen.getByRole("img", { name: "Test Site" });
+    expect(
+      img.parentElement!.querySelector("source")!.getAttribute("srcset"),
+    ).toBe("https://example.org/my%20logo.svg");
+  });
+
+  it("serves a logo at the root of the repository", async () => {
+    await openPanel(
+      { ...base, logo: { onLight: "logo.svg" } },
+      {
+        files: { "logo.svg": "<svg>root</svg>" },
+        api: { auth: signIn().options },
+      },
+    );
+    await screen.findByRole("button", { name: /Email me a code/ });
+    const response = await fetch(fileUrl("logo.svg"));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("<svg>root</svg>");
+  });
+
   it("puts a dark-surface logo on a dark plate when there is no light one", async () => {
     await signInPage({ logo: "src/assets/logos/logo.svg" });
     const img = screen.getByRole("img", { name: "Test Site" });
@@ -100,6 +127,16 @@ describe("the sign-in page", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Test Site" }),
     ).toBeTruthy();
+    expect(document.querySelector(".v-login__mark")!.textContent).toBe("T");
+  });
+
+  it("shows the name again when the logo fails to load", async () => {
+    await signInPage({ logo: { onLight: "src/assets/logos/missing.svg" } });
+    fireEvent.error(screen.getByRole("img", { name: "Test Site" }));
+    expect(
+      (await screen.findByRole("heading", { level: 1, name: "Test Site" }))
+        .textContent,
+    ).toBe("Test Site");
     expect(document.querySelector(".v-login__mark")!.textContent).toBe("T");
   });
 

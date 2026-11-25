@@ -9,7 +9,7 @@ export function logoVariants(logo: VestryConfig["logo"]): LogoConfig {
 
 /** Whether a logo is an absolute URL rather than a repository path. */
 export function isLogoUrl(logo: string): boolean {
-  return /^https?:\/\//.test(logo);
+  return /^https?:\/\//i.test(logo);
 }
 
 /** The logos that are repository files, which the API serves to anyone. */

@@ -2,8 +2,14 @@
  * Checks a Vestry config when the integration loads, so a mistake is an
  * error at startup rather than something the control panel quietly ignores.
  */
-import { isSafeSlug, parsePathPattern, templateError } from "../core/paths.js";
+import {
+  isSafeRepoPath,
+  isSafeSlug,
+  parsePathPattern,
+  templateError,
+} from "../core/paths.js";
 import { ICON_NAMES, isIconName } from "./icons.js";
+import { isLogoUrl } from "./logo.js";
 import type {
   CollectionConfig,
   ComponentConfig,
@@ -220,12 +226,20 @@ function checkForms(forms: VestryConfig["forms"]) {
   }
 }
 
+/**
+ * An absolute URL, or a path the API and the build can find: inside the
+ * repository, without surrounding spaces, and not a protocol-relative URL
+ * (`//cdn…`), which would read as a repository path.
+ */
 const isLogoPath = (value: unknown) =>
-  typeof value === "string" && value.trim() !== "";
+  typeof value === "string" &&
+  value === value.trim() &&
+  (isLogoUrl(value) || (!value.startsWith("//") && isSafeRepoPath(value)));
 
 /** A path or URL, or `{ onDark, onLight }` with at least one of them. */
 function checkLogo(logo: VestryConfig["logo"]) {
-  if (logo === undefined) return;
+  // An empty string has always meant no logo.
+  if (logo === undefined || logo === "") return;
   if (typeof logo === "string") {
     if (!isLogoPath(logo)) fail("logo must be a repository path or a URL");
     return;
@@ -251,8 +265,10 @@ function checkLogoVariants(logo: LogoConfig) {
 
 function checkSignIn(signIn: VestryConfig["signIn"]) {
   if (signIn === undefined) return;
-  if (typeof signIn !== "object" || signIn === null)
+  if (typeof signIn !== "object" || signIn === null || Array.isArray(signIn))
     fail("signIn must be an object");
+  const unknown = Object.keys(signIn).find((key) => key !== "showName");
+  if (unknown) fail(`signIn has an unknown key "${unknown}"; use showName`);
   if (signIn.showName !== undefined && typeof signIn.showName !== "boolean")
     fail("signIn.showName must be true or false");
 }

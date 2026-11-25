@@ -34,6 +34,7 @@ describe("logoVariants and logoFiles", () => {
       }),
     ).toEqual(["src/assets/logo-light.svg"]);
     expect(logoFiles("src/assets/logo.svg")).toEqual(["src/assets/logo.svg"]);
+    expect(logoFiles("HTTPS://example.org/logo.svg")).toEqual([]);
     expect(logoFiles(undefined)).toEqual([]);
   });
 });

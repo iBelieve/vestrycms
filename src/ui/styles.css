@@ -2972,6 +2972,10 @@ button.v-table__toggle:hover {
     border-color: var(--v-border);
     box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
   }
+  /* The initial's chrome-coloured square would vanish into the dark card. */
+  .v-login__mark {
+    box-shadow: inset 0 0 0 1px var(--v-border-strong);
+  }
   .v-login .v-input {
     background: #120e0c;
   }

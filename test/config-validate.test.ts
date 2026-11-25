@@ -486,7 +486,9 @@ describe("validateConfig", () => {
       { onDark: "src/assets/logo.svg", onLight: "src/assets/logo-light.svg" },
     ])
       expect(() => validateConfig(withLogo(logo))).not.toThrow();
-    expect(() => validateConfig(withLogo(""))).toThrow(
+    // An empty string is no logo, as it always was.
+    expect(() => validateConfig(withLogo(""))).not.toThrow();
+    expect(() => validateConfig(withLogo(" "))).toThrow(
       "logo must be a repository path or a URL",
     );
     expect(() => validateConfig(withLogo(42))).toThrow(
@@ -503,6 +505,26 @@ describe("validateConfig", () => {
     );
   });
 
+  it("refuses a logo path the API could never serve", () => {
+    const withLogo = (logo: unknown) =>
+      ({ repo, logo }) as unknown as VestryConfig;
+    expect(() =>
+      validateConfig(withLogo("HTTPS://example.org/logo.svg")),
+    ).not.toThrow();
+    for (const logo of [
+      "/",
+      "../logo.svg",
+      " src/assets/logo.svg",
+      "//cdn.example.org/logo.svg",
+    ])
+      expect(() => validateConfig(withLogo(logo))).toThrow(
+        "logo must be a repository path or a URL",
+      );
+    expect(() => validateConfig(withLogo({ onDark: "src/../.git/x" }))).toThrow(
+      "logo.onDark must be a repository path or a URL",
+    );
+  });
+
   it("accepts signIn.showName only as true or false", () => {
     const withSignIn = (signIn: unknown) =>
       ({ repo, signIn }) as unknown as VestryConfig;
@@ -513,6 +535,12 @@ describe("validateConfig", () => {
     );
     expect(() => validateConfig(withSignIn(true))).toThrow(
       "signIn must be an object",
+    );
+    expect(() => validateConfig(withSignIn([]))).toThrow(
+      "signIn must be an object",
+    );
+    expect(() => validateConfig(withSignIn({ showname: true }))).toThrow(
+      'signIn has an unknown key "showname"; use showName',
     );
   });
 
