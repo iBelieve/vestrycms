@@ -1,4 +1,7 @@
 minimumReleaseAge: 10080
+# latest-or-bust is our own package; take its releases without the delay.
+minimumReleaseAgeExclude:
+  - latest-or-bust
 autoInstallPeers: true
 strictPeerDependencies: false
 allowBuilds:

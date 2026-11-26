@@ -7,6 +7,10 @@ updates:
       interval: weekly
     cooldown:
       default-days: 2
+      # Our own package, exempt from the release-age delay in
+      # pnpm-workspace.yaml too.
+      exclude:
+        - latest-or-bust
     groups:
       npm-minor-and-patch:
         patterns:

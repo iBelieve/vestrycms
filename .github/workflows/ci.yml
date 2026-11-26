@@ -18,6 +18,10 @@ jobs:
           check-latest: true
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Fails a pull request that adds or changes a dependency at anything
+      # but its newest release. Pushes to master and Dependabot's pull
+      # requests pass with nothing to check.
+      - run: pnpm check:deps
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm fallow
