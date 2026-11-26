@@ -486,8 +486,9 @@ describe("validateConfig", () => {
       { onDark: "src/assets/logo.svg", onLight: "src/assets/logo-light.svg" },
     ])
       expect(() => validateConfig(withLogo(logo))).not.toThrow();
-    // An empty string is no logo, as it always was.
+    // An empty string or null is no logo, as it always was.
     expect(() => validateConfig(withLogo(""))).not.toThrow();
+    expect(() => validateConfig(withLogo(null))).not.toThrow();
     expect(() => validateConfig(withLogo(" "))).toThrow(
       "logo must be a repository path or a URL",
     );

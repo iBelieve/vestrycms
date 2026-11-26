@@ -180,5 +180,6 @@ export function withAuthor(
     commit: (changes, options) =>
       source.commit(changes, { author, ...options }),
     recentCommits: source.recentCommits?.bind(source),
+    prefetch: source.prefetch?.bind(source),
   };
 }

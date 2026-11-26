@@ -238,13 +238,14 @@ const isLogoPath = (value: unknown) =>
 
 /** A path or URL, or `{ onDark, onLight }` with at least one of them. */
 function checkLogo(logo: VestryConfig["logo"]) {
-  // An empty string has always meant no logo.
-  if (logo === undefined || logo === "") return;
+  // An empty string (or null, in a config the type check never sees) has
+  // always meant no logo.
+  if (logo === undefined || logo === null || logo === "") return;
   if (typeof logo === "string") {
     if (!isLogoPath(logo)) fail("logo must be a repository path or a URL");
     return;
   }
-  if (typeof logo !== "object" || logo === null)
+  if (typeof logo !== "object")
     fail("logo must be a path or URL, or { onDark, onLight }");
   checkLogoVariants(logo);
 }
