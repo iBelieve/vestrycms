@@ -3,7 +3,7 @@
 Notable changes to Vestry. Versions follow [semantic versioning](https://semver.org);
 while Vestry is below 1.0, a minor version may change behaviour.
 
-## Unreleased
+## 0.9.0
 
 ### Added
 
@@ -38,7 +38,9 @@ while Vestry is below 1.0, a minor version may change behaviour.
     Auth's migrator and its own schema check, which between them read the
     layout of every table in the shared database twice. The migrator still
     runs when the row is missing or the schema changed (delete the row to
-    have the next isolate check, and migrate, in full).
+    have the next isolate check, and migrate, in full). Problems the
+    migrator reports with a table are logged, and no version is recorded
+    while there are any.
   - A session is read with its user in one query (Better Auth's database
     joins), and the **Users** page reads Better Auth's adapter directly
     instead of its admin endpoints, which looked the session up again: 9

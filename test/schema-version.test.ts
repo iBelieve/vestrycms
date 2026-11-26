@@ -10,20 +10,30 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { createVestryAuth } from "../src/core/auth.js";
 import { memoryMailer } from "../src/core/mail.js";
 import { schemaFingerprint } from "../src/core/schema-version.js";
 import { submissionStore } from "../src/core/submissions.js";
 
 const dir = mkdtempSync(join(tmpdir(), "vestry-schema-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+const opened: DatabaseSync[] = [];
+/** A database on `file`, closed before the folder is removed. */
+const open = (file: string) => {
+  const db = new DatabaseSync(file);
+  opened.push(db);
+  return db;
+};
+afterAll(() => {
+  for (const db of opened) if (db.isOpen) db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
 let files = 0;
 const newFile = () => join(dir, `db-${++files}.sqlite`);
 
 /** A database on `file` that records the SQL it is asked to run. */
 function isolate(file: string) {
-  const db = new DatabaseSync(file);
+  const db = open(file);
   const queries: string[] = [];
   const prepare = db.prepare.bind(db);
   db.prepare = (sql: string) => {
@@ -105,7 +115,7 @@ describe("the auth schema's version", () => {
   it("checks in full again when the version is missing or differs", async () => {
     const file = newFile();
     await auth(isolate(file).db).ensureMigrated();
-    const db = new DatabaseSync(file);
+    const db = open(file);
     db.exec(`UPDATE "site_vestrySchema" SET version = 'older'`);
 
     const after = isolate(file);
@@ -120,6 +130,31 @@ describe("the auth schema's version", () => {
     const cleared = isolate(file);
     await auth(cleared.db).ensureMigrated();
     expect(introspects(cleared.queries)).toBe(true);
+  });
+
+  it("records no version while a column the schema doesn't know is required", async () => {
+    // Every insert into such a table fails, and with Better Auth's own
+    // check off nothing else would say so.
+    const file = newFile();
+    const { db } = isolate(file);
+    await auth(db).ensureMigrated();
+    const { sql } = db
+      .prepare(
+        `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'site_verification'`,
+      )
+      .get() as { sql: string };
+    db.exec(`DROP TABLE "site_verification"`);
+    db.exec(sql.replace(/\)\s*$/, `, "extra" TEXT NOT NULL)`));
+    db.exec(`DELETE FROM "site_vestrySchema"`);
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await auth(isolate(file).db).ensureMigrated();
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/extra/));
+    } finally {
+      warn.mockRestore();
+    }
+    expect(db.prepare(`SELECT * FROM "site_vestrySchema"`).all()).toEqual([]);
   });
 
   it("is kept per table prefix", async () => {

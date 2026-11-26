@@ -1,6 +1,6 @@
 {
   "name": "vestrycms",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A git-backed CMS for Astro. Content, assets and configuration live in your repository; the control panel runs as an Astro integration.",
   "license": "MIT",
   "author": "Michael Spencer",

@@ -228,7 +228,7 @@ export function createVestryAuth(opts: VestryAuthOptions) {
       // With changes left to make by hand, or another isolate's migration
       // still under way, every isolate keeps checking until the tables are
       // right.
-      if (versions && current) await versions.set("auth", version);
+      if (versions && current) await recordSchemaVersion(versions, version);
     })().catch((e) => {
       byPrefix.delete(prefix);
       throw e;
@@ -328,17 +328,23 @@ export type VestryAuth = ReturnType<typeof createVestryAuth>;
 
 /**
  * Runs Better Auth's migrations, and says whether the tables are now
- * current: not with changes left to make by hand, nor when another isolate
- * was creating the same tables at the same moment, since its run may still
- * have the rest to create (and may not live to).
+ * current: not with changes left to make by hand (including columns the
+ * schema doesn't know that inserts would still have to fill), nor when
+ * another isolate was creating the same tables at the same moment, since
+ * its run may still have the rest to create (and may not live to).
  */
 async function runAuthMigrations(options: BetterAuthOptions): Promise<boolean> {
   // Only loaded when the schema may need work.
   const { getMigrations } = await import("better-auth/db/migration");
-  const { runMigrations, unsafeChanges } = await getMigrations(options, {
-    throwOnUnsafe: false,
-  });
-  for (const change of unsafeChanges ?? []) {
+  const { runMigrations, unsafeChanges, schemaProblems } = await getMigrations(
+    options,
+    { throwOnUnsafe: false },
+  );
+  // Better Auth's own check, which would report these, is off (see
+  // `validateSchema`), so they are reported here and never recorded as
+  // current.
+  const manual = [...(unsafeChanges ?? []), ...(schemaProblems ?? [])];
+  for (const change of manual) {
     console.warn(`[vestry] auth schema needs a manual migration: ${change}`);
   }
   try {
@@ -349,7 +355,23 @@ async function runAuthMigrations(options: BetterAuthOptions): Promise<boolean> {
       throw e;
     return false;
   }
-  return !unsafeChanges?.length;
+  return !manual.length;
+}
+
+/**
+ * Records the auth schema's version. Only a shortcut for later isolates, so
+ * failing to write it leaves them to check in full rather than failing the
+ * request whose migration succeeded.
+ */
+async function recordSchemaVersion(
+  versions: ReturnType<typeof schemaVersions>,
+  version: string,
+): Promise<void> {
+  try {
+    await versions.set("auth", version);
+  } catch (e) {
+    console.warn("[vestry] could not record the auth schema's version", e);
+  }
 }
 
 type InternalAdapter = Awaited<
