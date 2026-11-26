@@ -317,6 +317,9 @@ importers:
       jsdom:
         specifier: ^31.0.0
         version: 31.0.1(@noble/hashes@2.4.0)
+      latest-or-bust:
+        specifier: ^0.2.0
+        version: 0.2.0
       oxlint:
         specifier: ^1.93.0
         version: 1.93.0
@@ -2464,6 +2467,11 @@ packages:
     resolution: {integrity: sha512-ixHU1H4R+LeC5Y0nAhYgiGRFpFRHm2DXKEmJSs/vbes9sKXyssyzxzE/NYiOJX5fY0BL28biCre3GqlCqUwyXQ==}
     engines: {node: '>=22.0.0'}
 
+  latest-or-bust@0.2.0:
+    resolution: {integrity: sha512-AaUpYuMcZ6Ii7Vx7a9hJCFrw6RZNYlPOoCtfmgdG3CW0ViDUcQIJIL0b3caNNkXlZ9I5Wk8BVVsP3iDJLvXwtQ==}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
+    hasBin: true
+
   lightningcss-android-arm64@1.33.0:
     resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
     engines: {node: '>= 12.0.0'}
@@ -2768,6 +2776,11 @@ packages:
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
+
+  npm-check-updates@23.1.1:
+    resolution: {integrity: sha512-UzYDvvsQRkmXR59g9SqsQxygYp7AhFpfEcOOGOJaB/P7pF/XlaqIYLK3UjUGfMHH1+aS2nZvJRaIsk2nk0z5ag==}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0, npm: '>=10.0.0'}
+    hasBin: true
 
   nth-check@2.1.1:
     resolution: {integrity: sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==}
@@ -5235,6 +5248,12 @@ snapshots:
 
   kysely@0.29.8: {}
 
+  latest-or-bust@0.2.0:
+    dependencies:
+      npm-check-updates: 23.1.1
+      smol-toml: 1.9.1
+      yaml: 2.9.1
+
   lightningcss-android-arm64@1.33.0:
     optional: true
 
@@ -5770,6 +5789,8 @@ snapshots:
   node-mock-http@1.0.5: {}
 
   normalize-path@3.0.0: {}
+
+  npm-check-updates@23.1.1: {}
 
   nth-check@2.1.1:
     dependencies:

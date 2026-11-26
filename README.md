@@ -870,6 +870,7 @@ pnpm test
 pnpm format:check
 pnpm lint        # oxlint, with type-aware rules
 pnpm fallow      # unused files, exports and dependencies; import cycles
+pnpm check:deps  # dependencies the branch adds or changes are the newest release
 pnpm test:coverage
 pnpm health      # complexity, and CRAP scores from that coverage
 ```

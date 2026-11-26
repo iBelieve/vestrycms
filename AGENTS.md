@@ -22,9 +22,15 @@ main consumer; keep it free of site-specific code.
 - `pnpm dev` – build, then `tsc --watch` (for a site linked with
   `pnpm link`).
 - `pnpm typecheck`, `pnpm test`, `pnpm format:check`, `pnpm lint`,
-  `pnpm fallow` – what CI (`.github/workflows/ci.yml`) runs, plus
+  `pnpm fallow`, `pnpm check:deps` – what CI (`.github/workflows/ci.yml`) runs, plus
   `pnpm build` and `npm pack --dry-run`. CI runs the tests as
   `pnpm test:coverage` and then `pnpm health`.
+- `pnpm check:deps` (latest-or-bust, also in CI) fails if a dependency the
+  branch adds or changes since `origin/master` isn't the newest release the
+  7-day `minimumReleaseAge` allows. Add dependencies at their newest
+  release; to hold one back on purpose, exempt it in `latest-or-bust.json`
+  with the reason. latest-or-bust is our own package, so it's in
+  `minimumReleaseAgeExclude` and Dependabot's cooldown `exclude`.
 - `pnpm health` (Fallow's `health --complexity`, reading `coverage/` from
   `pnpm test:coverage`) fails on any function with cyclomatic complexity
   over 20, cognitive complexity over 15 (Fallow also counts JSX
